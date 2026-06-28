@@ -1,0 +1,11 @@
+{
+  "name": "Employee PWA",
+  "description": "Smart Workforce Management Integrated HR Operations Platform.",
+  "requestFramePermissions": [
+    "camera",
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
