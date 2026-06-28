@@ -31,7 +31,7 @@ export default function Splash() {
           <Briefcase className="w-10 h-10 text-white" strokeWidth={1.5} />
         </div>
         <h1 className="text-2xl font-bold text-slate-900 tracking-tight">SmartWork</h1>
-        <p className="text-xs text-slate-500 mt-2 font-bold uppercase tracking-wider">Operasi SDM Terintegrasi</p>
+        <p className="text-xs text-slate-500 mt-2 font-bold uppercase tracking-wider">absensi PT.CTI</p>
       </motion.div>
       
       <motion.div 

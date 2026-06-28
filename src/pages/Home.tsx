@@ -55,7 +55,7 @@ export default function Home() {
           </div>
           <div>
             <h1 className="text-lg font-bold tracking-tight text-slate-900 leading-none">SmartWork</h1>
-            <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider mt-1">Operasi SDM</p>
+            <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider mt-1">absensi PT.CTI</p>
           </div>
         </div>
         
