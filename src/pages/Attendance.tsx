@@ -128,66 +128,51 @@ export default function Attendance() {
     setStep('LOCATION_FOUND');
   };
 
-  // Memulai proses verifikasi dengan mencari titik koordinat lokasi GPS pengguna
+  // Memulai proses verifikasi dengan mencari titik koordinat lokasi GPS pengguna saat tombol ditekan
   const startProcess = () => {
     setError('');
+    // Ubah state ke LOCATING agar indikator loading (teks 'Memproses Lokasi...') muncul
     setStep('LOCATING');
     
     if ('geolocation' in navigator) {
-      // Opsi untuk pencarian lokasi awal
-      const geoOptions = { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 };
+      // Opsi Geolocation sesuai permintaan: akurasi tinggi, batas waktu 10 detik, dan tanpa cache
+      const geoOptions = { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 };
 
-      // Callback jika berhasil
+      // Callback jika berhasil mendapatkan lokasi
       const successCallback = (position: GeolocationPosition) => {
         setLocation({
           lat: position.coords.latitude,
           lng: position.coords.longitude
         });
+        // Lanjut ke tahap berikutnya setelah lokasi ditemukan
         setStep((prev) => prev === 'LOCATING' ? 'LOCATION_FOUND' : prev);
       };
 
-      // Callback jika gagal
+      // Callback jika gagal mendapatkan lokasi (misal: ditolak pengguna atau timeout)
       const errorCallback = (err: GeolocationPositionError) => {
         console.warn('Geolocation error:', err.message);
         
-        // Coba lagi tanpa high accuracy jika gagal karena timeout atau tidak tersedia
-        if (err.code === err.TIMEOUT || err.code === err.POSITION_UNAVAILABLE) {
-          navigator.geolocation.getCurrentPosition(
-            successCallback,
-            (retryErr) => {
-              let errorMsg = 'Gagal mendapatkan lokasi akurat. ';
-              setError(errorMsg + 'Coba izinkan akses lokasi, muat ulang halaman, atau gunakan tab baru.');
-              setStep('INITIAL');
-            },
-            { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 }
-          );
-        } else {
-          let errorMsg = 'Gagal mendapatkan lokasi. ';
-          if (err.code === err.PERMISSION_DENIED) errorMsg += 'Pastikan izin akses lokasi diizinkan di browser Anda.';
-          
-          setError(errorMsg);
-          setStep('INITIAL');
-        }
+        // Pesan error spesifik sesuai permintaan
+        const errorMsg = 'Gagal Absen! Anda wajib mengaktifkan GPS dan mengizinkan akses lokasi pada browser ini untuk melakukan absensi.';
+        
+        // Tampilkan peringatan pop-up
+        window.alert(errorMsg);
+        
+        // Tampilkan pesan error di UI dan kembalikan state ke awal (tombol kembali semula)
+        setError(errorMsg);
+        setStep('INITIAL');
       };
 
-      // Menggunakan getCurrentPosition alih-alih watchPosition untuk menghindari bug pada beberapa perangkat
+      // Memanggil fungsi Geolocation API browser untuk meminta koordinat saat itu juga
       navigator.geolocation.getCurrentPosition(successCallback, errorCallback, geoOptions);
-      
-      // Jika tetap ingin melacak, bisa gunakan watchPosition secara terpisah, 
-      // namun untuk absensi biasanya 1 titik sudah cukup.
     } else {
-      setError('Browser Anda tidak mendukung fitur geolokasi.');
+      // Handling jika browser tidak mendukung fitur Geolocation
+      const errorMsg = 'Gagal Absen! Browser Anda tidak mendukung fitur lokasi.';
+      window.alert(errorMsg);
+      setError(errorMsg);
       setStep('INITIAL');
     }
   };
-
-  // Otomatis memulai pencarian lokasi saat halaman absensi dibuka
-  useEffect(() => {
-    if (step === 'INITIAL') {
-      startProcess();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   // Mengirimkan catatan kehadiran akhir (check-in atau check-out) menuju sistem penyimpanan global (store)
   const handleSubmit = async () => {
@@ -487,7 +472,7 @@ export default function Attendance() {
           className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-2xl py-5 font-bold text-lg shadow-xl shadow-blue-100 flex items-center justify-center gap-3 transition-all active:scale-[0.98] disabled:opacity-70 disabled:shadow-none"
         >
           {step === 'LOCATING' && <Loader2 className="w-5 h-5 animate-spin" />}
-          {step === 'LOCATING' ? 'Memverifikasi Lokasi...' : `Mulai Absen ${isCheckedIn ? 'Pulang' : 'Masuk'}`}
+          {step === 'LOCATING' ? 'Memproses Lokasi...' : `Mulai Absen ${isCheckedIn ? 'Pulang' : 'Masuk'}`}
         </button>
       )}
     </div>

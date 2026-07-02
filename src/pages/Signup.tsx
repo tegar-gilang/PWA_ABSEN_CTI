@@ -90,7 +90,7 @@ export default function Signup() {
           </motion.div>
 
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
-            <label className="block text-sm font-bold text-slate-700 mb-1.5 uppercase tracking-wider">Departemen</label>
+            <label className="block text-sm font-bold text-slate-700 mb-1.5 uppercase tracking-wider">Divisi</label>
             <input
               type="text"
               value={department}

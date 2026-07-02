@@ -111,7 +111,7 @@ export default function Profile() {
                 <Building className="w-5 h-5" />
               </div>
               <div className="flex-1 border-b border-slate-100 pb-4">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Departemen</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Divisi</p>
                 <p className="font-bold text-slate-900">{user.department}</p>
               </div>
             </div>

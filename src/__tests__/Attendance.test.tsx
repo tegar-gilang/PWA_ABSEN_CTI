@@ -51,7 +51,7 @@ describe('Attendance Component', () => {
     (global as any).navigator.geolocation = mockGeolocation;
   });
 
-  it('renders initial check-in state and automatically finds location', async () => {
+  it('renders initial check-in state correctly', async () => {
     render(
       <MemoryRouter>
         <Attendance />
@@ -59,18 +59,19 @@ describe('Attendance Component', () => {
     );
     
     expect(screen.getByText('Absen Masuk')).toBeInTheDocument();
-    
-    // Wait for the button to change to "Kamera" since the mock geolocation succeeds immediately and automatically on mount
-    const photoBtn = await screen.findByText('Kamera');
-    expect(photoBtn).toBeInTheDocument();
+    const startBtn = screen.getByText('Mulai Absen Masuk');
+    expect(startBtn).toBeInTheDocument();
   });
 
-  it('progresses to taking photo', async () => {
+  it('progresses to taking photo after getting location', async () => {
     render(
       <MemoryRouter>
         <Attendance />
       </MemoryRouter>
     );
+
+    const startBtn = screen.getByText('Mulai Absen Masuk');
+    fireEvent.click(startBtn);
 
     const photoBtn = await screen.findByText('Kamera');
     expect(photoBtn).toBeInTheDocument();
