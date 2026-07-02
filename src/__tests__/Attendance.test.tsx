@@ -41,12 +41,17 @@ describe('Attendance Component', () => {
     const mockGeolocation = {
       getCurrentPosition: vi.fn().mockImplementationOnce((success) => 
         Promise.resolve(success({ coords: { latitude: 51.1, longitude: 45.3 } }))
-      )
+      ),
+      watchPosition: vi.fn().mockImplementation((success) => {
+        Promise.resolve(success({ coords: { latitude: 51.1, longitude: 45.3 } }));
+        return 1;
+      }),
+      clearWatch: vi.fn(),
     };
     (global as any).navigator.geolocation = mockGeolocation;
   });
 
-  it('renders initial check-in state correctly', () => {
+  it('renders initial check-in state and automatically finds location', async () => {
     render(
       <MemoryRouter>
         <Attendance />
@@ -54,21 +59,20 @@ describe('Attendance Component', () => {
     );
     
     expect(screen.getByText('Absen Masuk')).toBeInTheDocument();
-    expect(screen.getByText('Mulai Absen Masuk')).toBeInTheDocument();
+    
+    // Wait for the button to change to "Kamera" since the mock geolocation succeeds immediately and automatically on mount
+    const photoBtn = await screen.findByText('Kamera');
+    expect(photoBtn).toBeInTheDocument();
   });
 
-  it('progresses to taking photo after getting location', async () => {
+  it('progresses to taking photo', async () => {
     render(
       <MemoryRouter>
         <Attendance />
       </MemoryRouter>
     );
 
-    const startBtn = screen.getByText('Mulai Absen Masuk');
-    fireEvent.click(startBtn);
-
-    // Wait for the button to change to "Ambil Foto" since the mock geolocation succeeds immediately
-    const photoBtn = await screen.findByText('Ambil Foto');
+    const photoBtn = await screen.findByText('Kamera');
     expect(photoBtn).toBeInTheDocument();
   });
 });

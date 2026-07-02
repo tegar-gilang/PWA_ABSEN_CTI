@@ -9,18 +9,19 @@ export default function Splash() {
   const isAuthenticated = useAppStore(state => state.isAuthenticated);
 
   useEffect(() => {
+    if (!isAuthenticated) {
+      navigate('/login', { replace: true });
+      return;
+    }
+
     const timer = setTimeout(() => {
-      if (isAuthenticated) {
-        navigate('/home', { replace: true });
-      } else {
-        navigate('/login', { replace: true });
-      }
+      navigate('/home', { replace: true });
     }, 2000);
     return () => clearTimeout(timer);
   }, [isAuthenticated, navigate]);
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-full bg-white">
+    <div className="flex flex-col items-center justify-center min-h-[100dvh] w-full max-w-md md:max-w-2xl lg:max-w-4xl mx-auto bg-white relative">
       <motion.div
         initial={{ scale: 0.8, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}

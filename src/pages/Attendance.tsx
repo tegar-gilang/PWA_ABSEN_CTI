@@ -1,79 +1,195 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect, ChangeEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store';
-import { MapPin, AlertCircle, Loader2, CheckCircle2, Camera, RefreshCw } from 'lucide-react';
-import { useCamera } from '../hooks/useCamera';
+import { MapPin, AlertCircle, Loader2, CheckCircle2, Camera, RefreshCw, X, Upload } from 'lucide-react';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { motion } from 'motion/react';
 
-type Step = 'INITIAL' | 'LOCATING' | 'LOCATION_FOUND' | 'PREVIEW' | 'SUBMITTING' | 'SUCCESS';
+type Step = 'INITIAL' | 'LOCATING' | 'LOCATION_FOUND' | 'CAPTURING' | 'PREVIEW' | 'SUBMITTING' | 'SUCCESS';
 
+/**
+ * Attendance Component
+ * Handles the logic for checking in and checking out.
+ * Includes GPS geolocation fetching, camera capture, and file upload fallback for verification.
+ */
 export default function Attendance() {
   const navigate = useNavigate();
+  
+  // State (Status) untuk mengelola tahapan proses absensi yang memiliki beberapa langkah (multi-step)
   const [step, setStep] = useState<Step>('INITIAL');
   const [location, setLocation] = useState<{lat: number, lng: number} | null>(null);
   const [error, setError] = useState<string>('');
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   
-  const { captureImage, isCapturing } = useCamera({ maxWidth: 800, quality: 0.6 });
+  // Refs untuk menyimpan referensi aliran media (kamera) dan input file (unggah foto)
+  const [stream, setStream] = useState<MediaStream | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
+  // Aksi-aksi untuk mengubah status global (Zustand Store)
   const checkIn = useAppStore(state => state.checkIn);
   const checkOut = useAppStore(state => state.checkOut);
   const history = useAppStore(state => state.attendanceHistory);
   
+  // Memeriksa status absensi pengguna untuk hari ini
   const today = format(new Date(), 'yyyy-MM-dd');
   const todaysRecord = history.find(r => r.date === today);
   const isCheckedIn = !!todaysRecord?.checkInTime && !todaysRecord?.checkOutTime;
   const isCheckedOut = !!todaysRecord?.checkOutTime;
 
+  const watchIdRef = useRef<number | null>(null);
+
+  // Menghubungkan aliran gambar kamera (stream) ke elemen video pada saat pengambilan foto (capturing)
+  useEffect(() => {
+    if (videoRef.current && stream) {
+      videoRef.current.srcObject = stream;
+    }
+  }, [stream, step]);
+
+  // Membersihkan memori dari stream kamera dan layanan GPS saat komponen ditutup/dilepas (unmount)
+  useEffect(() => {
+    return () => {
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+      }
+    };
+  }, [stream]);
+
+  // Menangani pengunggahan foto alternatif dari penyimpanan internal perangkat jika kamera tidak digunakan
+  const handleFileUpload = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPhotoUrl(reader.result as string);
+        setStep('PREVIEW'); // Pindah ke tahapan pratinjau (preview) foto
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Memulai inisialisasi kamera untuk pengambilan foto secara langsung (live)
+  const startCamera = async () => {
+    try {
+      setError('');
+      const mediaStream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: 'user' }, 
+        audio: false 
+      });
+      setStream(mediaStream);
+      setStep('CAPTURING');
+    } catch (err: any) {
+      setError('Gagal mengakses kamera. Pastikan izin kamera diberikan.');
+    }
+  };
+
+  // Mengambil gambar dari bingkai video saat ini (current frame) dan menyimpannya sebagai file JPEG terkompresi
+  const capturePhoto = () => {
+    if (videoRef.current) {
+      const canvas = document.createElement('canvas');
+      // Melakukan kompresi ringan dengan membatasi ukuran resolusi maksimum
+      let width = videoRef.current.videoWidth;
+      let height = videoRef.current.videoHeight;
+      const maxWidth = 800;
+      
+      if (width > maxWidth) {
+        height = Math.round((height * maxWidth) / width);
+        width = maxWidth;
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(videoRef.current, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
+        setPhotoUrl(dataUrl);
+        
+        if (stream) {
+          stream.getTracks().forEach(track => track.stop());
+          setStream(null);
+        }
+        
+        setStep('PREVIEW');
+      }
+    }
+  };
+
+  // Menutup akses kamera dan kembali ke tahapan sebelumnya (lokasi ditemukan)
+  const closeCamera = () => {
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop());
+      setStream(null);
+    }
+    setStep('LOCATION_FOUND');
+  };
+
+  // Memulai proses verifikasi dengan mencari titik koordinat lokasi GPS pengguna
   const startProcess = () => {
     setError('');
     setStep('LOCATING');
     
     if ('geolocation' in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setLocation({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude
-          });
-          setStep('LOCATION_FOUND');
-        },
-        (err) => {
-          console.warn('Geolocation error:', err.message);
-          // Fallback for iframe/preview environment
-          setLocation({
-            lat: -6.200000,
-            lng: 106.816666
-          });
-          setStep('LOCATION_FOUND');
-        },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-      );
+      // Opsi untuk pencarian lokasi awal
+      const geoOptions = { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 };
+
+      // Callback jika berhasil
+      const successCallback = (position: GeolocationPosition) => {
+        setLocation({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude
+        });
+        setStep((prev) => prev === 'LOCATING' ? 'LOCATION_FOUND' : prev);
+      };
+
+      // Callback jika gagal
+      const errorCallback = (err: GeolocationPositionError) => {
+        console.warn('Geolocation error:', err.message);
+        
+        // Coba lagi tanpa high accuracy jika gagal karena timeout atau tidak tersedia
+        if (err.code === err.TIMEOUT || err.code === err.POSITION_UNAVAILABLE) {
+          navigator.geolocation.getCurrentPosition(
+            successCallback,
+            (retryErr) => {
+              let errorMsg = 'Gagal mendapatkan lokasi akurat. ';
+              setError(errorMsg + 'Coba izinkan akses lokasi, muat ulang halaman, atau gunakan tab baru.');
+              setStep('INITIAL');
+            },
+            { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 }
+          );
+        } else {
+          let errorMsg = 'Gagal mendapatkan lokasi. ';
+          if (err.code === err.PERMISSION_DENIED) errorMsg += 'Pastikan izin akses lokasi diizinkan di browser Anda.';
+          
+          setError(errorMsg);
+          setStep('INITIAL');
+        }
+      };
+
+      // Menggunakan getCurrentPosition alih-alih watchPosition untuk menghindari bug pada beberapa perangkat
+      navigator.geolocation.getCurrentPosition(successCallback, errorCallback, geoOptions);
+      
+      // Jika tetap ingin melacak, bisa gunakan watchPosition secara terpisah, 
+      // namun untuk absensi biasanya 1 titik sudah cukup.
     } else {
-      // Fallback
-      setLocation({
-        lat: -6.200000,
-        lng: 106.816666
-      });
-      setStep('LOCATION_FOUND');
+      setError('Browser Anda tidak mendukung fitur geolokasi.');
+      setStep('INITIAL');
     }
   };
 
-  const handleCapture = async () => {
-    try {
-      setError('');
-      const compressedPhoto = await captureImage();
-      setPhotoUrl(compressedPhoto);
-      setStep('PREVIEW');
-    } catch (err: any) {
-      if (err.message !== 'User cancelled capture' && err.message !== 'No image selected') {
-        setError('Gagal mengambil foto. Silakan coba lagi.');
-      }
+  // Otomatis memulai pencarian lokasi saat halaman absensi dibuka
+  useEffect(() => {
+    if (step === 'INITIAL') {
+      startProcess();
     }
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
+  // Mengirimkan catatan kehadiran akhir (check-in atau check-out) menuju sistem penyimpanan global (store)
   const handleSubmit = async () => {
     try {
       setStep('SUBMITTING');
@@ -81,6 +197,13 @@ export default function Attendance() {
       const recordData = {
         location: location || { lat: 0, lng: 0 },
         photoUrl: photoUrl || '',
+        ...(isCheckedIn ? {
+          checkOutLocation: location || { lat: 0, lng: 0 },
+          checkOutPhotoUrl: photoUrl || '',
+        } : {
+          checkInLocation: location || { lat: 0, lng: 0 },
+          checkInPhotoUrl: photoUrl || '',
+        })
       };
 
       if (isCheckedIn) {
@@ -96,6 +219,7 @@ export default function Attendance() {
     }
   };
 
+  // Jika pengguna sudah selesai (check-out) untuk hari ini, tampilkan halaman status sukses/selesai
   if (isCheckedOut) {
     return (
       <div className="flex-1 bg-[#F8FAFC] flex flex-col items-center justify-center p-6 text-center">
@@ -114,6 +238,46 @@ export default function Attendance() {
     );
   }
 
+  // Antarmuka UI khusus untuk kamera saat mengambil foto langsung (live)
+  if (step === 'CAPTURING') {
+    return (
+      <div className="flex-1 bg-black flex flex-col p-6 pt-6 text-white pb-safe relative">
+        <button onClick={closeCamera} className="absolute top-16 right-6 p-2 bg-white/20 rounded-full z-20 hover:bg-white/30 transition-colors">
+          <X className="w-6 h-6 text-white" />
+        </button>
+        <h1 className="text-2xl font-bold mb-6 text-center z-10">Ambil Foto</h1>
+        <div className="flex-1 relative rounded-3xl overflow-hidden bg-gray-900 mb-8 border border-gray-800 flex items-center justify-center">
+          <video 
+            ref={videoRef} 
+            autoPlay 
+            playsInline 
+            className="w-full h-full object-cover scale-x-[-1]"
+          />
+          {/* Grid overlay for better framing */}
+          <div className="absolute inset-0 border-2 border-white/10 pointer-events-none"></div>
+          <div className="absolute inset-0 flex flex-col justify-between opacity-30 pointer-events-none">
+            <div className="w-full h-[33%] border-b border-white"></div>
+            <div className="w-full h-[33%] border-b border-white"></div>
+          </div>
+          <div className="absolute inset-0 flex justify-between opacity-30 pointer-events-none">
+            <div className="h-full w-[33%] border-r border-white"></div>
+            <div className="h-full w-[33%] border-r border-white"></div>
+          </div>
+        </div>
+        
+        <div className="flex justify-center pb-8">
+          <button
+            onClick={capturePhoto}
+            className="w-20 h-20 rounded-full border-4 border-white/50 flex items-center justify-center bg-white/10 backdrop-blur-md active:scale-95 transition-all"
+          >
+            <div className="w-16 h-16 bg-white rounded-full shadow-lg"></div>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Antarmuka UI untuk tahap sukses/berhasil setelah data absensi terkirim
   if (step === 'SUCCESS') {
     return (
       <motion.div 
@@ -192,9 +356,10 @@ export default function Attendance() {
     );
   }
 
+  // Antarmuka UI untuk tahap pratinjau (preview) foto sebelum dikonfirmasi pengirimannya
   if (step === 'PREVIEW' && photoUrl) {
     return (
-      <div className="flex-1 bg-black flex flex-col p-6 pt-16 text-white pb-safe">
+      <div className="flex-1 bg-black flex flex-col p-6 pt-6 text-white pb-safe">
         <h1 className="text-2xl font-bold mb-6">Konfirmasi Foto</h1>
         <div className="flex-1 relative rounded-3xl overflow-hidden bg-gray-900 mb-8 border border-gray-800">
           <img src={photoUrl} alt="Preview" className="w-full h-full object-contain" />
@@ -209,7 +374,7 @@ export default function Attendance() {
 
         <div className="flex gap-4">
           <button
-            onClick={handleCapture}
+            onClick={startCamera}
             disabled={step === 'SUBMITTING'}
             className="flex-1 py-4 rounded-2xl font-medium text-white bg-white/10 hover:bg-white/20 transition-colors flex items-center justify-center gap-2"
           >
@@ -229,26 +394,41 @@ export default function Attendance() {
     );
   }
 
+  // Antarmuka UI default (Entry View) saat baru membuka halaman Absensi
   return (
-    <div className="flex-1 bg-[#F8FAFC] p-6 flex flex-col pt-16 text-slate-800 pb-safe">
+    <div className="flex-1 bg-[#F8FAFC] p-6 flex flex-col pt-6 text-slate-800 pb-safe">
       <h1 className="text-3xl font-bold text-slate-900 mb-2">
         {isCheckedIn ? 'Absen Pulang' : 'Absen Masuk'}
       </h1>
       <p className="text-slate-500 mb-8 font-medium">Silakan selesaikan verifikasi kehadiran Anda.</p>
 
+      {/* Kartu Verifikasi Utama */}
       <div className="bg-white rounded-[2rem] p-8 shadow-sm border border-slate-200 mb-8 flex-1">
         <div className="space-y-8">
+          
+          {/* Bagian Lokasi GPS */}
           <div className="flex items-start gap-5">
             <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${step === 'LOCATING' ? 'bg-blue-50 text-blue-600 border border-blue-100' : location ? 'bg-green-50 text-green-600 border border-green-100' : 'bg-slate-50 text-slate-400 border border-slate-100'}`}>
               <MapPin className="w-6 h-6" />
             </div>
-            <div>
+            <div className="flex-1">
               <h3 className="font-bold text-slate-900 mb-1">Lokasi GPS</h3>
-              <p className="text-xs text-slate-500 font-medium leading-relaxed">Kami memerlukan lokasi Anda untuk memverifikasi bahwa Anda berada dalam radius yang diizinkan.</p>
-              {error && (
-                <div className="mt-3 text-xs text-red-700 bg-red-50 p-3 rounded-xl border border-red-100 flex gap-2 items-start font-medium">
-                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                  <span>{error}</span>
+              {location ? (
+                <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 mt-2 flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Koordinat Saat Ini</span>
+                  <span className="font-mono text-xs font-bold text-slate-900 bg-white px-2 py-1 rounded shadow-sm border border-slate-200">
+                    {location.lat.toFixed(6)}, {location.lng.toFixed(6)}
+                  </span>
+                </div>
+              ) : (
+                <p className="text-xs text-slate-500 font-medium leading-relaxed">Kami memerlukan lokasi Anda untuk memverifikasi bahwa Anda berada dalam radius yang diizinkan.</p>
+              )}
+              {error && error.includes('lokasi') && (
+                <div className="mt-3 text-xs text-red-700 bg-red-50 p-3 rounded-xl border border-red-100 flex flex-col gap-2 font-medium">
+                  <div className="flex gap-2 items-start">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <span>{error}</span>
+                  </div>
                 </div>
               )}
             </div>
@@ -256,27 +436,50 @@ export default function Attendance() {
           
           <div className="w-full h-px bg-slate-100 ml-17"></div>
           
-          <div className={`flex items-start gap-5 ${step === 'INITIAL' ? 'opacity-50' : ''}`}>
+          {/* Bagian Verifikasi Identitas (Foto) */}
+          <div className={`flex items-start gap-5 ${step === 'INITIAL' || step === 'LOCATING' ? 'opacity-50' : ''}`}>
             <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${step === 'LOCATION_FOUND' ? 'bg-blue-50 text-blue-600 border border-blue-100' : 'bg-slate-50 text-slate-400 border border-slate-100'}`}>
               <Camera className="w-6 h-6" />
             </div>
-            <div>
+            <div className="flex-1">
               <h3 className="font-bold text-slate-900 mb-1">Verifikasi Identitas</h3>
-              <p className="text-xs text-slate-500 font-medium leading-relaxed">Ambil foto langsung untuk validasi anti-penipuan. Unggah galeri tidak diperbolehkan.</p>
+              <p className="text-xs text-slate-500 font-medium leading-relaxed">Ambil foto langsung atau unggah foto untuk memvalidasi keberadaan pada lokasi</p>
+              {error && error.includes('kamera') && (
+                <div className="mt-3 text-xs text-red-700 bg-red-50 p-3 rounded-xl border border-red-100 flex gap-2 items-start font-medium">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>{error}</span>
+                </div>
+              )}
             </div>
           </div>
         </div>
       </div>
 
+      {/* Tombol Aksi (Bawah) */}
       {step === 'LOCATION_FOUND' ? (
-        <button
-          onClick={handleCapture}
-          disabled={isCapturing}
-          className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-2xl py-5 font-bold text-lg shadow-xl shadow-blue-100 flex items-center justify-center gap-3 transition-all active:scale-[0.98] disabled:opacity-70 disabled:shadow-none"
-        >
-          {isCapturing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Camera className="w-6 h-6" />}
-          {isCapturing ? 'Membuka Kamera...' : 'Ambil Foto'}
-        </button>
+        <div className="flex gap-3">
+          <input 
+            type="file" 
+            accept="image/*" 
+            ref={fileInputRef} 
+            onChange={handleFileUpload} 
+            className="hidden" 
+          />
+          <button
+            onClick={startCamera}
+            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl py-5 font-bold text-lg shadow-xl shadow-blue-100 flex items-center justify-center gap-3 transition-all active:scale-[0.98] disabled:opacity-70 disabled:shadow-none"
+          >
+            <Camera className="w-6 h-6" />
+            Kamera
+          </button>
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="flex-[0.6] bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-2xl py-5 font-bold text-lg flex items-center justify-center gap-3 transition-all active:scale-[0.98]"
+          >
+            <Upload className="w-6 h-6" />
+            Unggah
+          </button>
+        </div>
       ) : (
         <button
           onClick={startProcess}

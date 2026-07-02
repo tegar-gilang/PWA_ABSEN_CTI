@@ -20,8 +20,12 @@ export type AttendanceRecord = {
   checkOutTime: string | null;
   status: AttendanceStatus;
   workingHours: number | null;
-  location: { lat: number; lng: number } | null;
-  photoUrl: string | null;
+  location?: { lat: number; lng: number } | null;
+  photoUrl?: string | null;
+  checkInLocation?: { lat: number; lng: number } | null;
+  checkOutLocation?: { lat: number; lng: number } | null;
+  checkInPhotoUrl?: string | null;
+  checkOutPhotoUrl?: string | null;
 };
 
 export type RequestType = 'LEAVE' | 'PERMISSION' | 'SICK' | 'OVERTIME';

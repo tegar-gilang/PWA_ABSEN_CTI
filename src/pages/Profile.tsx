@@ -1,8 +1,12 @@
-import { useState } from 'react';
+import { useState, useRef, ChangeEvent } from 'react';
 import { useAppStore } from '../store';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, User as UserIcon, Phone, Mail, Building, Briefcase, Clock, ChevronRight, Save, X, Loader2 } from 'lucide-react';
+import { LogOut, User as UserIcon, Phone, Mail, Building, Briefcase, Clock, ChevronRight, Save, X, Loader2, Camera } from 'lucide-react';
 
+/**
+ * Komponen Halaman Profil (Profile Component)
+ * Menampilkan informasi data diri pengguna serta menyediakan fungsi untuk mengubah detail kontak dan mengunggah foto profil baru.
+ */
 export default function Profile() {
   const user = useAppStore(state => state.user);
   const updateProfile = useAppStore(state => state.updateProfile);
@@ -15,12 +19,16 @@ export default function Profile() {
     phone: user?.phone || '',
     emergencyContact: user?.emergencyContact || '',
   });
+  
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Mengeluarkan (Sign Out) pengguna saat ini dan menavigasikan kembali ke halaman login
   const handleLogout = async () => {
     await logout();
     navigate('/login');
   };
 
+  // Menyimpan informasi kontak yang baru saja diperbarui
   const handleSave = async () => {
     setIsLoading(true);
     try {
@@ -31,29 +39,66 @@ export default function Profile() {
     }
   };
 
+  // Menangani proses pengunggahan file dan pembaruan foto profil pengguna
+  const handlePhotoUpload = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        setIsLoading(true);
+        try {
+          await updateProfile({ photoUrl: reader.result as string });
+        } finally {
+          setIsLoading(false);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   if (!user) return null;
 
   return (
     <div className="min-h-full bg-[#F8FAFC] text-slate-800">
-      <div className="bg-white px-6 pt-16 pb-8 border-b border-slate-200">
-        <h1 className="text-2xl font-bold text-slate-900 mb-6">Profil</h1>
+      {/* Bagian Header yang berisi Avatar pengguna dan tombol/fitur unggah foto */}
+      <div className="bg-white px-6 pt-6 pb-8 border-b border-slate-200">
+        <h1 className="text-2xl font-bold text-slate-900 mb-3">Profil</h1>
         
-        <div className="flex items-center gap-5">
+        <div className="flex items-center gap-3">
           <div className="relative">
-            <div className="w-20 h-20 bg-slate-100 rounded-full border-4 border-white shadow-sm overflow-hidden flex-shrink-0">
+            <div className="w-20 h-20 bg-slate-100 rounded-full border-4 border-white shadow-sm overflow-hidden flex-shrink-0 relative group">
               <img src={user.photoUrl} alt={user.name} className="w-full h-full object-cover" />
+              <div 
+                onClick={() => fileInputRef.current?.click()}
+                className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+              >
+                <Camera className="w-6 h-6 text-white" />
+              </div>
             </div>
-            <div className="absolute bottom-1 right-1 w-4 h-4 bg-green-500 border-2 border-white rounded-full"></div>
+            <button 
+              onClick={() => fileInputRef.current?.click()}
+              className="absolute bottom-0 right-0 w-7 h-7 bg-blue-600 text-white rounded-full border-2 border-white shadow-sm flex items-center justify-center transition-transform active:scale-95"
+            >
+              <Camera className="w-3.5 h-3.5" />
+            </button>
+            <input 
+              type="file" 
+              accept="image/*" 
+              ref={fileInputRef} 
+              onChange={handlePhotoUpload} 
+              className="hidden" 
+            />
           </div>
           <div>
-            <h2 className="text-xl font-bold text-slate-900 tracking-tight">{user.name}</h2>
-            <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mt-1">{user.position}</p>
-            <p className="text-[10px] text-slate-400 font-bold tracking-wider mt-0.5">ID: {user.employeeId}</p>
+            <h2 className="text-[22px] font-bold text-slate-900 tracking-tight">{user.name}</h2>
+            <p className="text-[13px] text-slate-400 font-bold tracking-wider mt-px">ID: {user.employeeId}</p>
           </div>
         </div>
       </div>
 
+      {/* Area Konten Utama */}
       <div className="px-6 py-6 space-y-6">
+        {/* Bagian Informasi Pekerjaan (Hanya-Baca / Read-only) */}
         <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200">
           <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-5 flex items-center gap-2">
             <span className="w-1 h-3 bg-blue-600 rounded-full"></span>
@@ -93,6 +138,7 @@ export default function Profile() {
           </div>
         </div>
 
+        {/* Bagian Detail Kontak (Bisa Diedit / Editable) */}
         <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200">
           <div className="flex justify-between items-center mb-5">
             <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
@@ -177,6 +223,7 @@ export default function Profile() {
           </div>
         </div>
 
+        {/* Tombol Aksi: Keluar / Sign Out */}
         <button 
           onClick={handleLogout}
           className="w-full bg-white text-red-600 rounded-2xl p-4 font-bold shadow-sm border border-slate-200 flex items-center justify-center gap-2 hover:bg-red-50 transition-colors"

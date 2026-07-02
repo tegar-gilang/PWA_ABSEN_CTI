@@ -5,6 +5,7 @@ import { id } from 'date-fns/locale';
 import { Calendar, ChevronRight, MapPin, Clock, X, Search, Filter } from 'lucide-react';
 import { AttendanceRecord } from '../types';
 import { AnimatePresence, motion } from 'motion/react';
+import MiniMap from '../components/MiniMap';
 
 export default function History() {
   const history = useAppStore(state => state.attendanceHistory);
@@ -33,7 +34,7 @@ export default function History() {
 
   return (
     <div className="min-h-full bg-[#F8FAFC] text-slate-800">
-      <div className="bg-white px-6 pt-16 pb-6 border-b border-slate-200 shadow-sm space-y-5">
+      <div className="bg-white px-6 pt-6 pb-6 border-b border-slate-200 shadow-sm space-y-5">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Riwayat Kehadiran</h1>
           <p className="text-slate-500 mt-1 text-sm font-medium">Tinjau catatan harian Anda</p>
@@ -148,30 +149,24 @@ export default function History() {
                 
                 <div className="bg-[#F8FAFC] rounded-2xl p-4 flex items-center justify-between border border-slate-100">
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm border border-slate-100">
-                      <Clock className="w-4 h-4 text-slate-400" />
-                    </div>
-                    <div>
+                    <div className="text-left">
                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Masuk</p>
-                      <p className="font-bold text-slate-700 text-sm">{record.checkInTime ? format(parseISO(record.checkInTime), 'HH:mm') : '--:--'}</p>
+                      <p className="font-bold text-slate-700 text-sm text-left">{record.checkInTime ? format(parseISO(record.checkInTime), 'HH:mm') : '--:--'}</p>
                     </div>
                   </div>
                   <div className="w-[1px] h-8 bg-slate-200"></div>
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm border border-slate-100">
-                      <Clock className="w-4 h-4 text-slate-400" />
-                    </div>
-                    <div>
+                    <div className="text-left">
                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Pulang</p>
-                      <p className="font-bold text-slate-700 text-sm">{record.checkOutTime ? format(parseISO(record.checkOutTime), 'HH:mm') : '--:--'}</p>
+                      <p className="font-bold text-slate-700 text-sm text-left">{record.checkOutTime ? format(parseISO(record.checkOutTime), 'HH:mm') : '--:--'}</p>
                     </div>
                   </div>
                   {record.workingHours && (
                     <>
                       <div className="w-[1px] h-8 bg-slate-200"></div>
-                      <div className="text-right">
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Total</p>
-                        <p className="font-black text-slate-700 text-sm">{record.workingHours.toFixed(1)}<span className="text-[10px] text-slate-400 font-bold ml-0.5">j</span></p>
+                      <div className="text-left">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5 text-left">Total</p>
+                        <p className="font-black text-slate-700 text-sm text-left">{record.workingHours.toFixed(1)}<span className="text-[10px] text-slate-400 font-bold ml-0.5">j</span></p>
                       </div>
                     </>
                   )}
@@ -198,7 +193,7 @@ export default function History() {
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white rounded-t-[2rem] z-[70] flex flex-col max-h-[85vh] border-t border-slate-200 shadow-2xl"
+              className="fixed bottom-0 left-0 right-0 w-full max-w-md md:max-w-2xl lg:max-w-4xl mx-auto bg-white rounded-t-[2rem] z-[70] flex flex-col max-h-[85vh] border-t border-slate-200 shadow-2xl"
             >
               <div className="flex justify-between items-center p-6 shrink-0 border-b border-slate-100">
                 <h3 className="text-xl font-bold text-slate-900">
@@ -210,30 +205,51 @@ export default function History() {
               </div>
 
               <div className="p-6 overflow-y-auto pb-safe flex-1 space-y-6">
-                {selectedRecord.photoUrl && (
-                  <div className="w-full h-48 bg-slate-100 rounded-2xl overflow-hidden relative border border-slate-200 shrink-0 shadow-inner">
-                    <img src={selectedRecord.photoUrl} alt="Check in" className="w-full h-full object-cover" />
-                    <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 to-transparent"></div>
-                    <div className="absolute bottom-4 left-4 right-4 flex justify-between items-end">
-                      <div className="bg-white/20 backdrop-blur-md text-white text-[10px] uppercase font-bold tracking-wider px-3 py-1.5 rounded-lg border border-white/20">
-                        Bukti Kehadiran
+                <div className="flex flex-col gap-6">
+                  <div className="space-y-3">
+                    <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Bukti Masuk</p>
+                    {(selectedRecord.checkInPhotoUrl || selectedRecord.photoUrl) ? (
+                      <div className="w-full h-48 bg-slate-100 rounded-2xl overflow-hidden relative border border-slate-200 shadow-inner">
+                        <img src={(selectedRecord.checkInPhotoUrl || selectedRecord.photoUrl)!} alt="Check in" className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 to-transparent"></div>
+                        <div className="absolute bottom-3 left-3 right-3">
+                          <div className="bg-slate-900/80 backdrop-blur text-white text-[10px] uppercase font-bold tracking-wider px-3 py-1.5 rounded-lg flex items-center w-fit gap-1.5 shadow-sm">
+                            {selectedRecord.checkInTime ? format(parseISO(selectedRecord.checkInTime), 'HH:mm:ss') : ''}
+                          </div>
+                        </div>
                       </div>
-                      <div className="bg-slate-900/80 backdrop-blur text-white text-[10px] uppercase font-bold tracking-wider px-3 py-1.5 rounded-lg flex items-center gap-1.5">
-                        <Clock className="w-3 h-3" />
-                        {selectedRecord.checkInTime ? format(parseISO(selectedRecord.checkInTime), 'HH:mm:ss') : ''}
+                    ) : (
+                      <div className="w-full h-48 bg-slate-50 rounded-2xl border border-slate-200 border-dashed flex items-center justify-center">
+                        <p className="text-xs font-medium text-slate-400">Tidak ada foto</p>
                       </div>
-                    </div>
+                    )}
                   </div>
-                )}
+                  
+                  <div className="space-y-3">
+                    <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Bukti Pulang</p>
+                    {selectedRecord.checkOutPhotoUrl ? (
+                      <div className="w-full h-48 bg-slate-100 rounded-2xl overflow-hidden relative border border-slate-200 shadow-inner">
+                        <img src={selectedRecord.checkOutPhotoUrl} alt="Check out" className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 to-transparent"></div>
+                        <div className="absolute bottom-3 left-3 right-3">
+                          <div className="bg-slate-900/80 backdrop-blur text-white text-[10px] uppercase font-bold tracking-wider px-3 py-1.5 rounded-lg flex items-center w-fit gap-1.5 shadow-sm">
+                            {selectedRecord.checkOutTime ? format(parseISO(selectedRecord.checkOutTime), 'HH:mm:ss') : ''}
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="w-full h-48 bg-slate-50 rounded-2xl border border-slate-200 border-dashed flex items-center justify-center">
+                         <p className="text-xs font-medium text-slate-400">Tidak ada foto</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
 
                 <div className="space-y-4 pb-8">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="p-5 bg-blue-50/50 rounded-2xl border border-blue-100 relative overflow-hidden">
                       <div className="absolute -right-4 -top-4 w-16 h-16 bg-blue-100 rounded-full opacity-50 blur-xl"></div>
                       <div className="relative z-10">
-                        <div className="w-8 h-8 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center mb-3">
-                          <Clock className="w-4 h-4" />
-                        </div>
                         <p className="text-[10px] text-blue-600 uppercase font-bold tracking-wider mb-1">Absen Masuk</p>
                         <p className="font-bold text-slate-900 text-xl">
                           {selectedRecord.checkInTime ? format(parseISO(selectedRecord.checkInTime), 'HH:mm') : '--:--'}
@@ -244,9 +260,6 @@ export default function History() {
                     <div className="p-5 bg-indigo-50/50 rounded-2xl border border-indigo-100 relative overflow-hidden">
                       <div className="absolute -right-4 -top-4 w-16 h-16 bg-indigo-100 rounded-full opacity-50 blur-xl"></div>
                       <div className="relative z-10">
-                        <div className="w-8 h-8 bg-indigo-100 text-indigo-600 rounded-lg flex items-center justify-center mb-3">
-                          <Clock className="w-4 h-4" />
-                        </div>
                         <p className="text-[10px] text-indigo-600 uppercase font-bold tracking-wider mb-1">Absen Pulang</p>
                         <p className="font-bold text-slate-900 text-xl">
                           {selectedRecord.checkOutTime ? format(parseISO(selectedRecord.checkOutTime), 'HH:mm') : '--:--'}
@@ -255,17 +268,34 @@ export default function History() {
                     </div>
                   </div>
 
-                  <div className="flex items-start gap-4 p-5 bg-slate-50 rounded-2xl border border-slate-200 relative overflow-hidden">
-                     <div className="absolute -right-10 -bottom-10 w-32 h-32 bg-slate-200 rounded-full opacity-20 blur-2xl"></div>
-                    <div className="w-10 h-10 bg-white text-slate-600 rounded-xl flex items-center justify-center shrink-0 border border-slate-200 shadow-sm relative z-10">
-                      <MapPin className="w-5 h-5" />
+                  <div className="space-y-4">
+                    <MiniMap 
+                      checkInLocation={selectedRecord.checkInLocation || selectedRecord.location} 
+                      checkOutLocation={selectedRecord.checkOutLocation} 
+                    />
+
+                    <div className="flex items-start gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-200 relative overflow-hidden">
+                      <div className="w-10 h-10 bg-white text-blue-600 rounded-xl flex items-center justify-center shrink-0 border border-slate-200 shadow-sm relative z-10">
+                        <MapPin className="w-5 h-5" />
+                      </div>
+                      <div className="relative z-10 flex-1">
+                        <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider mb-1">Lokasi Masuk</p>
+                        <p className="font-bold text-slate-900 text-sm leading-relaxed">
+                          {(selectedRecord.checkInLocation || selectedRecord.location) ? `${(selectedRecord.checkInLocation || selectedRecord.location)!.lat.toFixed(6)}, ${(selectedRecord.checkInLocation || selectedRecord.location)!.lng.toFixed(6)}` : 'Lokasi tidak tersedia'}
+                        </p>
+                      </div>
                     </div>
-                    <div className="relative z-10">
-                      <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider mb-1">Lokasi Absen</p>
-                      <p className="font-bold text-slate-900 text-sm leading-relaxed">
-                        {selectedRecord.location ? `${selectedRecord.location.lat.toFixed(6)}, ${selectedRecord.location.lng.toFixed(6)}` : 'Lokasi tidak tersedia'}
-                      </p>
-                      <p className="text-xs text-slate-500 mt-1 font-medium">Koordinat GPS tersimpan</p>
+
+                    <div className="flex items-start gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-200 relative overflow-hidden">
+                      <div className="w-10 h-10 bg-white text-indigo-600 rounded-xl flex items-center justify-center shrink-0 border border-slate-200 shadow-sm relative z-10">
+                        <MapPin className="w-5 h-5" />
+                      </div>
+                      <div className="relative z-10 flex-1">
+                        <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider mb-1">Lokasi Pulang</p>
+                        <p className="font-bold text-slate-900 text-sm leading-relaxed">
+                          {selectedRecord.checkOutLocation ? `${selectedRecord.checkOutLocation.lat.toFixed(6)}, ${selectedRecord.checkOutLocation.lng.toFixed(6)}` : 'Lokasi tidak tersedia'}
+                        </p>
+                      </div>
                     </div>
                   </div>
 

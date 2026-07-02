@@ -50,7 +50,7 @@ export default function Request() {
 
   return (
     <div className="min-h-full bg-[#F8FAFC] text-slate-800">
-      <div className="bg-white px-6 pt-16 pb-4 sticky top-0 z-10 border-b border-slate-200 shadow-sm">
+      <div className="bg-white px-6 pt-6 pb-4 sticky top-0 z-10 border-b border-slate-200 shadow-sm">
         <h1 className="text-2xl font-bold text-slate-900 mb-6">Permohonan</h1>
         
         <div className="flex p-1 bg-slate-100 rounded-xl">

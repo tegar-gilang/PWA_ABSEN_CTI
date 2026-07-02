@@ -7,6 +7,10 @@ import { useInterval } from 'react-use';
 import { useState, useEffect } from 'react';
 import { Skeleton } from '../components/Skeleton';
 
+/**
+ * Komponen Halaman Beranda (Dashboard).
+ * Menampilkan informasi waktu saat ini, status kehadiran (absen) pengguna, rincian shift, dan aksi cepat.
+ */
 export default function Home() {
   const user = useAppStore(state => state.user);
   const unreadCount = useAppStore(state => state.notifications.filter(n => !n.isRead).length);
@@ -15,25 +19,48 @@ export default function Home() {
 
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isLoading, setIsLoading] = useState(true);
+  const [currentLocation, setCurrentLocation] = useState<{lat: number, lng: number} | null>(null);
 
+  // Mensimulasikan jeda (delay) saat memuat data di awal
   useEffect(() => {
-    // Simulate initial data fetch
     const timer = setTimeout(() => setIsLoading(false), 800);
     return () => clearTimeout(timer);
   }, []);
 
+  // Mendapatkan lokasi realtime pengguna
+  useEffect(() => {
+    if ('geolocation' in navigator) {
+      const watchId = navigator.geolocation.watchPosition(
+        (position) => {
+          setCurrentLocation({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude
+          });
+        },
+        (err) => {
+          console.warn('Geolocation error di Beranda:', err.message);
+        },
+        { enableHighAccuracy: false, timeout: 20000, maximumAge: 60000 }
+      );
+      return () => navigator.geolocation.clearWatch(watchId);
+    }
+  }, []);
+
+  // Memperbarui waktu saat ini setiap detik untuk tampilan jam digital
   useInterval(() => {
     setCurrentTime(new Date());
   }, 1000);
 
+  // Memeriksa status kehadiran/absensi untuk hari ini
   const today = format(currentTime, 'yyyy-MM-dd');
   const todaysAttendance = attendanceHistory.find(r => r.date === today);
   const isCheckedIn = !!todaysAttendance?.checkInTime && !todaysAttendance?.checkOutTime;
   const isCheckedOut = !!todaysAttendance?.checkOutTime;
 
+  // Menampilkan kerangka pemuatan (skeleton loader) selama data masih dimuat
   if (isLoading) {
     return (
-      <div className="bg-[#F8FAFC] min-h-full text-slate-800 space-y-6 px-6 pt-16">
+      <div className="bg-[#F8FAFC] min-h-full text-slate-800 space-y-6 px-6 pt-6">
         <Skeleton className="h-20 w-full rounded-3xl" />
         <Skeleton className="h-64 w-full rounded-3xl" />
         <Skeleton className="h-32 w-full rounded-3xl" />
@@ -47,8 +74,8 @@ export default function Home() {
 
   return (
     <div className="bg-[#F8FAFC] min-h-full text-slate-800">
-      {/* Header section */}
-      <header className="pt-16 pb-4 bg-white border-b border-slate-200 px-6 flex items-center justify-between sticky top-0 z-10">
+      {/* Bagian Header menampilkan Logo Aplikasi, Profil Pengguna, dan Ikon Notifikasi */}
+      <header className="pt-6 pb-4 bg-white border-b border-slate-200 px-6 flex items-center justify-between sticky top-0 z-10">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-200">
             <Briefcase className="w-6 h-6 text-white" strokeWidth={2} />
@@ -84,10 +111,10 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Main Content Area */}
+      {/* Area Konten Utama */}
       <div className="px-6 py-6 space-y-6">
         
-        {/* Date and Time Header */}
+        {/* Header Tanggal dan Waktu */}
         <div className="flex justify-between items-end">
           <div>
             <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-1">
@@ -97,7 +124,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Core Attendance Card */}
+        {/* Kartu Absensi Utama: Menampilkan jam absen masuk/keluar serta tombol aksi utama */}
         <section className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm">
           <div className="flex justify-between items-start mb-6">
             <div>
@@ -150,19 +177,19 @@ export default function Home() {
           )}
         </section>
 
-        {/* Shift Detail / Holiday */}
+        {/* Bagian Informasi Shift & Hari Libur */}
         <div className="bg-blue-900 rounded-3xl p-6 text-white relative overflow-hidden shadow-sm">
           <div className="relative z-10">
             <p className="text-blue-300 text-xs font-bold mb-1 uppercase tracking-widest">Shift Hari Ini</p>
             <h3 className="text-xl font-bold mb-1">{user?.schedule}</h3>
             <p className="text-sm text-blue-100 opacity-80 flex items-center gap-1.5 mt-2">
-              <MapPin className="w-4 h-4" /> Kantor Pusat
+              <MapPin className="w-4 h-4" /> {currentLocation ? `${currentLocation.lat.toFixed(6)}, ${currentLocation.lng.toFixed(6)}` : 'Mencari lokasi...'}
             </p>
           </div>
           <div className="absolute -right-8 -bottom-8 w-32 h-32 bg-blue-800 rounded-full blur-2xl opacity-50"></div>
         </div>
 
-        {/* Quick Actions / Info */}
+        {/* Bagian Aksi Cepat / Menu Tambahan */}
         <div className="grid grid-cols-2 gap-4">
           <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200 cursor-pointer hover:border-blue-200 transition-colors group" onClick={() => navigate('/request')}>
             <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center mb-4 group-hover:bg-blue-100 transition-colors">
@@ -180,7 +207,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Announcement */}
+        {/* Bagian Pengumuman (Banner Info) */}
         <div className="bg-white rounded-3xl p-2 shadow-sm border border-slate-200 flex items-center">
           <div className="bg-blue-50 text-blue-600 px-4 py-3 rounded-2xl font-bold text-xs uppercase tracking-wider flex-shrink-0">
             Info

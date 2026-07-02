@@ -1,34 +1,48 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAppStore, MOCK_USER } from '../store';
 import { Briefcase, ArrowRight, Loader2 } from 'lucide-react';
 import { motion } from 'motion/react';
 
+/**
+ * Komponen Halaman Login (Masuk).
+ * Menangani otentikasi awal karyawan. Memiliki antarmuka form untuk memasukkan ID Karyawan dan Kata Sandi.
+ */
 export default function Login() {
   const navigate = useNavigate();
   const login = useAppStore(state => state.login);
+  
+  // State untuk penanda loading saat proses autentikasi berlangsung
   const [loading, setLoading] = useState(false);
+  // State untuk menyimpan nilai ID karyawan yang diketik
   const [employeeId, setEmployeeId] = useState('');
+  // State untuk menyimpan nilai kata sandi yang diketik
   const [password, setPassword] = useState('');
 
+  /**
+   * Menangani pengiriman form login.
+   * Mensimulasikan pemanggilan API autentikasi, lalu mengalihkan ke halaman Home bila berhasil.
+   */
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!employeeId || !password) return;
     
     setLoading(true);
     try {
-      await login(MOCK_USER);
+      // Mengirimkan data login ke penyimpanan global (Zustand) dengan menggabungkan ID yang diketik ke data simulasi
+      await login({ ...MOCK_USER, employeeId });
+      // Beralih ke halaman Beranda tanpa menyimpan halaman ini di riwayat peramban (replace: true)
       navigate('/home', { replace: true });
     } catch (error) {
-      console.error('Login failed', error);
+      console.error('Gagal masuk/login', error);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-full bg-white flex flex-col px-6">
-      <div className="flex-1 flex flex-col justify-center">
+    <div className="min-h-[100dvh] w-full max-w-md md:max-w-2xl lg:max-w-4xl mx-auto bg-white flex flex-col px-6 overflow-y-auto no-scrollbar pb-safe">
+      <div className="flex-1 flex flex-col justify-center py-6">
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -91,11 +105,20 @@ export default function Login() {
             )}
           </button>
         </form>
+
+        <div className="mt-8 text-center">
+          <p className="text-sm text-slate-500 font-medium">
+            Belum punya akun?{' '}
+            <Link to="/signup" className="text-blue-600 font-bold hover:text-blue-700 transition-colors">
+              Daftar sekarang
+            </Link>
+          </p>
+        </div>
       </div>
 
       <div className="py-6 text-center">
         <button className="text-sm text-gray-500 hover:text-gray-900 transition-colors font-medium">
-          Hubungi Bantuan IT
+          Absensi PT. CTi
         </button>
       </div>
     </div>

@@ -13,7 +13,7 @@ export default function BottomNav() {
 
   return (
     <nav className="absolute bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-50">
-      <div className="flex justify-around items-center h-24 pb-6 max-w-md mx-auto px-4">
+      <div className="flex justify-around items-center h-24 pb-6 w-full max-w-md md:max-w-2xl lg:max-w-4xl mx-auto px-4">
         {navItems.map((item) => (
           <NavLink
             key={item.path}

@@ -10,6 +10,10 @@
   --color-primary-700: #1d4ed8;
 }
 
+html, body, #root {
+  height: 100%;
+}
+
 body {
   background-color: #f8fafc;
   -webkit-tap-highlight-color: transparent;

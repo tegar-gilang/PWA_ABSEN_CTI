@@ -6,28 +6,49 @@ import { formatDistanceToNow, format } from 'date-fns';
 import { AnimatePresence, motion } from 'motion/react';
 import { Notification } from '../types';
 
+/**
+ * Komponen Halaman Notifikasi.
+ * Menampilkan daftar pemberitahuan untuk pengguna.
+ * Berisi logika untuk menandai pesan yang telah dibaca dan modal detail pesan.
+ */
 export default function Notifications() {
   const navigate = useNavigate();
+  // Mengambil daftar notifikasi dari penyimpanan global
   const notifications = useAppStore(state => state.notifications);
+  // Fungsi untuk mengubah status isRead pada notifikasi
   const markAsRead = useAppStore(state => state.markNotificationRead);
+  // State untuk menyimpan notifikasi mana yang sedang dipilih untuk dilihat detailnya (modal terbuka)
   const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
 
-  const getIcon = (type: string) => {
+  /**
+   * Mengembalikan komponen ikon berdasarkan tipe notifikasi.
+   * @param type - Tipe notifikasi ('SUCCESS', 'WARNING', atau 'INFO')
+   * @param isDetail - Bendera untuk mengubah ukuran ikon (lebih besar di modal detail)
+   */
+  const getIcon = (type: string, isDetail = false) => {
+    const size = isDetail ? "w-8 h-8" : "w-6 h-6";
     switch (type) {
-      case 'SUCCESS': return <CheckCircle2 className="w-5 h-5 text-green-600" />;
-      case 'WARNING': return <AlertTriangle className="w-5 h-5 text-orange-600" />;
-      default: return <Info className="w-5 h-5 text-blue-600" />;
+      case 'SUCCESS': return <CheckCircle2 className={`${size} text-emerald-600`} />;
+      case 'WARNING': return <AlertTriangle className={`${size} text-amber-600`} />;
+      default: return <Info className={`${size} text-indigo-600`} />;
     }
   };
 
+  /**
+   * Mengembalikan kelas CSS (Tailwind) untuk warna latar belakang ikon berdasarkan tipenya.
+   */
   const getBgColor = (type: string) => {
     switch (type) {
-      case 'SUCCESS': return 'bg-green-50 border-green-100';
-      case 'WARNING': return 'bg-orange-50 border-orange-100';
-      default: return 'bg-blue-50 border-blue-100';
+      case 'SUCCESS': return 'bg-gradient-to-br from-emerald-50 to-green-100 border-emerald-200 shadow-inner shadow-emerald-100/50';
+      case 'WARNING': return 'bg-gradient-to-br from-amber-50 to-orange-100 border-amber-200 shadow-inner shadow-amber-100/50';
+      default: return 'bg-gradient-to-br from-indigo-50 to-blue-100 border-indigo-200 shadow-inner shadow-indigo-100/50';
     }
   };
 
+  /**
+   * Dipanggil saat pengguna mengklik kartu notifikasi.
+   * Menandai notifikasi telah dibaca (jika belum), lalu memunculkan modal detail.
+   */
   const handleNotificationClick = (notification: Notification) => {
     if (!notification.isRead) {
       markAsRead(notification.id);
@@ -36,17 +57,17 @@ export default function Notifications() {
   };
 
   return (
-    <div className="min-h-full bg-[#F8FAFC]">
-      <div className="px-4 pt-16 pb-4 flex items-center gap-4 border-b border-slate-200 sticky top-0 bg-white z-10">
+    <div className="h-full w-full max-w-md md:max-w-2xl lg:max-w-4xl mx-auto bg-[#F8FAFC] relative overflow-y-auto no-scrollbar flex flex-col font-sans">
+      <div className="px-4 pt-6 pb-4 flex items-center gap-4 border-b border-slate-200 sticky top-0 bg-white z-10 shrink-0">
         <button onClick={() => navigate(-1)} className="p-2 -ml-2 rounded-full hover:bg-slate-50 transition-colors">
           <ArrowLeft className="w-6 h-6 text-slate-900" />
         </button>
         <h1 className="text-xl font-bold text-slate-900">Notifikasi</h1>
       </div>
 
-      <div className="divide-y divide-slate-100 bg-white min-h-full pb-24">
+      <div className="p-4 space-y-3 pb-24">
         {notifications.length === 0 ? (
-          <div className="text-center py-24 px-6">
+          <div className="text-center py-24 px-6 bg-white rounded-3xl border border-slate-100 shadow-sm mt-4">
             <div className="w-20 h-20 bg-slate-50 border border-slate-100 rounded-[2rem] flex items-center justify-center mx-auto mb-6">
               <Bell className="w-10 h-10 text-slate-300" />
             </div>
@@ -58,7 +79,7 @@ export default function Notifications() {
             <div 
               key={notification.id} 
               onClick={() => handleNotificationClick(notification)}
-              className={`p-6 flex gap-4 cursor-pointer transition-colors ${!notification.isRead ? 'bg-blue-50/50' : 'hover:bg-slate-50'}`}
+              className={`p-5 rounded-2xl flex gap-4 cursor-pointer transition-all border shadow-sm ${!notification.isRead ? 'bg-white border-blue-200 shadow-blue-100/50' : 'bg-white border-slate-200 hover:border-slate-300 shadow-slate-100/50'}`}
             >
               <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 border ${getBgColor(notification.type)}`}>
                 {getIcon(notification.type)}
@@ -98,7 +119,7 @@ export default function Notifications() {
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white rounded-t-[2rem] z-[70] flex flex-col max-h-[85vh] border-t border-slate-200 shadow-2xl"
+              className="fixed bottom-0 left-0 right-0 w-full max-w-md md:max-w-2xl lg:max-w-4xl mx-auto bg-white rounded-t-[2rem] z-[70] flex flex-col max-h-[85vh] border-t border-slate-200 shadow-2xl"
             >
               <div className="flex justify-between items-center p-6 shrink-0 border-b border-slate-100">
                 <h3 className="text-xl font-bold text-slate-900">
@@ -112,7 +133,7 @@ export default function Notifications() {
               <div className="p-6 overflow-y-auto pb-safe flex-1">
                 <div className="flex flex-col items-center text-center mb-8">
                   <div className={`w-20 h-20 rounded-3xl flex items-center justify-center shrink-0 border mb-6 ${getBgColor(selectedNotification.type)}`}>
-                    {getIcon(selectedNotification.type)}
+                    {getIcon(selectedNotification.type, true)}
                   </div>
                   <h2 className="text-2xl font-bold text-slate-900 mb-3">{selectedNotification.title}</h2>
                   <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">

@@ -11,11 +11,16 @@ export default function Layout() {
   const { online } = useNetworkState();
 
   return (
-    <div className="h-full bg-[#F8FAFC] max-w-md mx-auto relative overflow-hidden flex flex-col font-sans">
+    <div className="h-full bg-[#F8FAFC] w-full max-w-md md:max-w-2xl lg:max-w-4xl mx-auto relative overflow-hidden flex flex-col font-sans">
       {!online && (
-        <div className="bg-red-500 text-white text-xs font-bold text-center py-2 flex items-center justify-center gap-2 z-50 sticky top-0 uppercase tracking-wider">
-          <AlertCircle className="w-4 h-4" />
-          Anda sedang offline
+        <div className="absolute left-0 right-0 z-50 flex justify-center pointer-events-none px-4" style={{ top: 'calc(0.5rem + env(safe-area-inset-top))' }}>
+          <div className="bg-slate-800/95 backdrop-blur-md text-white text-[10px] py-2 px-4 rounded-2xl flex flex-col items-center justify-center shadow-xl shadow-slate-900/20 border border-slate-700 pointer-events-auto w-fit max-w-[90%]">
+            <div className="flex items-center gap-1.5 uppercase tracking-wider font-bold mb-0.5 text-amber-400">
+              <AlertCircle className="w-3.5 h-3.5" />
+              <span>Offline Mode</span>
+            </div>
+            <span className="font-medium text-slate-300 text-center leading-tight">Absensi Anda masuk antrean sinkronisasi</span>
+          </div>
         </div>
       )}
       <main className="flex-1 overflow-y-auto pb-24 relative no-scrollbar">

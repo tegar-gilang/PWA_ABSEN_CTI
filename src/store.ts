@@ -4,22 +4,28 @@ import { User, AttendanceRecord, RequestRecord, Notification } from './types';
 import { format } from 'date-fns';
 import { addToSyncQueue, getSyncQueue, removeFromSyncQueue } from './lib/offlineQueue';
 
+/**
+ * Antarmuka (Interface) yang mendefinisikan status global (global state) untuk keseluruhan aplikasi.
+ */
 interface AppState {
-  user: User | null;
-  isAuthenticated: boolean;
-  attendanceHistory: AttendanceRecord[];
-  requests: RequestRecord[];
-  notifications: Notification[];
-  login: (user: User) => Promise<void>;
-  logout: () => Promise<void>;
-  checkIn: (record: Partial<AttendanceRecord>) => Promise<void>;
-  checkOut: (record: Partial<AttendanceRecord>) => Promise<void>;
-  submitRequest: (request: Omit<RequestRecord, 'id' | 'status' | 'createdAt'>) => Promise<void>;
-  markNotificationRead: (id: string) => Promise<void>;
-  updateProfile: (data: Partial<User>) => Promise<void>;
-  addNotification: (notification: Notification) => void;
+  user: User | null; // Detail dari pengguna yang saat ini terotentikasi/login
+  isAuthenticated: boolean; // Bendera penanda (flag) untuk mengetahui apakah pengguna sudah masuk ke sistem
+  attendanceHistory: AttendanceRecord[]; // Daftar catatan absensi/kehadiran pengguna di masa lalu
+  requests: RequestRecord[]; // Daftar pengajuan cuti, izin, atau sakit milik pengguna
+  notifications: Notification[]; // Daftar notifikasi di dalam aplikasi (in-app notifications) untuk pengguna
+  login: (user: User) => Promise<void>; // Fungsi untuk memproses login pengguna
+  logout: () => Promise<void>; // Fungsi untuk memproses keluar/logout pengguna dari aplikasi
+  checkIn: (record: Partial<AttendanceRecord>) => Promise<void>; // Menangani logika untuk melakukan absen masuk (check-in)
+  checkOut: (record: Partial<AttendanceRecord>) => Promise<void>; // Menangani logika untuk melakukan absen keluar (check-out)
+  submitRequest: (request: Omit<RequestRecord, 'id' | 'status' | 'createdAt'>) => Promise<void>; // Mengirimkan form pengajuan baru (seperti izin/cuti)
+  markNotificationRead: (id: string) => Promise<void>; // Menandai suatu notifikasi tertentu bahwa sudah dibaca
+  updateProfile: (data: Partial<User>) => Promise<void>; // Memperbarui data detail dari profil pengguna
+  addNotification: (notification: Notification) => void; // Menambahkan notifikasi baru ke dalam daftar
 }
 
+/**
+ * Data tiruan (mock data) untuk pengguna saat ini.
+ */
 const MOCK_USER: User = {
   id: '1',
   name: 'Alex Johnson',
@@ -33,29 +39,14 @@ const MOCK_USER: User = {
   emergencyContact: '+1 (555) 987-6543',
 };
 
-const MOCK_HISTORY: AttendanceRecord[] = [
-  {
-    id: '1',
-    date: '2026-06-26',
-    checkInTime: '2026-06-26T08:55:00Z',
-    checkOutTime: '2026-06-26T17:05:00Z',
-    status: 'ON_TIME',
-    workingHours: 8.16,
-    location: { lat: 37.7749, lng: -122.4194 },
-    photoUrl: null,
-  },
-  {
-    id: '2',
-    date: '2026-06-25',
-    checkInTime: '2026-06-25T09:15:00Z',
-    checkOutTime: '2026-06-25T17:30:00Z',
-    status: 'LATE',
-    workingHours: 8.25,
-    location: { lat: 37.7749, lng: -122.4194 },
-    photoUrl: null,
-  }
-];
+/**
+ * Data tiruan (mock data) untuk riwayat absen/kehadiran pengguna.
+ */
+const MOCK_HISTORY: AttendanceRecord[] = [];
 
+/**
+ * Data tiruan (mock data) untuk daftar notifikasi awal di dalam aplikasi.
+ */
 const MOCK_NOTIFICATIONS: Notification[] = [
   {
     id: '1',
@@ -77,6 +68,10 @@ const MOCK_NOTIFICATIONS: Notification[] = [
 
 const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 
+/**
+ * Penyimpanan (store) status global menggunakan Zustand untuk mengelola data dan logika aplikasi.
+ * Store ini memanfaatkan middleware 'persist' untuk menyimpan sebagian dari status (state) ke dalam localStorage.
+ */
 export const useAppStore = create<AppState>()(
   persist(
     (set) => ({
@@ -86,20 +81,31 @@ export const useAppStore = create<AppState>()(
       requests: [],
       notifications: MOCK_NOTIFICATIONS,
 
+      /**
+       * Mensimulasikan proses masuk (login) oleh pengguna.
+       */
       login: async (user) => {
         await delay(1000);
         set({ user, isAuthenticated: true });
       },
+
+      /**
+       * Mensimulasikan proses keluar (logout) oleh pengguna.
+       */
       logout: async () => {
         await delay(500);
         set({ user: null, isAuthenticated: false });
       },
       
+      /**
+       * Mencatat data saat pengguna melakukan absen masuk (check-in).
+       * Memanfaatkan antrean latar belakang (background queue) jika perangkat tidak terhubung internet (offline).
+       */
       checkIn: async (record) => {
         if (!navigator.onLine) {
-          await addToSyncQueue('CHECK_IN', record);
+          await addToSyncQueue('CHECK_IN', record); // Simpan data absen ke antrean sinkronisasi IndexedDB saat offline
         } else {
-          await delay(1500);
+          await delay(1500); // Simulasikan jeda respons API
         }
         set((state) => {
           const newRecord: AttendanceRecord = {
@@ -111,16 +117,22 @@ export const useAppStore = create<AppState>()(
             workingHours: null,
             location: record.location || null,
             photoUrl: record.photoUrl || null,
+            checkInLocation: record.checkInLocation || record.location || null,
+            checkInPhotoUrl: record.checkInPhotoUrl || record.photoUrl || null,
           };
           return { attendanceHistory: [newRecord, ...state.attendanceHistory] };
         });
       },
       
+      /**
+       * Mencatat data saat pengguna melakukan absen keluar (check-out).
+       * Menghitung total jam kerja dan memanfaatkan antrean latar belakang (background queue) saat offline.
+       */
       checkOut: async (record) => {
         if (!navigator.onLine) {
-          await addToSyncQueue('CHECK_OUT', record);
+          await addToSyncQueue('CHECK_OUT', record); // Simpan data offline ke IndexedDB
         } else {
-          await delay(1500);
+          await delay(1500); // Simulasikan jeda API
         }
         set((state) => {
           const today = format(new Date(), 'yyyy-MM-dd');
@@ -135,6 +147,8 @@ export const useAppStore = create<AppState>()(
                 ...item,
                 checkOutTime,
                 workingHours,
+                checkOutLocation: record.checkOutLocation || record.location || null,
+                checkOutPhotoUrl: record.checkOutPhotoUrl || record.photoUrl || null,
               };
             }
             return item;
@@ -143,6 +157,9 @@ export const useAppStore = create<AppState>()(
         });
       },
 
+      /**
+       * Mengirimkan sebuah form permohonan (seperti Cuti, Sakit, atau Izin) untuk meminta persetujuan atasan.
+       */
       submitRequest: async (request) => {
         await delay(1000);
         set((state) => ({
@@ -157,7 +174,7 @@ export const useAppStore = create<AppState>()(
           ]
         }));
         
-        // Simulate an approval push notification after a short delay
+        // Mensimulasikan datangnya notifikasi push (Push Notification) persetujuan setelah jeda singkat
         setTimeout(() => {
           import('./lib/fcm').then(({ simulatePushNotification }) => {
             simulatePushNotification(
@@ -169,6 +186,9 @@ export const useAppStore = create<AppState>()(
         }, 5000);
       },
 
+      /**
+       * Menandai notifikasi tertentu di dalam store (penyimpanan state) sebagai telah dibaca.
+       */
       markNotificationRead: async (id) => {
         await delay(300);
         set((state) => ({
@@ -178,6 +198,9 @@ export const useAppStore = create<AppState>()(
         }));
       },
 
+      /**
+       * Memperbarui informasi detail profil milik pengguna saat ini.
+       */
       updateProfile: async (data) => {
         await delay(1000);
         set((state) => ({
@@ -185,6 +208,9 @@ export const useAppStore = create<AppState>()(
         }));
       },
 
+      /**
+       * Fungsi pembantu (helper) untuk menambahkan notifikasi secara cepat ke dalam daftar lokal di store.
+       */
       addNotification: (notification) => {
         set((state) => ({
           notifications: [notification, ...state.notifications]
@@ -192,26 +218,36 @@ export const useAppStore = create<AppState>()(
       },
     }),
     {
-      name: 'employee-pwa-storage-v2',
+      name: 'employee-pwa-storage-v3', // Kunci (key) unik untuk menyimpan data di localStorage
+      // Menentukan variabel status (state) apa saja yang harus dipertahankan di localStorage
+      partialize: (state) => ({
+        attendanceHistory: state.attendanceHistory,
+        requests: state.requests,
+        notifications: state.notifications,
+      }),
     }
   )
 );
 
 export { MOCK_USER };
 
+/**
+ * Memproses seluruh isi antrean sinkronisasi latar belakang yang berkaitan dengan absen masuk/keluar
+ * yang mungkin dilakukan oleh pengguna pada saat perangkat tidak memiliki koneksi internet.
+ */
 export const processSyncQueue = async () => {
   const queue = await getSyncQueue();
   if (queue.length === 0) return;
   
-  // Process queue sequentially
+  // Memproses antrean satu per satu secara berurutan
   for (const item of queue) {
     try {
-      // Simulate API call for sync
+      // Mensimulasikan pemanggilan API untuk proses sinkronisasi ke server
       await delay(500); 
-      // If successful, remove from queue
+      // Jika sinkronisasi berhasil, hapus item tersebut dari daftar antrean IndexedDB
       await removeFromSyncQueue(item.id);
     } catch (e) {
-      console.error('Failed to sync item', item, e);
+      console.error('Gagal menyinkronkan item', item, e);
     }
   }
 };
