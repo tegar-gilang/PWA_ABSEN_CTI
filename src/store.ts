@@ -1,8 +1,12 @@
-import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
-import { User, AttendanceRecord, RequestRecord, Notification } from './types';
-import { format } from 'date-fns';
-import { addToSyncQueue, getSyncQueue, removeFromSyncQueue } from './lib/offlineQueue';
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
+import { User, AttendanceRecord, RequestRecord, Notification } from "./types";
+import { format } from "date-fns";
+import {
+  addToSyncQueue,
+  getSyncQueue,
+  removeFromSyncQueue,
+} from "./lib/offlineQueue";
 
 /**
  * Antarmuka (Interface) yang mendefinisikan status global (global state) untuk keseluruhan aplikasi.
@@ -17,7 +21,9 @@ interface AppState {
   logout: () => Promise<void>; // Fungsi untuk memproses keluar/logout pengguna dari aplikasi
   checkIn: (record: Partial<AttendanceRecord>) => Promise<void>; // Menangani logika untuk melakukan absen masuk (check-in)
   checkOut: (record: Partial<AttendanceRecord>) => Promise<void>; // Menangani logika untuk melakukan absen keluar (check-out)
-  submitRequest: (request: Omit<RequestRecord, 'id' | 'status' | 'createdAt'>) => Promise<void>; // Mengirimkan form pengajuan baru (seperti izin/cuti)
+  submitRequest: (
+    request: Omit<RequestRecord, "id" | "status" | "createdAt">,
+  ) => Promise<void>; // Mengirimkan form pengajuan baru (seperti izin/cuti)
   markNotificationRead: (id: string) => Promise<void>; // Menandai suatu notifikasi tertentu bahwa sudah dibaca
   updateProfile: (data: Partial<User>) => Promise<void>; // Memperbarui data detail dari profil pengguna
   addNotification: (notification: Notification) => void; // Menambahkan notifikasi baru ke dalam daftar
@@ -27,16 +33,16 @@ interface AppState {
  * Data tiruan (mock data) untuk pengguna saat ini.
  */
 const MOCK_USER: User = {
-  id: '1',
-  name: 'Alex Johnson',
-  employeeId: 'EMP-0042',
-  department: 'Engineering',
-  position: 'Frontend Developer',
-  phone: '+1 (555) 123-4567',
-  email: 'alex.j@company.com',
-  schedule: 'Senin - Jumat, 09:00 - 17:00',
-  photoUrl: 'https://i.pravatar.cc/150?u=alex',
-  emergencyContact: '+1 (555) 987-6543',
+  id: "1",
+  name: "Budi Santoso",
+  employeeId: "EMP-0042",
+  department: "Engineering",
+  position: "Frontend Developer",
+  phone: "0812-2712-5050",
+  email: "ptcti@gamil.com",
+  schedule: "Senin - Jumat, 09:00 - 17:00",
+  photoUrl: "https://i.pravatar.cc/150?u=alex",
+  emergencyContact: "+1 (555) 987-6543",
 };
 
 /**
@@ -49,24 +55,24 @@ const MOCK_HISTORY: AttendanceRecord[] = [];
  */
 const MOCK_NOTIFICATIONS: Notification[] = [
   {
-    id: '1',
-    title: 'Cuti Disetujui',
-    description: 'Permohonan cuti Anda untuk tanggal 4 Juli telah disetujui.',
+    id: "1",
+    title: "Cuti Disetujui",
+    description: "Permohonan cuti Anda untuk tanggal 4 Juli telah disetujui.",
     isRead: false,
     createdAt: new Date(Date.now() - 3600000).toISOString(),
-    type: 'SUCCESS',
+    type: "SUCCESS",
   },
   {
-    id: '2',
-    title: 'Pengumuman Perusahaan',
-    description: 'Rapat umum besok jam 10 pagi di lobi utama.',
+    id: "2",
+    title: "Pengumuman Perusahaan",
+    description: "Rapat umum besok jam 10 pagi di lobi utama.",
     isRead: false,
     createdAt: new Date(Date.now() - 86400000).toISOString(),
-    type: 'INFO',
-  }
+    type: "INFO",
+  },
 ];
 
-const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
+const delay = (ms: number) => new Promise((res) => setTimeout(res, ms));
 
 /**
  * Penyimpanan (store) status global menggunakan Zustand untuk mengelola data dan logika aplikasi.
@@ -96,24 +102,24 @@ export const useAppStore = create<AppState>()(
         await delay(500);
         set({ user: null, isAuthenticated: false });
       },
-      
+
       /**
        * Mencatat data saat pengguna melakukan absen masuk (check-in).
        * Memanfaatkan antrean latar belakang (background queue) jika perangkat tidak terhubung internet (offline).
        */
       checkIn: async (record) => {
         if (!navigator.onLine) {
-          await addToSyncQueue('CHECK_IN', record); // Simpan data absen ke antrean sinkronisasi IndexedDB saat offline
+          await addToSyncQueue("CHECK_IN", record); // Simpan data absen ke antrean sinkronisasi IndexedDB saat offline
         } else {
           await delay(1500); // Simulasikan jeda respons API
         }
         set((state) => {
           const newRecord: AttendanceRecord = {
             id: Math.random().toString(36).substring(7),
-            date: format(new Date(), 'yyyy-MM-dd'),
+            date: format(new Date(), "yyyy-MM-dd"),
             checkInTime: new Date().toISOString(),
             checkOutTime: null,
-            status: 'ON_TIME',
+            status: "ON_TIME",
             workingHours: null,
             location: record.location || null,
             photoUrl: record.photoUrl || null,
@@ -123,32 +129,35 @@ export const useAppStore = create<AppState>()(
           return { attendanceHistory: [newRecord, ...state.attendanceHistory] };
         });
       },
-      
+
       /**
        * Mencatat data saat pengguna melakukan absen keluar (check-out).
        * Menghitung total jam kerja dan memanfaatkan antrean latar belakang (background queue) saat offline.
        */
       checkOut: async (record) => {
         if (!navigator.onLine) {
-          await addToSyncQueue('CHECK_OUT', record); // Simpan data offline ke IndexedDB
+          await addToSyncQueue("CHECK_OUT", record); // Simpan data offline ke IndexedDB
         } else {
           await delay(1500); // Simulasikan jeda API
         }
         set((state) => {
-          const today = format(new Date(), 'yyyy-MM-dd');
-          const updatedHistory = state.attendanceHistory.map(item => {
+          const today = format(new Date(), "yyyy-MM-dd");
+          const updatedHistory = state.attendanceHistory.map((item) => {
             if (item.date === today && !item.checkOutTime) {
               const checkOutTime = new Date().toISOString();
               const checkIn = new Date(item.checkInTime!);
               const checkOut = new Date(checkOutTime);
-              const workingHours = (checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60);
-              
+              const workingHours =
+                (checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60);
+
               return {
                 ...item,
                 checkOutTime,
                 workingHours,
-                checkOutLocation: record.checkOutLocation || record.location || null,
-                checkOutPhotoUrl: record.checkOutPhotoUrl || record.photoUrl || null,
+                checkOutLocation:
+                  record.checkOutLocation || record.location || null,
+                checkOutPhotoUrl:
+                  record.checkOutPhotoUrl || record.photoUrl || null,
               };
             }
             return item;
@@ -167,20 +176,20 @@ export const useAppStore = create<AppState>()(
             {
               ...request,
               id: Math.random().toString(36).substring(7),
-              status: 'PENDING',
+              status: "PENDING",
               createdAt: new Date().toISOString(),
             },
-            ...state.requests
-          ]
+            ...state.requests,
+          ],
         }));
-        
+
         // Mensimulasikan datangnya notifikasi push (Push Notification) persetujuan setelah jeda singkat
         setTimeout(() => {
-          import('./lib/fcm').then(({ simulatePushNotification }) => {
+          import("./lib/fcm").then(({ simulatePushNotification }) => {
             simulatePushNotification(
-              'Permohonan Disetujui', 
-              `Permohonan Anda untuk ${request.type === 'LEAVE' ? 'Cuti' : request.type === 'SICK' ? 'Sakit' : request.type === 'PERMISSION' ? 'Izin' : 'Lembur'} telah disetujui.`, 
-              'SUCCESS'
+              "Permohonan Disetujui",
+              `Permohonan Anda untuk ${request.type === "LEAVE" ? "Cuti" : request.type === "SICK" ? "Sakit" : request.type === "PERMISSION" ? "Izin" : "Lembur"} telah disetujui.`,
+              "SUCCESS",
             );
           });
         }, 5000);
@@ -192,9 +201,9 @@ export const useAppStore = create<AppState>()(
       markNotificationRead: async (id) => {
         await delay(300);
         set((state) => ({
-          notifications: state.notifications.map(n => 
-            n.id === id ? { ...n, isRead: true } : n
-          )
+          notifications: state.notifications.map((n) =>
+            n.id === id ? { ...n, isRead: true } : n,
+          ),
         }));
       },
 
@@ -204,7 +213,7 @@ export const useAppStore = create<AppState>()(
       updateProfile: async (data) => {
         await delay(1000);
         set((state) => ({
-          user: state.user ? { ...state.user, ...data } : null
+          user: state.user ? { ...state.user, ...data } : null,
         }));
       },
 
@@ -213,20 +222,20 @@ export const useAppStore = create<AppState>()(
        */
       addNotification: (notification) => {
         set((state) => ({
-          notifications: [notification, ...state.notifications]
+          notifications: [notification, ...state.notifications],
         }));
       },
     }),
     {
-      name: 'employee-pwa-storage-v3', // Kunci (key) unik untuk menyimpan data di localStorage
+      name: "employee-pwa-storage-v3", // Kunci (key) unik untuk menyimpan data di localStorage
       // Menentukan variabel status (state) apa saja yang harus dipertahankan di localStorage
       partialize: (state) => ({
         attendanceHistory: state.attendanceHistory,
         requests: state.requests,
         notifications: state.notifications,
       }),
-    }
-  )
+    },
+  ),
 );
 
 export { MOCK_USER };
@@ -238,16 +247,16 @@ export { MOCK_USER };
 export const processSyncQueue = async () => {
   const queue = await getSyncQueue();
   if (queue.length === 0) return;
-  
+
   // Memproses antrean satu per satu secara berurutan
   for (const item of queue) {
     try {
       // Mensimulasikan pemanggilan API untuk proses sinkronisasi ke server
-      await delay(500); 
+      await delay(500);
       // Jika sinkronisasi berhasil, hapus item tersebut dari daftar antrean IndexedDB
       await removeFromSyncQueue(item.id);
     } catch (e) {
-      console.error('Gagal menyinkronkan item', item, e);
+      console.error("Gagal menyinkronkan item", item, e);
     }
   }
 };
