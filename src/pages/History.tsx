@@ -9,6 +9,7 @@ import MiniMap from '../components/MiniMap';
 
 export default function History() {
   const history = useAppStore(state => state.attendanceHistory);
+  const office = useAppStore(state => state.office);
   const [selectedRecord, setSelectedRecord] = useState<AttendanceRecord | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
@@ -272,6 +273,7 @@ export default function History() {
                     <MiniMap 
                       checkInLocation={selectedRecord.checkInLocation || selectedRecord.location} 
                       checkOutLocation={selectedRecord.checkOutLocation} 
+                      office={office}
                     />
 
                     <div className="flex items-start gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-200 relative overflow-hidden">

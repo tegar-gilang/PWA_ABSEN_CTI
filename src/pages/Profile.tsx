@@ -1,7 +1,9 @@
 import { useState, useRef, ChangeEvent } from 'react';
 import { useAppStore } from '../store';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, User as UserIcon, Phone, Mail, Building, Briefcase, Clock, ChevronRight, Save, X, Loader2, Camera } from 'lucide-react';
+import { ApiError } from '../lib/api';
+import { compressImageFile } from '../lib/image';
+import { LogOut, User as UserIcon, Phone, Mail, Building, Briefcase, Clock, ChevronRight, Save, X, Loader2, Camera, AlertCircle } from 'lucide-react';
 
 /**
  * Komponen Halaman Profil (Profile Component)
@@ -31,28 +33,40 @@ export default function Profile() {
   // Menyimpan informasi kontak yang baru saja diperbarui
   const handleSave = async () => {
     setIsLoading(true);
+    setError('');
     try {
       await updateProfile(formData);
       setIsEditing(false);
+    } catch (err) {
+      console.error('Gagal menyimpan profil', err);
+      setError(err instanceof ApiError ? err.message : 'Gagal menyimpan perubahan. Coba lagi.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Menangani proses pengunggahan file dan pembaruan foto profil pengguna
+  // State untuk menampilkan pesan error saat gagal menyimpan/mengunggah
+  const [error, setError] = useState('');
+
+  // Menangani proses pengunggahan file dan pembaruan foto profil pengguna.
+  // Foto dikompres & diperkecil resolusinya dulu di browser sebelum dikirim ke server,
+  // supaya tidak melebihi batas ukuran dan tetap cepat diunggah (foto dari kamera HP bisa berukuran beberapa MB).
   const handlePhotoUpload = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        setIsLoading(true);
-        try {
-          await updateProfile({ photoUrl: reader.result as string });
-        } finally {
-          setIsLoading(false);
-        }
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+
+    setIsLoading(true);
+    setError('');
+    try {
+      const compressedDataUrl = await compressImageFile(file, 800, 0.7);
+      await updateProfile({ photoUrl: compressedDataUrl });
+    } catch (err) {
+      console.error('Gagal mengunggah foto profil', err);
+      setError(err instanceof ApiError ? err.message : 'Gagal mengunggah foto. Coba gunakan foto lain.');
+    } finally {
+      setIsLoading(false);
+      // Reset input file agar bisa memilih file yang sama lagi jika ingin mengulang
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
@@ -94,6 +108,13 @@ export default function Profile() {
             <p className="text-[13px] text-slate-400 font-bold tracking-wider mt-px">ID: {user.employeeId}</p>
           </div>
         </div>
+
+        {error && (
+          <div className="mt-4 text-xs text-red-700 bg-red-50 p-3 rounded-xl border border-red-100 flex gap-2 items-start font-medium">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>{error}</span>
+          </div>
+        )}
       </div>
 
       {/* Area Konten Utama */}

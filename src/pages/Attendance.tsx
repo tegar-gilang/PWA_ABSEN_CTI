@@ -1,12 +1,21 @@
 import { useState, useRef, useEffect, ChangeEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store';
-import { MapPin, AlertCircle, Loader2, CheckCircle2, Camera, RefreshCw, X, Upload } from 'lucide-react';
+import { ApiError } from '../lib/api';
+import { classifyAccuracy, accuracyQualityLabel, accuracyQualityColorClasses } from '../lib/geo';
+import MiniMap from '../components/MiniMap';
+import { MapPin, AlertCircle, Loader2, CheckCircle2, Camera, RefreshCw, X, Upload, Navigation } from 'lucide-react';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { motion } from 'motion/react';
 
 type Step = 'INITIAL' | 'LOCATING' | 'LOCATION_FOUND' | 'CAPTURING' | 'PREVIEW' | 'SUBMITTING' | 'SUCCESS';
+
+// Akurasi GPS (meter) yang ingin dicapai sebelum berhenti memantau lokasi lebih lanjut.
+// Jika sudah lebih baik dari ini, kita berhenti lebih awal daripada menunggu penuh.
+const TARGET_ACCURACY_METERS = 20;
+// Batas waktu maksimum (ms) untuk terus memperbaiki akurasi GPS via watchPosition sebelum lanjut dengan bacaan terbaik.
+const MAX_WATCH_DURATION_MS = 8000;
 
 /**
  * Attendance Component
@@ -18,7 +27,7 @@ export default function Attendance() {
   
   // State (Status) untuk mengelola tahapan proses absensi yang memiliki beberapa langkah (multi-step)
   const [step, setStep] = useState<Step>('INITIAL');
-  const [location, setLocation] = useState<{lat: number, lng: number} | null>(null);
+  const [location, setLocation] = useState<{lat: number, lng: number, accuracy: number | null} | null>(null);
   const [error, setError] = useState<string>('');
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   
@@ -31,6 +40,7 @@ export default function Attendance() {
   const checkIn = useAppStore(state => state.checkIn);
   const checkOut = useAppStore(state => state.checkOut);
   const history = useAppStore(state => state.attendanceHistory);
+  const office = useAppStore(state => state.office); // titik & radius geofencing kantor, untuk tampilan jarak
   
   // Memeriksa status absensi pengguna untuk hari ini
   const today = format(new Date(), 'yyyy-MM-dd');
@@ -39,6 +49,7 @@ export default function Attendance() {
   const isCheckedOut = !!todaysRecord?.checkOutTime;
 
   const watchIdRef = useRef<number | null>(null);
+  const fallbackTimerRef = useRef<number | null>(null);
 
   // Menghubungkan aliran gambar kamera (stream) ke elemen video pada saat pengambilan foto (capturing)
   useEffect(() => {
@@ -55,6 +66,9 @@ export default function Attendance() {
       }
       if (watchIdRef.current !== null) {
         navigator.geolocation.clearWatch(watchIdRef.current);
+      }
+      if (fallbackTimerRef.current) {
+        clearTimeout(fallbackTimerRef.current);
       }
     };
   }, [stream]);
@@ -128,79 +142,126 @@ export default function Attendance() {
     setStep('LOCATION_FOUND');
   };
 
-  // Memulai proses verifikasi dengan mencari titik koordinat lokasi GPS pengguna saat tombol ditekan
+  // Memulai proses verifikasi dengan mencari titik koordinat lokasi GPS pengguna saat tombol ditekan.
+  // Menggunakan watchPosition (bukan hanya getCurrentPosition sekali) agar akurasi GPS terus
+  // membaik selama beberapa detik sebelum digunakan - perangkat mobile umumnya butuh waktu
+  // untuk beralih dari sinyal jaringan/wifi kasar ke sinyal satelit GPS yang lebih presisi.
   const startProcess = () => {
     setError('');
-    // Ubah state ke LOCATING agar indikator loading (teks 'Memproses Lokasi...') muncul
     setStep('LOCATING');
-    
-    if ('geolocation' in navigator) {
-      // Opsi Geolocation sesuai permintaan: akurasi tinggi, batas waktu 10 detik, dan tanpa cache
-      const geoOptions = { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 };
 
-      // Callback jika berhasil mendapatkan lokasi
-      const successCallback = (position: GeolocationPosition) => {
-        setLocation({
-          lat: position.coords.latitude,
-          lng: position.coords.longitude
-        });
-        // Lanjut ke tahap berikutnya setelah lokasi ditemukan
-        setStep((prev) => prev === 'LOCATING' ? 'LOCATION_FOUND' : prev);
-      };
-
-      // Callback jika gagal mendapatkan lokasi (misal: ditolak pengguna atau timeout)
-      const errorCallback = (err: GeolocationPositionError) => {
-        console.warn('Geolocation error:', err.message);
-        
-        // Pesan error spesifik sesuai permintaan
-        const errorMsg = 'Gagal Absen! Anda wajib mengaktifkan GPS dan mengizinkan akses lokasi pada browser ini untuk melakukan absensi.';
-        
-        // Tampilkan peringatan pop-up
-        window.alert(errorMsg);
-        
-        // Tampilkan pesan error di UI dan kembalikan state ke awal (tombol kembali semula)
-        setError(errorMsg);
-        setStep('INITIAL');
-      };
-
-      // Memanggil fungsi Geolocation API browser untuk meminta koordinat saat itu juga
-      navigator.geolocation.getCurrentPosition(successCallback, errorCallback, geoOptions);
-    } else {
-      // Handling jika browser tidak mendukung fitur Geolocation
+    if (!('geolocation' in navigator)) {
       const errorMsg = 'Gagal Absen! Browser Anda tidak mendukung fitur lokasi.';
       window.alert(errorMsg);
       setError(errorMsg);
       setStep('INITIAL');
+      return;
     }
+
+    const geoOptions: PositionOptions = { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 };
+    let bestAccuracySoFar = Infinity;
+    let stopped = false;
+
+    const stopWatching = () => {
+      if (stopped) return;
+      stopped = true;
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+      }
+      if (fallbackTimerRef.current) {
+        clearTimeout(fallbackTimerRef.current);
+        fallbackTimerRef.current = null;
+      }
+    };
+
+    // Callback tiap kali browser mengirimkan pembacaan lokasi baru (bisa terpanggil berkali-kali)
+    const onPosition = (position: GeolocationPosition) => {
+      const { latitude, longitude, accuracy } = position.coords;
+
+      // Hanya perbarui state jika pembacaan ini lebih akurat (angka accuracy lebih kecil = lebih presisi)
+      if (accuracy <= bestAccuracySoFar) {
+        bestAccuracySoFar = accuracy;
+        setLocation({ lat: latitude, lng: longitude, accuracy });
+      }
+
+      // Jika sudah cukup akurat, tidak perlu menunggu lebih lama lagi
+      if (accuracy <= TARGET_ACCURACY_METERS) {
+        stopWatching();
+        setStep((prev) => (prev === 'LOCATING' ? 'LOCATION_FOUND' : prev));
+      }
+    };
+
+    const onError = (err: GeolocationPositionError) => {
+      console.warn('Geolocation error:', err.message);
+      stopWatching();
+      const errorMsg = 'Gagal Absen! Anda wajib mengaktifkan GPS dan mengizinkan akses lokasi pada browser ini untuk melakukan absensi.';
+      window.alert(errorMsg);
+      setError(errorMsg);
+      setStep('INITIAL');
+    };
+
+    watchIdRef.current = navigator.geolocation.watchPosition(onPosition, onError, geoOptions);
+
+    // Jika setelah beberapa detik akurasi belum mencapai target, tetap lanjutkan
+    // dengan bacaan terbaik yang berhasil didapat (lebih baik daripada menunggu tanpa batas).
+    fallbackTimerRef.current = window.setTimeout(() => {
+      stopWatching();
+      setStep((prev) => {
+        if (prev !== 'LOCATING') return prev;
+        if (bestAccuracySoFar === Infinity) {
+          const errorMsg = 'Gagal mendapatkan lokasi GPS. Pastikan Anda berada di area terbuka dan coba lagi.';
+          window.alert(errorMsg);
+          setError(errorMsg);
+          return 'INITIAL';
+        }
+        return 'LOCATION_FOUND';
+      });
+    }, MAX_WATCH_DURATION_MS);
   };
 
-  // Mengirimkan catatan kehadiran akhir (check-in atau check-out) menuju sistem penyimpanan global (store)
+  // Mengirimkan catatan kehadiran akhir (check-in atau check-out) menuju backend.
+  // Backend akan memvalidasi ulang akurasi GPS dan radius kantor (geofencing) demi keamanan data.
   const handleSubmit = async () => {
+    if (!location) {
+      setError('Lokasi GPS belum tersedia. Silakan ulangi proses absen.');
+      setStep('LOCATION_FOUND');
+      return;
+    }
+
     try {
       setStep('SUBMITTING');
-      
-      const recordData = {
-        location: location || { lat: 0, lng: 0 },
-        photoUrl: photoUrl || '',
-        ...(isCheckedIn ? {
-          checkOutLocation: location || { lat: 0, lng: 0 },
-          checkOutPhotoUrl: photoUrl || '',
-        } : {
-          checkInLocation: location || { lat: 0, lng: 0 },
-          checkInPhotoUrl: photoUrl || '',
-        })
+
+      const payload = {
+        lat: location.lat,
+        lng: location.lng,
+        accuracy: location.accuracy ?? 9999,
+        photoUrl: photoUrl || null,
       };
 
       if (isCheckedIn) {
-        await checkOut(recordData);
+        await checkOut(payload);
       } else {
-        await checkIn(recordData);
+        await checkIn(payload);
       }
-      
+
       setStep('SUCCESS');
     } catch (err) {
-      setError('Gagal mengirim absensi. Silakan coba lagi.');
-      setStep('PREVIEW');
+      console.error(err);
+      const message =
+        err instanceof ApiError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : 'Gagal mengirim absensi. Silakan coba lagi.';
+      setError(message);
+      // Untuk error terkait lokasi (akurasi rendah / di luar radius), kembalikan ke tahap lokasi
+      // agar pengguna bisa mencoba mendapatkan sinyal GPS yang lebih baik.
+      if (err instanceof ApiError && (err.code === 'LOW_ACCURACY' || err.code === 'OUT_OF_RADIUS')) {
+        setStep('LOCATION_FOUND');
+      } else {
+        setStep('PREVIEW');
+      }
     }
   };
 
@@ -323,6 +384,14 @@ export default function Attendance() {
                     {location.lat.toFixed(6)}, {location.lng.toFixed(6)}
                   </span>
                 </div>
+                {location.accuracy != null && (
+                  <div className="flex justify-between items-center text-left">
+                    <span className="text-blue-300 text-xs font-bold uppercase tracking-wider w-1/3">Akurasi GPS</span>
+                    <span className="font-mono text-xs text-blue-100 text-right">
+                      ±{Math.round(location.accuracy)} m
+                    </span>
+                  </div>
+                )}
               </>
             )}
           </motion.div>
@@ -399,16 +468,40 @@ export default function Attendance() {
             <div className="flex-1">
               <h3 className="font-bold text-slate-900 mb-1">Lokasi GPS</h3>
               {location ? (
-                <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 mt-2 flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Koordinat Saat Ini</span>
-                  <span className="font-mono text-xs font-bold text-slate-900 bg-white px-2 py-1 rounded shadow-sm border border-slate-200">
-                    {location.lat.toFixed(6)}, {location.lng.toFixed(6)}
-                  </span>
+                <div className="space-y-2 mt-2">
+                  <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Koordinat Saat Ini</span>
+                    <span className="font-mono text-xs font-bold text-slate-900 bg-white px-2 py-1 rounded shadow-sm border border-slate-200">
+                      {location.lat.toFixed(6)}, {location.lng.toFixed(6)}
+                    </span>
+                  </div>
+
+                  {/* Indikator kualitas akurasi GPS - membantu pengguna tahu apakah perlu pindah ke area terbuka */}
+                  {location.accuracy != null && (
+                    <div className={`flex items-center justify-between rounded-xl p-3 border ${accuracyQualityColorClasses(classifyAccuracy(location.accuracy))}`}>
+                      <span className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
+                        <Navigation className="w-3.5 h-3.5" />
+                        Akurasi GPS
+                      </span>
+                      <span className="text-xs font-bold">
+                        ±{Math.round(location.accuracy)} m &middot; {accuracyQualityLabel(classifyAccuracy(location.accuracy))}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Peta lokasi teknisi saat ini - lingkaran putus-putus menunjukkan radius akurasi GPS di titik tersebut.
+                      Lokasi disimpan apa adanya (tidak dibatasi ke satu kantor), karena teknisi bekerja berpindah lokasi. */}
+                  <MiniMap checkInLocation={location} office={office} />
+                  <p className="text-[11px] text-slate-400 font-medium px-1">
+                    Titik biru menandai lokasi Anda saat ini. Lingkaran putus-putus adalah radius akurasi GPS (±{location.accuracy ? Math.round(location.accuracy) : '-'} m) - lokasi ini yang akan tersimpan sebagai titik absen.
+                  </p>
                 </div>
+              ) : step === 'LOCATING' ? (
+                <p className="text-xs text-slate-500 font-medium leading-relaxed">Menyempurnakan akurasi lokasi Anda, mohon tunggu sebentar...</p>
               ) : (
-                <p className="text-xs text-slate-500 font-medium leading-relaxed">Kami memerlukan lokasi Anda untuk memverifikasi bahwa Anda berada dalam radius yang diizinkan.</p>
+                <p className="text-xs text-slate-500 font-medium leading-relaxed">Kami akan merekam koordinat lokasi Anda saat ini (latitude & longitude) sebagai titik absen, beserta radius akurasinya.</p>
               )}
-              {error && error.includes('lokasi') && (
+              {error && (error.includes('lokasi') || error.includes('GPS') || error.includes('radius') || error.includes('akurasi')) && (
                 <div className="mt-3 text-xs text-red-700 bg-red-50 p-3 rounded-xl border border-red-100 flex flex-col gap-2 font-medium">
                   <div className="flex gap-2 items-start">
                     <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
