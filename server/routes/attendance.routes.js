@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import { pool } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { haversineDistanceMeters, classifyAccuracy } from "../utils/geo.js";
+import { getLocalDateString, getMinutesSinceMidnight } from "../utils/date.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -106,7 +107,7 @@ async function validateGeoOrThrow({ lat, lng, accuracy }) {
  */
 router.get("/today", async (req, res) => {
   try {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getLocalDateString();
     const [rows] = await pool.query("SELECT * FROM attendance_records WHERE user_id = ? AND date = ?", [req.userId, today]);
     res.json({ record: rows[0] ? toRecordDTO(rows[0]) : null });
   } catch (err) {
@@ -138,16 +139,18 @@ router.post("/checkin", async (req, res) => {
     const { lat, lng, accuracy, photoUrl } = req.body;
     const { distance } = await validateGeoOrThrow({ lat, lng, accuracy });
 
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getLocalDateString();
     const [existing] = await pool.query("SELECT id FROM attendance_records WHERE user_id = ? AND date = ?", [req.userId, today]);
     if (existing.length > 0) {
       return res.status(409).json({ message: "Anda sudah melakukan absen masuk hari ini." });
     }
 
     const now = new Date();
-    const lateThreshold = new Date(now);
-    lateThreshold.setHours(WORK_START_HOUR, WORK_START_MINUTE + LATE_GRACE_MINUTES, 0, 0);
-    const status = now > lateThreshold ? "LATE" : "ON_TIME";
+    // Bandingkan jam:menit di timezone aplikasi (bukan timezone OS server) agar status
+    // ON_TIME/LATE selalu konsisten di mana pun server dijalankan.
+    const nowMinutes = getMinutesSinceMidnight(now);
+    const thresholdMinutes = WORK_START_HOUR * 60 + WORK_START_MINUTE + LATE_GRACE_MINUTES;
+    const status = nowMinutes > thresholdMinutes ? "LATE" : "ON_TIME";
 
     const id = randomUUID();
     await pool.query(
@@ -178,7 +181,7 @@ router.post("/checkout", async (req, res) => {
     const { lat, lng, accuracy, photoUrl } = req.body;
     const { distance } = await validateGeoOrThrow({ lat, lng, accuracy });
 
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getLocalDateString();
     const [rows] = await pool.query("SELECT * FROM attendance_records WHERE user_id = ? AND date = ?", [req.userId, today]);
     const record = rows[0];
 

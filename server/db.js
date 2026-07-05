@@ -18,6 +18,11 @@ export const pool = mysql.createPool({
   connectionLimit: 10,
   queueLimit: 0,
   decimalNumbers: true, // agar kolom DECIMAL dikembalikan sebagai number, bukan string
+  // PENTING: kolom bertipe DATE dikembalikan sebagai string 'YYYY-MM-DD' apa adanya (bukan objek Date JS).
+  // Tanpa ini, driver akan membuat objek Date pada tengah malam LOKAL lalu kita ubah ke ISO (UTC),
+  // yang bisa membuat tanggal "mundur satu hari" tergantung timezone server - menyebabkan status
+  // absen hari ini gagal cocok (selalu terlihat "Belum Masuk" walau sudah tersimpan di database).
+  dateStrings: ["DATE"],
 });
 
 /**

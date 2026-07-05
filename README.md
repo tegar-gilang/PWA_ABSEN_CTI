@@ -76,6 +76,12 @@ npm run dev
 
 Frontend (Vite) akan otomatis memanggil backend melalui `VITE_API_URL` di file `.env`.
 
+> **Update penting:** Jika kamu meng-update dari versi sebelumnya dan mengalami status absen yang
+> tidak berubah ("Belum Masuk" terus padahal sudah absen), itu karena bug timezone pada driver MySQL
+> yang membuat tanggal absen "geser satu hari" saat dibaca kembali - sudah diperbaiki di `server/db.js`
+> dan `server/utils/date.js`. Cukup tarik kode terbaru dan restart server (`npm run server`),
+> **tidak perlu** menjalankan migrasi database apapun untuk perbaikan ini.
+
 ### Mode Teknisi Lapangan (Tanpa Geofencing Kantor)
 
 Secara default, aplikasi ini dikonfigurasi untuk **teknisi lapangan yang lokasi kerjanya berpindah-pindah**,
