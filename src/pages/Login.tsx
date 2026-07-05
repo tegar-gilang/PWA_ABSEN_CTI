@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { useAppStore, MOCK_USER } from '../store';
+import { useAppStore } from '../store';
+import { ApiError } from '../lib/api';
 import { Briefcase, ArrowRight, Loader2 } from 'lucide-react';
 import { motion } from 'motion/react';
 
 /**
  * Komponen Halaman Login (Masuk).
- * Menangani otentikasi awal karyawan. Memiliki antarmuka form untuk memasukkan ID Karyawan dan Kata Sandi.
+ * Menangani otentikasi awal karyawan ke backend (Express + MySQL) menggunakan ID Karyawan dan Kata Sandi.
  */
 export default function Login() {
   const navigate = useNavigate();
@@ -18,23 +19,26 @@ export default function Login() {
   const [employeeId, setEmployeeId] = useState('');
   // State untuk menyimpan nilai kata sandi yang diketik
   const [password, setPassword] = useState('');
+  // State untuk menampilkan pesan error dari backend (mis. ID/kata sandi salah)
+  const [error, setError] = useState('');
 
   /**
    * Menangani pengiriman form login.
-   * Mensimulasikan pemanggilan API autentikasi, lalu mengalihkan ke halaman Home bila berhasil.
+   * Memanggil API login sungguhan ke backend, lalu mengalihkan ke halaman Home bila berhasil.
    */
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!employeeId || !password) return;
     
     setLoading(true);
+    setError('');
     try {
-      // Mengirimkan data login ke penyimpanan global (Zustand) dengan menggabungkan ID yang diketik ke data simulasi
-      await login({ ...MOCK_USER, employeeId });
+      await login(employeeId, password);
       // Beralih ke halaman Beranda tanpa menyimpan halaman ini di riwayat peramban (replace: true)
       navigate('/home', { replace: true });
-    } catch (error) {
-      console.error('Gagal masuk/login', error);
+    } catch (err) {
+      console.error('Gagal masuk/login', err);
+      setError(err instanceof ApiError ? err.message : 'Gagal terhubung ke server. Periksa koneksi Anda.');
     } finally {
       setLoading(false);
     }
@@ -79,6 +83,12 @@ export default function Login() {
               required
             />
           </div>
+
+          {error && (
+            <div className="text-xs text-red-700 bg-red-50 p-3 rounded-xl border border-red-100 font-medium">
+              {error}
+            </div>
+          )}
 
           <div className="flex items-center justify-between">
             <label className="flex items-center gap-2">

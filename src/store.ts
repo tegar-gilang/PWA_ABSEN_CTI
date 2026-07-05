@@ -1,259 +1,233 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { User, AttendanceRecord, RequestRecord, Notification } from "./types";
-import { format } from "date-fns";
+import { User, AttendanceRecord, RequestRecord, Notification, OfficeLocation } from "./types";
 import {
   addToSyncQueue,
   getSyncQueue,
   removeFromSyncQueue,
 } from "./lib/offlineQueue";
+import {
+  apiLogin,
+  apiRegister,
+  apiCheckIn,
+  apiCheckOut,
+  apiGetAttendanceHistory,
+  apiGetNotifications,
+  apiGetOffice,
+  apiGetRequests,
+  apiMarkNotificationRead,
+  apiSubmitRequest,
+  apiUpdateProfile,
+  apiGetMe,
+  setToken,
+  clearToken,
+  getToken,
+  GeoPayload,
+} from "./lib/api";
 
 /**
  * Antarmuka (Interface) yang mendefinisikan status global (global state) untuk keseluruhan aplikasi.
+ * Semua data kini bersumber dari backend Express + MySQL, bukan lagi data tiruan (mock).
  */
 interface AppState {
-  user: User | null; // Detail dari pengguna yang saat ini terotentikasi/login
-  isAuthenticated: boolean; // Bendera penanda (flag) untuk mengetahui apakah pengguna sudah masuk ke sistem
-  attendanceHistory: AttendanceRecord[]; // Daftar catatan absensi/kehadiran pengguna di masa lalu
-  requests: RequestRecord[]; // Daftar pengajuan cuti, izin, atau sakit milik pengguna
-  notifications: Notification[]; // Daftar notifikasi di dalam aplikasi (in-app notifications) untuk pengguna
-  login: (user: User) => Promise<void>; // Fungsi untuk memproses login pengguna
-  logout: () => Promise<void>; // Fungsi untuk memproses keluar/logout pengguna dari aplikasi
-  checkIn: (record: Partial<AttendanceRecord>) => Promise<void>; // Menangani logika untuk melakukan absen masuk (check-in)
-  checkOut: (record: Partial<AttendanceRecord>) => Promise<void>; // Menangani logika untuk melakukan absen keluar (check-out)
-  submitRequest: (
-    request: Omit<RequestRecord, "id" | "status" | "createdAt">,
-  ) => Promise<void>; // Mengirimkan form pengajuan baru (seperti izin/cuti)
-  markNotificationRead: (id: string) => Promise<void>; // Menandai suatu notifikasi tertentu bahwa sudah dibaca
-  updateProfile: (data: Partial<User>) => Promise<void>; // Memperbarui data detail dari profil pengguna
-  addNotification: (notification: Notification) => void; // Menambahkan notifikasi baru ke dalam daftar
+  user: User | null;
+  isAuthenticated: boolean;
+  attendanceHistory: AttendanceRecord[];
+  requests: RequestRecord[];
+  notifications: Notification[];
+  office: OfficeLocation | null; // titik & radius geofencing kantor, untuk validasi & tampilan peta
+  isHydrating: boolean; // true saat sedang memuat ulang sesi & data awal
+
+  login: (employeeId: string, password: string) => Promise<void>;
+  signup: (payload: { name: string; employeeId: string; password: string; department: string }) => Promise<void>;
+  logout: () => Promise<void>;
+  hydrateSession: () => Promise<void>; // memuat ulang sesi & data awal saat aplikasi dibuka
+  checkIn: (payload: GeoPayload) => Promise<void>;
+  checkOut: (payload: GeoPayload) => Promise<void>;
+  submitRequest: (request: { type: string; reason: string; date: string }) => Promise<void>;
+  markNotificationRead: (id: string) => Promise<void>;
+  updateProfile: (data: Partial<User>) => Promise<void>;
+  addNotification: (notification: Notification) => void;
 }
 
 /**
- * Data tiruan (mock data) untuk pengguna saat ini.
+ * Memuat data riwayat absensi, pengajuan, notifikasi, dan lokasi kantor
+ * dari backend sekaligus - dipanggil setelah login berhasil atau saat sesi dipulihkan.
  */
-const MOCK_USER: User = {
-  id: "1",
-  name: "Budi Santoso",
-  employeeId: "EMP-0042",
-  department: "Engineering",
-  position: "Frontend Developer",
-  phone: "0812-2712-5050",
-  email: "ptcti@gamil.com",
-  schedule: "Senin - Jumat, 09:00 - 17:00",
-  photoUrl: "https://i.pravatar.cc/150?u=alex",
-  emergencyContact: "+1 (555) 987-6543",
-};
+async function fetchAllUserData() {
+  const [historyRes, requestsRes, notifRes, officeRes] = await Promise.all([
+    apiGetAttendanceHistory(),
+    apiGetRequests(),
+    apiGetNotifications(),
+    apiGetOffice(),
+  ]);
+  return {
+    attendanceHistory: historyRes.records,
+    requests: requestsRes.requests,
+    notifications: notifRes.notifications,
+    office: officeRes.office,
+  };
+}
 
-/**
- * Data tiruan (mock data) untuk riwayat absen/kehadiran pengguna.
- */
-const MOCK_HISTORY: AttendanceRecord[] = [];
-
-/**
- * Data tiruan (mock data) untuk daftar notifikasi awal di dalam aplikasi.
- */
-const MOCK_NOTIFICATIONS: Notification[] = [
-  {
-    id: "1",
-    title: "Cuti Disetujui",
-    description: "Permohonan cuti Anda untuk tanggal 4 Juli telah disetujui.",
-    isRead: false,
-    createdAt: new Date(Date.now() - 3600000).toISOString(),
-    type: "SUCCESS",
-  },
-  {
-    id: "2",
-    title: "Pengumuman Perusahaan",
-    description: "Rapat umum besok jam 10 pagi di lobi utama.",
-    isRead: false,
-    createdAt: new Date(Date.now() - 86400000).toISOString(),
-    type: "INFO",
-  },
-];
-
-const delay = (ms: number) => new Promise((res) => setTimeout(res, ms));
-
-/**
- * Penyimpanan (store) status global menggunakan Zustand untuk mengelola data dan logika aplikasi.
- * Store ini memanfaatkan middleware 'persist' untuk menyimpan sebagian dari status (state) ke dalam localStorage.
- */
 export const useAppStore = create<AppState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       user: null,
       isAuthenticated: false,
-      attendanceHistory: MOCK_HISTORY,
+      attendanceHistory: [],
       requests: [],
-      notifications: MOCK_NOTIFICATIONS,
+      notifications: [],
+      office: null,
+      isHydrating: false,
 
       /**
-       * Mensimulasikan proses masuk (login) oleh pengguna.
+       * Login ke backend menggunakan ID Karyawan & kata sandi, lalu memuat data awal pengguna.
        */
-      login: async (user) => {
-        await delay(1000);
-        set({ user, isAuthenticated: true });
+      login: async (employeeId, password) => {
+        const { token, user } = await apiLogin({ employeeId, password });
+        setToken(token);
+        const data = await fetchAllUserData();
+        set({ user, isAuthenticated: true, ...data });
       },
 
       /**
-       * Mensimulasikan proses keluar (logout) oleh pengguna.
+       * Mendaftarkan akun baru ke backend lalu otomatis login.
+       */
+      signup: async (payload) => {
+        const { token, user } = await apiRegister(payload);
+        setToken(token);
+        const data = await fetchAllUserData();
+        set({ user, isAuthenticated: true, ...data });
+      },
+
+      /**
+       * Logout: menghapus token JWT dan mengosongkan state lokal.
        */
       logout: async () => {
-        await delay(500);
-        set({ user: null, isAuthenticated: false });
-      },
-
-      /**
-       * Mencatat data saat pengguna melakukan absen masuk (check-in).
-       * Memanfaatkan antrean latar belakang (background queue) jika perangkat tidak terhubung internet (offline).
-       */
-      checkIn: async (record) => {
-        if (!navigator.onLine) {
-          await addToSyncQueue("CHECK_IN", record); // Simpan data absen ke antrean sinkronisasi IndexedDB saat offline
-        } else {
-          await delay(1500); // Simulasikan jeda respons API
-        }
-        set((state) => {
-          const newRecord: AttendanceRecord = {
-            id: Math.random().toString(36).substring(7),
-            date: format(new Date(), "yyyy-MM-dd"),
-            checkInTime: new Date().toISOString(),
-            checkOutTime: null,
-            status: "ON_TIME",
-            workingHours: null,
-            location: record.location || null,
-            photoUrl: record.photoUrl || null,
-            checkInLocation: record.checkInLocation || record.location || null,
-            checkInPhotoUrl: record.checkInPhotoUrl || record.photoUrl || null,
-          };
-          return { attendanceHistory: [newRecord, ...state.attendanceHistory] };
+        clearToken();
+        set({
+          user: null,
+          isAuthenticated: false,
+          attendanceHistory: [],
+          requests: [],
+          notifications: [],
+          office: null,
         });
       },
 
       /**
-       * Mencatat data saat pengguna melakukan absen keluar (check-out).
-       * Menghitung total jam kerja dan memanfaatkan antrean latar belakang (background queue) saat offline.
+       * Dipanggil saat aplikasi pertama kali dibuka untuk memulihkan sesi
+       * dari token JWT yang tersimpan (jika ada & masih valid).
        */
-      checkOut: async (record) => {
-        if (!navigator.onLine) {
-          await addToSyncQueue("CHECK_OUT", record); // Simpan data offline ke IndexedDB
-        } else {
-          await delay(1500); // Simulasikan jeda API
+      hydrateSession: async () => {
+        const token = getToken();
+        if (!token) return;
+        set({ isHydrating: true });
+        try {
+          const { user } = await apiGetMe();
+          const data = await fetchAllUserData();
+          set({ user, isAuthenticated: true, ...data });
+        } catch (err) {
+          // Token tidak valid/kedaluwarsa - bersihkan sesi
+          clearToken();
+          set({ user: null, isAuthenticated: false });
+        } finally {
+          set({ isHydrating: false });
         }
-        set((state) => {
-          const today = format(new Date(), "yyyy-MM-dd");
-          const updatedHistory = state.attendanceHistory.map((item) => {
-            if (item.date === today && !item.checkOutTime) {
-              const checkOutTime = new Date().toISOString();
-              const checkIn = new Date(item.checkInTime!);
-              const checkOut = new Date(checkOutTime);
-              const workingHours =
-                (checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60);
-
-              return {
-                ...item,
-                checkOutTime,
-                workingHours,
-                checkOutLocation:
-                  record.checkOutLocation || record.location || null,
-                checkOutPhotoUrl:
-                  record.checkOutPhotoUrl || record.photoUrl || null,
-              };
-            }
-            return item;
-          });
-          return { attendanceHistory: updatedHistory };
-        });
       },
 
       /**
-       * Mengirimkan sebuah form permohonan (seperti Cuti, Sakit, atau Izin) untuk meminta persetujuan atasan.
+       * Mencatat absen masuk (check-in) ke backend, termasuk koordinat GPS,
+       * akurasi (meter), dan foto verifikasi. Jika perangkat offline, data
+       * dimasukkan ke antrean sinkronisasi (IndexedDB) untuk dikirim nanti.
+       */
+      checkIn: async (payload) => {
+        if (!navigator.onLine) {
+          await addToSyncQueue("CHECK_IN", payload);
+          throw new Error(
+            "Anda sedang offline. Absen masuk disimpan dan akan dikirim otomatis saat koneksi tersedia.",
+          );
+        }
+        const { record } = await apiCheckIn(payload);
+        set((state) => ({ attendanceHistory: [record, ...state.attendanceHistory] }));
+      },
+
+      /**
+       * Mencatat absen keluar (check-out) ke backend, menghitung jam kerja otomatis di server.
+       */
+      checkOut: async (payload) => {
+        if (!navigator.onLine) {
+          await addToSyncQueue("CHECK_OUT", payload);
+          throw new Error(
+            "Anda sedang offline. Absen pulang disimpan dan akan dikirim otomatis saat koneksi tersedia.",
+          );
+        }
+        const { record } = await apiCheckOut(payload);
+        set((state) => ({
+          attendanceHistory: state.attendanceHistory.map((item) => (item.id === record.id ? record : item)),
+        }));
+      },
+
+      /**
+       * Mengirimkan pengajuan (Cuti/Izin/Sakit/Lembur) ke backend.
        */
       submitRequest: async (request) => {
-        await delay(1000);
-        set((state) => ({
-          requests: [
-            {
-              ...request,
-              id: Math.random().toString(36).substring(7),
-              status: "PENDING",
-              createdAt: new Date().toISOString(),
-            },
-            ...state.requests,
-          ],
-        }));
-
-        // Mensimulasikan datangnya notifikasi push (Push Notification) persetujuan setelah jeda singkat
-        setTimeout(() => {
-          import("./lib/fcm").then(({ simulatePushNotification }) => {
-            simulatePushNotification(
-              "Permohonan Disetujui",
-              `Permohonan Anda untuk ${request.type === "LEAVE" ? "Cuti" : request.type === "SICK" ? "Sakit" : request.type === "PERMISSION" ? "Izin" : "Lembur"} telah disetujui.`,
-              "SUCCESS",
-            );
-          });
-        }, 5000);
+        const { request: created } = await apiSubmitRequest(request);
+        set((state) => ({ requests: [created, ...state.requests] }));
       },
 
       /**
-       * Menandai notifikasi tertentu di dalam store (penyimpanan state) sebagai telah dibaca.
+       * Menandai notifikasi sebagai telah dibaca, baik di backend maupun state lokal.
        */
       markNotificationRead: async (id) => {
-        await delay(300);
+        await apiMarkNotificationRead(id);
         set((state) => ({
-          notifications: state.notifications.map((n) =>
-            n.id === id ? { ...n, isRead: true } : n,
-          ),
+          notifications: state.notifications.map((n) => (n.id === id ? { ...n, isRead: true } : n)),
         }));
       },
 
       /**
-       * Memperbarui informasi detail profil milik pengguna saat ini.
+       * Memperbarui profil pengguna di backend.
        */
       updateProfile: async (data) => {
-        await delay(1000);
-        set((state) => ({
-          user: state.user ? { ...state.user, ...data } : null,
-        }));
+        const { user } = await apiUpdateProfile(data);
+        set({ user });
       },
 
       /**
-       * Fungsi pembantu (helper) untuk menambahkan notifikasi secara cepat ke dalam daftar lokal di store.
+       * Menambahkan notifikasi secara lokal (mis. dari simulasi push notification).
        */
       addNotification: (notification) => {
-        set((state) => ({
-          notifications: [notification, ...state.notifications],
-        }));
+        set((state) => ({ notifications: [notification, ...state.notifications] }));
       },
     }),
     {
-      name: "employee-pwa-storage-v3", // Kunci (key) unik untuk menyimpan data di localStorage
-      // Menentukan variabel status (state) apa saja yang harus dipertahankan di localStorage
+      name: "employee-pwa-storage-v4",
+      // Hanya menyimpan sedikit state di localStorage sebagai cache tampilan awal;
+      // sumber data utama tetap backend (dipulihkan lewat hydrateSession).
       partialize: (state) => ({
-        attendanceHistory: state.attendanceHistory,
-        requests: state.requests,
-        notifications: state.notifications,
+        user: state.user,
+        isAuthenticated: state.isAuthenticated,
       }),
     },
   ),
 );
 
-export { MOCK_USER };
-
 /**
- * Memproses seluruh isi antrean sinkronisasi latar belakang yang berkaitan dengan absen masuk/keluar
- * yang mungkin dilakukan oleh pengguna pada saat perangkat tidak memiliki koneksi internet.
+ * Memproses seluruh isi antrean sinkronisasi latar belakang (absen masuk/keluar)
+ * yang tertunda karena perangkat sempat tidak memiliki koneksi internet.
  */
 export const processSyncQueue = async () => {
   const queue = await getSyncQueue();
   if (queue.length === 0) return;
 
-  // Memproses antrean satu per satu secara berurutan
   for (const item of queue) {
     try {
-      // Mensimulasikan pemanggilan API untuk proses sinkronisasi ke server
-      await delay(500);
-      // Jika sinkronisasi berhasil, hapus item tersebut dari daftar antrean IndexedDB
+      if (item.type === "CHECK_IN") {
+        await apiCheckIn(item.payload as GeoPayload);
+      } else if (item.type === "CHECK_OUT") {
+        await apiCheckOut(item.payload as GeoPayload);
+      }
       await removeFromSyncQueue(item.id);
     } catch (e) {
       console.error("Gagal menyinkronkan item", item, e);

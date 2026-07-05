@@ -1,7 +1,9 @@
-import { useState, useRef, ChangeEvent } from 'react';
+import { useState, useRef, useEffect, ChangeEvent } from 'react';
 import { useAppStore } from '../store';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, User as UserIcon, Phone, Mail, Building, Briefcase, Clock, ChevronRight, Save, X, Loader2, Camera } from 'lucide-react';
+import { ApiError } from '../lib/api';
+import { compressImageFile } from '../lib/image';
+import { LogOut, User as UserIcon, Phone, Mail, Building, Briefcase, Clock, ChevronRight, Save, X, Loader2, Camera, AlertCircle } from 'lucide-react';
 
 /**
  * Komponen Halaman Profil (Profile Component)
@@ -18,8 +20,23 @@ export default function Profile() {
   const [formData, setFormData] = useState({
     phone: user?.phone || '',
     emergencyContact: user?.emergencyContact || '',
+    email: user?.email || '',
+    position: user?.position || '',
   });
-  
+
+  // Menyinkronkan form dengan data pengguna terbaru dari server (mis. setelah hydrateSession selesai),
+  // tapi tidak menimpa perubahan yang sedang diketik pengguna saat mode edit aktif.
+  useEffect(() => {
+    if (!isEditing && user) {
+      setFormData({
+        phone: user.phone || '',
+        emergencyContact: user.emergencyContact || '',
+        email: user.email || '',
+        position: user.position || '',
+      });
+    }
+  }, [user, isEditing]);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Mengeluarkan (Sign Out) pengguna saat ini dan menavigasikan kembali ke halaman login
@@ -31,28 +48,40 @@ export default function Profile() {
   // Menyimpan informasi kontak yang baru saja diperbarui
   const handleSave = async () => {
     setIsLoading(true);
+    setError('');
     try {
       await updateProfile(formData);
       setIsEditing(false);
+    } catch (err) {
+      console.error('Gagal menyimpan profil', err);
+      setError(err instanceof ApiError ? err.message : 'Gagal menyimpan perubahan. Coba lagi.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Menangani proses pengunggahan file dan pembaruan foto profil pengguna
+  // State untuk menampilkan pesan error saat gagal menyimpan/mengunggah
+  const [error, setError] = useState('');
+
+  // Menangani proses pengunggahan file dan pembaruan foto profil pengguna.
+  // Foto dikompres & diperkecil resolusinya dulu di browser sebelum dikirim ke server,
+  // supaya tidak melebihi batas ukuran dan tetap cepat diunggah (foto dari kamera HP bisa berukuran beberapa MB).
   const handlePhotoUpload = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        setIsLoading(true);
-        try {
-          await updateProfile({ photoUrl: reader.result as string });
-        } finally {
-          setIsLoading(false);
-        }
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+
+    setIsLoading(true);
+    setError('');
+    try {
+      const compressedDataUrl = await compressImageFile(file, 800, 0.7);
+      await updateProfile({ photoUrl: compressedDataUrl });
+    } catch (err) {
+      console.error('Gagal mengunggah foto profil', err);
+      setError(err instanceof ApiError ? err.message : 'Gagal mengunggah foto. Coba gunakan foto lain.');
+    } finally {
+      setIsLoading(false);
+      // Reset input file agar bisa memilih file yang sama lagi jika ingin mengulang
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
@@ -94,16 +123,50 @@ export default function Profile() {
             <p className="text-[13px] text-slate-400 font-bold tracking-wider mt-px">ID: {user.employeeId}</p>
           </div>
         </div>
+
+        {error && (
+          <div className="mt-4 text-xs text-red-700 bg-red-50 p-3 rounded-xl border border-red-100 flex gap-2 items-start font-medium">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>{error}</span>
+          </div>
+        )}
       </div>
 
       {/* Area Konten Utama */}
       <div className="px-6 py-6 space-y-6">
         {/* Bagian Informasi Pekerjaan (Hanya-Baca / Read-only) */}
         <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200">
-          <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-5 flex items-center gap-2">
-            <span className="w-1 h-3 bg-blue-600 rounded-full"></span>
-            Informasi Pekerjaan
-          </h3>
+          <div className="flex justify-between items-center mb-5">
+            <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+              <span className="w-1 h-3 bg-blue-600 rounded-full"></span>
+              Informasi Pekerjaan
+            </h3>
+            {!isEditing ? (
+              <button
+                onClick={() => setIsEditing(true)}
+                className="text-blue-600 text-[10px] font-bold uppercase tracking-wider hover:text-blue-700"
+              >
+                Ubah
+              </button>
+            ) : (
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setIsEditing(false)}
+                  className="text-slate-500 hover:text-slate-700"
+                  disabled={isLoading}
+                >
+                  <X className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={handleSave}
+                  className="text-blue-600 hover:text-blue-700 flex items-center"
+                  disabled={isLoading}
+                >
+                  {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                </button>
+              </div>
+            )}
+          </div>
           
           <div className="space-y-4">
             <div className="flex items-center gap-4">
@@ -122,7 +185,17 @@ export default function Profile() {
               </div>
               <div className="flex-1 border-b border-slate-100 pb-4">
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Posisi</p>
-                <p className="font-bold text-slate-900">{user.position}</p>
+                {isEditing ? (
+                  <input
+                    type="text"
+                    value={formData.position}
+                    placeholder="Mis. Teknisi Lapangan"
+                    onChange={(e) => setFormData({...formData, position: e.target.value})}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                ) : (
+                  <p className="font-bold text-slate-900">{user.position || <span className="text-slate-300 font-medium">Belum diisi</span>}</p>
+                )}
               </div>
             </div>
 
@@ -179,7 +252,17 @@ export default function Profile() {
               </div>
               <div className="flex-1 border-b border-slate-100 pb-4">
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Email</p>
-                <p className="font-bold text-slate-900">{user.email}</p>
+                {isEditing ? (
+                  <input
+                    type="email"
+                    value={formData.email}
+                    placeholder="nama@email.com"
+                    onChange={(e) => setFormData({...formData, email: e.target.value})}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                ) : (
+                  <p className="font-bold text-slate-900">{user.email || <span className="text-slate-300 font-medium">Belum diisi</span>}</p>
+                )}
               </div>
             </div>
 
@@ -197,7 +280,7 @@ export default function Profile() {
                     className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 ) : (
-                  <p className="font-bold text-slate-900">{user.phone}</p>
+                  <p className="font-bold text-slate-900">{user.phone || <span className="text-slate-300 font-medium">Belum diisi</span>}</p>
                 )}
               </div>
             </div>
@@ -216,7 +299,7 @@ export default function Profile() {
                     className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 ) : (
-                  <p className="font-bold text-slate-900">{user.emergencyContact}</p>
+                  <p className="font-bold text-slate-900">{user.emergencyContact || <span className="text-slate-300 font-medium">Belum diisi</span>}</p>
                 )}
               </div>
             </div>

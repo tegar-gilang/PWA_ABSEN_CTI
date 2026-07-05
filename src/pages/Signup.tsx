@@ -1,16 +1,17 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { useAppStore, MOCK_USER } from '../store';
+import { useAppStore } from '../store';
+import { ApiError } from '../lib/api';
 import { Briefcase, ArrowRight, Loader2, UserPlus, ArrowLeft } from 'lucide-react';
 import { motion } from 'motion/react';
 
 /**
  * Komponen Halaman Pendaftaran (Signup).
- * Menyediakan antarmuka untuk mendaftarkan akun karyawan baru.
+ * Mendaftarkan akun karyawan baru ke backend (Express + MySQL), lalu otomatis login.
  */
 export default function Signup() {
   const navigate = useNavigate();
-  const login = useAppStore(state => state.login);
+  const signup = useAppStore(state => state.signup);
   
   // State untuk penanda pemrosesan (loading)
   const [loading, setLoading] = useState(false);
@@ -19,25 +20,26 @@ export default function Signup() {
   const [employeeId, setEmployeeId] = useState('');
   const [department, setDepartment] = useState('');
   const [password, setPassword] = useState('');
+  // State untuk menampilkan pesan error dari backend (mis. ID Karyawan sudah terdaftar)
+  const [error, setError] = useState('');
 
   /**
    * Menangani pengiriman form pendaftaran.
-   * Mensimulasikan proses pendaftaran dan otomatis login menggunakan data yang diinputkan.
+   * Mengirim data ke backend untuk membuat akun baru, lalu otomatis login.
    */
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !employeeId || !password || !department) return;
     
     setLoading(true);
+    setError('');
     try {
-      // Mensimulasikan waktu pemrosesan pendaftaran (delay) ke server
-      await new Promise(resolve => setTimeout(resolve, 800));
-      // Setelah berhasil "mendaftar", kita langsung mengarahkan (login) menggunakan data MOCK yang diperbarui
-      await login({ ...MOCK_USER, name, employeeId, department });
+      await signup({ name, employeeId, department, password });
       // Beralih ke halaman Beranda
       navigate('/home', { replace: true });
-    } catch (error) {
-      console.error('Gagal mendaftar', error);
+    } catch (err) {
+      console.error('Gagal mendaftar', err);
+      setError(err instanceof ApiError ? err.message : 'Gagal terhubung ke server. Periksa koneksi Anda.');
     } finally {
       setLoading(false);
     }
@@ -112,6 +114,12 @@ export default function Signup() {
               required
             />
           </motion.div>
+
+          {error && (
+            <div className="text-xs text-red-700 bg-red-50 p-3 rounded-xl border border-red-100 font-medium">
+              {error}
+            </div>
+          )}
 
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
             <button

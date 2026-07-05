@@ -13,6 +13,31 @@ export type User = {
 
 export type AttendanceStatus = 'ON_TIME' | 'LATE' | 'ABSENT';
 
+/**
+ * Titik koordinat GPS beserta tingkat akurasinya (dalam meter).
+ * `accuracy` berasal dari GeolocationPosition.coords.accuracy pada browser -
+ * semakin kecil nilainya, semakin presisi lokasi yang terbaca.
+ */
+export type GeoPoint = {
+  lat: number;
+  lng: number;
+  accuracy?: number | null;
+};
+
+export type AccuracyQuality = 'GOOD' | 'MEDIUM' | 'POOR' | 'UNKNOWN';
+
+/**
+ * Titik lokasi kantor beserta radius geofencing (dalam meter) yang diizinkan
+ * untuk melakukan absen. Diambil dari backend (tabel `offices`).
+ */
+export type OfficeLocation = {
+  id: number;
+  name: string;
+  lat: number;
+  lng: number;
+  radiusMeters: number;
+};
+
 export type AttendanceRecord = {
   id: string;
   date: string; // YYYY-MM-DD
@@ -20,12 +45,14 @@ export type AttendanceRecord = {
   checkOutTime: string | null;
   status: AttendanceStatus;
   workingHours: number | null;
-  location?: { lat: number; lng: number } | null;
+  location?: GeoPoint | null;
   photoUrl?: string | null;
-  checkInLocation?: { lat: number; lng: number } | null;
-  checkOutLocation?: { lat: number; lng: number } | null;
+  checkInLocation?: GeoPoint | null;
+  checkOutLocation?: GeoPoint | null;
   checkInPhotoUrl?: string | null;
   checkOutPhotoUrl?: string | null;
+  checkInDistanceMeters?: number | null;
+  checkOutDistanceMeters?: number | null;
 };
 
 export type RequestType = 'LEAVE' | 'PERMISSION' | 'SICK' | 'OVERTIME';

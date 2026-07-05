@@ -20,6 +20,7 @@ export default function Home() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isLoading, setIsLoading] = useState(true);
   const [currentLocation, setCurrentLocation] = useState<{lat: number, lng: number} | null>(null);
+  const [locationStatus, setLocationStatus] = useState<'loading' | 'success' | 'error'>('loading');
 
   // Mensimulasikan jeda (delay) saat memuat data di awal
   useEffect(() => {
@@ -27,23 +28,46 @@ export default function Home() {
     return () => clearTimeout(timer);
   }, []);
 
-  // Mendapatkan lokasi realtime pengguna
+  // Mendapatkan lokasi realtime pengguna (hanya untuk tampilan informasi di kartu Shift,
+  // bukan untuk validasi absen - validasi sebenarnya terjadi di halaman Absen).
+  // Diberi batas waktu eksplisit agar tidak "Mencari lokasi..." selamanya jika GPS gagal/ditolak.
   useEffect(() => {
-    if ('geolocation' in navigator) {
-      const watchId = navigator.geolocation.watchPosition(
-        (position) => {
-          setCurrentLocation({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude
-          });
-        },
-        (err) => {
-          console.warn('Geolocation error di Beranda:', err.message);
-        },
-        { enableHighAccuracy: false, timeout: 20000, maximumAge: 60000 }
-      );
-      return () => navigator.geolocation.clearWatch(watchId);
+    if (!('geolocation' in navigator)) {
+      setLocationStatus('error');
+      return;
     }
+
+    let settled = false;
+    const timeoutId = window.setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        setLocationStatus('error');
+      }
+    }, 12000);
+
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        settled = true;
+        clearTimeout(timeoutId);
+        setCurrentLocation({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude
+        });
+        setLocationStatus('success');
+      },
+      (err) => {
+        console.warn('Geolocation error di Beranda:', err.message);
+        settled = true;
+        clearTimeout(timeoutId);
+        setLocationStatus('error');
+      },
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
+    );
+
+    return () => {
+      clearTimeout(timeoutId);
+      navigator.geolocation.clearWatch(watchId);
+    };
   }, []);
 
   // Memperbarui waktu saat ini setiap detik untuk tampilan jam digital
@@ -183,7 +207,12 @@ export default function Home() {
             <p className="text-blue-300 text-xs font-bold mb-1 uppercase tracking-widest">Shift Hari Ini</p>
             <h3 className="text-xl font-bold mb-1">{user?.schedule}</h3>
             <p className="text-sm text-blue-100 opacity-80 flex items-center gap-1.5 mt-2">
-              <MapPin className="w-4 h-4" /> {currentLocation ? `${currentLocation.lat.toFixed(6)}, ${currentLocation.lng.toFixed(6)}` : 'Mencari lokasi...'}
+              <MapPin className="w-4 h-4" />
+              {locationStatus === 'success' && currentLocation
+                ? `${currentLocation.lat.toFixed(6)}, ${currentLocation.lng.toFixed(6)}`
+                : locationStatus === 'error'
+                  ? 'Lokasi tidak tersedia - aktifkan GPS & izin lokasi'
+                  : 'Mencari lokasi...'}
             </p>
           </div>
           <div className="absolute -right-8 -bottom-8 w-32 h-32 bg-blue-800 rounded-full blur-2xl opacity-50"></div>
