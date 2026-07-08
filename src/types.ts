@@ -9,6 +9,7 @@ export type User = {
   schedule: string;
   photoUrl: string;
   emergencyContact: string;
+  role: 'EMPLOYEE' | 'ADMIN';
 };
 
 export type AttendanceStatus = 'ON_TIME' | 'LATE' | 'ABSENT';

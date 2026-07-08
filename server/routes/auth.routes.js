@@ -18,6 +18,7 @@ function toUserDTO(row) {
     schedule: row.schedule,
     photoUrl: row.photo_url,
     emergencyContact: row.emergency_contact,
+    role: row.role,
   };
 }
 
