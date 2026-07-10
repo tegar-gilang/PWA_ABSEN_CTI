@@ -6,7 +6,7 @@ import { AlertCircle } from 'lucide-react';
 
 export default function Layout() {
   const location = useLocation();
-  const noNavRoutes = ['/', '/login'];
+  const noNavRoutes = ['/', '/login', '/hrd/dashboard'];
   const showNav = !noNavRoutes.includes(location.pathname);
   const { online } = useNetworkState();
 
