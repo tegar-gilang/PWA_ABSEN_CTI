@@ -15,6 +15,7 @@ import History from './pages/History';
 import Request from './pages/Request';
 import Profile from './pages/Profile';
 import Notifications from './pages/Notifications';
+import HRDLayout from './components/hrd/HRDLayout';
 import DashboardHRD from './pages/hrd/DashboardHRD';
 import { useAppStore, processSyncQueue } from './store';
 
@@ -103,7 +104,7 @@ export default function App() {
         </Route>
 
         {/* Rute Buat HRD/Admin */}
-        <Route element={<AdminRoute><Layout /></AdminRoute>}>
+        <Route element={<AdminRoute><HRDLayout /></AdminRoute>}>
           <Route path="/hrd/dashboard" element={<DashboardHRD />} />
         </Route>
         {/* Rute Privat tanpa Navigasi Bawah: Digunakan untuk halaman spesifik seperti daftar notifikasi */}
