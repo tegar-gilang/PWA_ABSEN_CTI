@@ -9,9 +9,11 @@ export default function Layout() {
   const noNavRoutes = ['/', '/login', '/hrd/dashboard'];
   const showNav = !noNavRoutes.includes(location.pathname);
   const { online } = useNetworkState();
+  const isHrdRoute = location.pathname.startsWith('/hrd');
+  const containerClass = isHrdRoute ? "h-full bg-[#F8FAFC] w-full relative overflow-hidden flex flex-col font-sans" : "h-full bg-[#F8FAFC] w-full max-w-md md:max-w-2xl lg:max-w-4xl mx-auto relative overflow-hidden flex flex-col font-sans";
 
   return (
-    <div className="h-full bg-[#F8FAFC] w-full max-w-md md:max-w-2xl lg:max-w-4xl mx-auto relative overflow-hidden flex flex-col font-sans">
+    <div className={containerClass}>
       {!online && (
         <div className="absolute left-0 right-0 z-50 flex justify-center pointer-events-none px-4" style={{ top: 'calc(0.5rem + env(safe-area-inset-top))' }}>
           <div className="bg-slate-800/95 backdrop-blur-md text-white text-[10px] py-2 px-4 rounded-2xl flex flex-col items-center justify-center shadow-xl shadow-slate-900/20 border border-slate-700 pointer-events-auto w-fit max-w-[90%]">
@@ -23,7 +25,7 @@ export default function Layout() {
           </div>
         </div>
       )}
-      <main className="flex-1 overflow-y-auto pb-24 relative no-scrollbar">
+      <main className={`flex-1 overflow-y-auto relative no-scrollbar ${showNav ? 'pb-24' : 'pb-0'}`}>
         <AnimatePresence mode="wait">
           <motion.div
             key={location.pathname}
