@@ -44,6 +44,24 @@ const LayoutHRD: React.FC = () => {
             >
             <span className="mr-3">👥</span> Karyawan
             </Link>
+            <Link 
+              to="/hrd/cuti" 
+              className={`flex items-center px-4 py-3 rounded-lg transition-colors ${isActive('/hrd/cuti') ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'}`}
+            >
+            <span className="mr-3">🗓️</span> Cuti
+            </Link>
+            <Link 
+              to="/hrd/kpi" 
+              className={`flex items-center px-4 py-3 rounded-lg transition-colors ${isActive('/hrd/kpi') ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'}`}
+            >
+            <span className="mr-3">📈</span> KPI
+            </Link>
+            <Link 
+              to="/hrd/rekrutmen" 
+              className={`flex items-center px-4 py-3 rounded-lg transition-colors ${isActive('/hrd/rekrutmen') ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'}`}
+            >
+            <span className="mr-3">💼</span> Rekrutmen
+            </Link>
           </nav>
         </div>
 
