@@ -19,7 +19,6 @@ import HRDLayout from './components/hrd/HRDLayout';
 import DashboardHRD from './pages/hrd/DashboardHRD';
 import { useAppStore, processSyncQueue } from './store';
 import LayoutHRD from './pages/hrd/LayoutHRD';
-import DashboardHRD from './pages/hrd/DashboardHRD';
 import KehadiranHRD from './pages/hrd/KehadiranHRD';
 import KaryawanHRD from './pages/hrd/KaryawanHRD';
 import CutiHRD from './pages/hrd/CutiHRD';
