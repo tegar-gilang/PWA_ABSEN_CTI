@@ -23,6 +23,7 @@ import KaryawanHRD from './pages/hrd/KaryawanHRD';
 import CutiHRD from './pages/hrd/CutiHRD';
 import KPIHRD from './pages/hrd/KPIHRD';
 import RekrutmenHRD from './pages/hrd/RekrutmenHRD';
+import DashboardHRD from './pages/hrd/DashboardHRD';
 import { requestNotificationPermission, onMessageListener } from './lib/fcm';
 
 
