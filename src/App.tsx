@@ -15,6 +15,8 @@ import History from './pages/History';
 import Request from './pages/Request';
 import Profile from './pages/Profile';
 import Notifications from './pages/Notifications';
+import HRDLayout from './components/hrd/HRDLayout';
+import DashboardHRD from './pages/hrd/DashboardHRD';
 import { useAppStore, processSyncQueue } from './store';
 import LayoutHRD from './pages/hrd/LayoutHRD';
 import DashboardHRD from './pages/hrd/DashboardHRD';
@@ -31,6 +33,24 @@ const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
   const isAuthenticated = useAppStore(state => state.isAuthenticated);
   return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />;
 };
+
+const AdminRoute = ({children}: {children: React.ReactNode}) => {
+  const isAuthenticated = useAppStore(state => state.isAuthenticated);
+  const user = useAppStore(state => state.user);
+
+  if(!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if(user?.role !== 'ADMIN') {
+    return <Navigate to="/home" replace />;
+  }
+
+  return <>
+    {children}
+  </>
+};
+
 
 /**
  * Komponen Utama Aplikasi.
@@ -86,7 +106,11 @@ export default function App() {
           <Route path="/request" element={<Request />} />
           <Route path="/profile" element={<Profile />} />
         </Route>
-        
+
+        {/* Rute Buat HRD/Admin */}
+        <Route element={<AdminRoute><HRDLayout /></AdminRoute>}>
+          <Route path="/hrd/dashboard" element={<DashboardHRD />} />
+        </Route>
         {/* Rute Privat tanpa Navigasi Bawah: Digunakan untuk halaman spesifik seperti daftar notifikasi */}
         <Route path="/notifications" element={<PrivateRoute><Notifications /></PrivateRoute>} />
 
