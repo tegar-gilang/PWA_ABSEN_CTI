@@ -27,7 +27,7 @@ export default function HRDLayout() {
                         <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center text-white">
                             CTI
                         </div>
-                        HRD yee :)
+                        HRD
                     </div>
                 </div>
 
