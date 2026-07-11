@@ -18,6 +18,7 @@ import Notifications from './pages/Notifications';
 import HRDLayout from './components/hrd/HRDLayout';
 import DashboardHRD from './pages/hrd/DashboardHRD';
 import { useAppStore, processSyncQueue } from './store';
+import DashboardHRD from './pages/hrd/DashboardHRD';
 
 import { requestNotificationPermission, onMessageListener } from './lib/fcm';
 
@@ -109,6 +110,9 @@ export default function App() {
         </Route>
         {/* Rute Privat tanpa Navigasi Bawah: Digunakan untuk halaman spesifik seperti daftar notifikasi */}
         <Route path="/notifications" element={<PrivateRoute><Notifications /></PrivateRoute>} />
+
+        {/* RUTE BARU KHUSUS WEB HRD (Desktop Dashboard) */}
+        <Route path="/hrd" element={<DashboardHRD />} />
         
         {/* Rute Cadangan (Fallback): Akan mengarahkan pengguna kembali ke halaman awal jika URL tidak ditemukan */}
         <Route path="*" element={<Navigate to="/" replace />} />
