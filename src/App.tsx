@@ -20,7 +20,11 @@ import LayoutHRD from './pages/hrd/LayoutHRD';
 import DashboardHRD from './pages/hrd/DashboardHRD';
 import KehadiranHRD from './pages/hrd/KehadiranHRD';
 import KaryawanHRD from './pages/hrd/KaryawanHRD';
+import CutiHRD from './pages/hrd/CutiHRD';
+import KPIHRD from './pages/hrd/KPIHRD';
+import RekrutmenHRD from './pages/hrd/RekrutmenHRD';
 import { requestNotificationPermission, onMessageListener } from './lib/fcm';
+
 
 
 /**
@@ -100,6 +104,9 @@ export default function App() {
         {/* Rute untuk /hrd/kehadiran */}
         <Route path="kehadiran" element={<KehadiranHRD />} />
         <Route path="karyawan" element={<KaryawanHRD />} />
+        <Route path="cuti" element={<CutiHRD />} />
+        <Route path="kpi" element={<KPIHRD />} />
+        <Route path="rekrutmen" element={<RekrutmenHRD />} />
         </Route>
         
         {/* Rute Cadangan (Fallback): Akan mengarahkan pengguna kembali ke halaman awal jika URL tidak ditemukan */}
