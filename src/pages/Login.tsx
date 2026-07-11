@@ -34,6 +34,9 @@ export default function Login() {
     setError('');
     try {
       await login(employeeId, password);
+      if (useAppStore.getState().user?.role === 'ADMIN') {
+        return navigate('/hrd', { replace: true });
+      }
       // Beralih ke halaman Beranda tanpa menyimpan halaman ini di riwayat peramban (replace: true)
       navigate('/home', { replace: true });
     } catch (err) {

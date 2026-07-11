@@ -15,7 +15,6 @@ import History from './pages/History';
 import Request from './pages/Request';
 import Profile from './pages/Profile';
 import Notifications from './pages/Notifications';
-import HRDLayout from './components/hrd/HRDLayout';
 import { useAppStore, processSyncQueue } from './store';
 import LayoutHRD from './pages/hrd/LayoutHRD';
 import KehadiranHRD from './pages/hrd/KehadiranHRD';
@@ -111,26 +110,16 @@ export default function App() {
         </Route>
 
         {/* Rute Buat HRD/Admin */}
-        <Route element={<AdminRoute><HRDLayout /></AdminRoute>}>
-          <Route path="/hrd/dashboard" element={<DashboardHRD />} />
+        <Route element={<AdminRoute><LayoutHRD /></AdminRoute>}>
+          <Route path="/hrd" element={<DashboardHRD />} />
+          <Route path="/hrd/kehadiran" element={<KehadiranHRD />} />
+          <Route path="/hrd/karyawan" element={<KaryawanHRD />} />
+          <Route path="/hrd/cuti" element={<CutiHRD />} />
+          <Route path="/hrd/kpi" element={<KPIHRD />} />
+          <Route path="/hrd/rekrutmen" element={<RekrutmenHRD />} />
         </Route>
         {/* Rute Privat tanpa Navigasi Bawah: Digunakan untuk halaman spesifik seperti daftar notifikasi */}
         <Route path="/notifications" element={<PrivateRoute><Notifications /></PrivateRoute>} />
-
-
-
-        {/* Rute Bersarang (Nested Routing) khusus Web HRD */}
-        <Route path="/hrd" element={<LayoutHRD />}>
-        {/* Index berarti rute default saat /hrd dibuka */}
-        <Route index element={<DashboardHRD />} />
-  
-        {/* Rute untuk /hrd/kehadiran */}
-        <Route path="kehadiran" element={<KehadiranHRD />} />
-        <Route path="karyawan" element={<KaryawanHRD />} />
-        <Route path="cuti" element={<CutiHRD />} />
-        <Route path="kpi" element={<KPIHRD />} />
-        <Route path="rekrutmen" element={<RekrutmenHRD />} />
-        </Route>
         
         {/* Rute Cadangan (Fallback): Akan mengarahkan pengguna kembali ke halaman awal jika URL tidak ditemukan */}
         <Route path="*" element={<Navigate to="/" replace />} />
