@@ -16,7 +16,6 @@ import Request from './pages/Request';
 import Profile from './pages/Profile';
 import Notifications from './pages/Notifications';
 import HRDLayout from './components/hrd/HRDLayout';
-import DashboardHRD from './pages/hrd/DashboardHRD';
 import { useAppStore, processSyncQueue } from './store';
 import LayoutHRD from './pages/hrd/LayoutHRD';
 import DashboardHRD from './pages/hrd/DashboardHRD';
