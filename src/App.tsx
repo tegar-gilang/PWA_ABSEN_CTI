@@ -16,9 +16,12 @@ import Request from './pages/Request';
 import Profile from './pages/Profile';
 import Notifications from './pages/Notifications';
 import { useAppStore, processSyncQueue } from './store';
+import LayoutHRD from './pages/hrd/LayoutHRD';
 import DashboardHRD from './pages/hrd/DashboardHRD';
-
+import KehadiranHRD from './pages/hrd/KehadiranHRD';
+import KaryawanHRD from './pages/hrd/KaryawanHRD';
 import { requestNotificationPermission, onMessageListener } from './lib/fcm';
+
 
 /**
  * Komponen pembungkus (wrapper) untuk melindungi rute yang memerlukan otentikasi.
@@ -87,8 +90,17 @@ export default function App() {
         {/* Rute Privat tanpa Navigasi Bawah: Digunakan untuk halaman spesifik seperti daftar notifikasi */}
         <Route path="/notifications" element={<PrivateRoute><Notifications /></PrivateRoute>} />
 
-        {/* RUTE BARU KHUSUS WEB HRD (Desktop Dashboard) */}
-        <Route path="/hrd" element={<DashboardHRD />} />
+
+
+        {/* Rute Bersarang (Nested Routing) khusus Web HRD */}
+        <Route path="/hrd" element={<LayoutHRD />}>
+        {/* Index berarti rute default saat /hrd dibuka */}
+        <Route index element={<DashboardHRD />} />
+  
+        {/* Rute untuk /hrd/kehadiran */}
+        <Route path="kehadiran" element={<KehadiranHRD />} />
+        <Route path="karyawan" element={<KaryawanHRD />} />
+        </Route>
         
         {/* Rute Cadangan (Fallback): Akan mengarahkan pengguna kembali ke halaman awal jika URL tidak ditemukan */}
         <Route path="*" element={<Navigate to="/" replace />} />
