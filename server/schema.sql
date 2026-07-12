@@ -28,6 +28,8 @@ CREATE TABLE IF NOT EXISTS users (
   photo_url        LONGTEXT DEFAULT NULL,
   emergency_contact VARCHAR(100) DEFAULT NULL,
   role             ENUM('EMPLOYEE','ADMIN') NOT NULL DEFAULT 'EMPLOYEE',
+  status_karyawan ENUM('ACTIVE', 'INACTIVE') NOT NULL DEFAULT 'ACTIVE',
+  performance_status ENUM('BAIK', 'PERLU COACHING') NOT NULL DEFAULT 'BAIK',
   created_at       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
@@ -95,6 +97,7 @@ CREATE TABLE IF NOT EXISTS requests (
   date            DATE NOT NULL,
   status          ENUM('PENDING','APPROVED','REJECTED') NOT NULL DEFAULT 'PENDING',
   attachment_url  TEXT DEFAULT NULL,
+  rejection_reason TEXT DEFAULT NULL,
   created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
   CONSTRAINT fk_requests_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -116,6 +119,46 @@ CREATE TABLE IF NOT EXISTS notifications (
   CONSTRAINT fk_notifications_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
+-- Table KPI
+CREATE TABLE IF NOT EXISTS kpi_records (
+  id VARCHAR(36) NOT NULL PRIMARY KEY,
+  user_id VARCHAR(36) NOT NULL,
+  period VARCHAR(10) NOT NULL, -- Format periode, contoh: '2026-07'
+  target_unit INT NOT NULL DEFAULT 0,
+  target_rupiah DECIMAL(15, 2) NOT NULL DEFAULT 0.00,
+  achieved_unit INT NOT NULL DEFAULT 0,
+  achieved_rupiah DECIMAL(15, 2) NOT NULL DEFAULT 0.00,
+  status ENUM('ACHIEVED', 'NOT_ACHIEVED') NOT NULL DEFAULT 'NOT_ACHIEVED',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  
+  CONSTRAINT fk_kpi_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- Table job openings / lowongan pekerjaan
+CREATE TABLE IF NOT EXISTS job_openings (
+  id VARCHAR(36) NOT NULL PRIMARY KEY,
+  title VARCHAR(150) NOT NULL,
+  role VARCHAR(100) NOT NULL,
+  status ENUM('OPEN', 'CLOSED') NOT NULL DEFAULT 'OPEN',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+-- Table Candidates
+CREATE TABLE IF NOT EXISTS candidates (
+  id VARCHAR(36) NOT NULL PRIMARY KEY,
+  job_opening_id VARCHAR(36) NOT NULL,
+  name VARCHAR(150) NOT NULL,
+  stage ENUM('SCREENING', 'INTERVIEW', 'HIRED', 'REJECTED') NOT NULL DEFAULT 'SCREENING',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  
+  CONSTRAINT fk_candidate_job FOREIGN KEY (job_opening_id) REFERENCES job_openings(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 CREATE INDEX idx_attendance_user_date ON attendance_records(user_id, date);
 CREATE INDEX idx_requests_user ON requests(user_id);
 CREATE INDEX idx_notifications_user ON notifications(user_id);
+CREATE INDEX idx_kpi_user ON kpi_records(user_id);
+CREATE INDEX idx_candidates_job ON candidates(job_opening_id);
