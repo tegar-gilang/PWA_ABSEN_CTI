@@ -9,6 +9,7 @@ import requestsRoutes from "./routes/requests.routes.js";
 import notificationsRoutes from "./routes/notifications.routes.js";
 import profileRoutes from "./routes/profile.routes.js";
 import officeRoutes from "./routes/office.routes.js";
+import hrdRoutes from "./routes/hrd.routes.js";
 
 dotenv.config();
 
@@ -37,7 +38,7 @@ app.use("/api/requests", requestsRoutes);
 app.use("/api/notifications", notificationsRoutes);
 app.use("/api/profile", profileRoutes);
 app.use("/api/office", officeRoutes);
-
+app.use("/api/hrd", hrdRoutes);
 // Penanganan error global sebagai jaring pengaman terakhir
 app.use((err, req, res, next) => {
   // Pesan khusus jika body request (mis. foto base64) melebihi batas ukuran yang diizinkan
