@@ -107,7 +107,7 @@ set `ENABLE_GEOFENCING=true` di `.env` dan isi data pada tabel `offices` (lihat 
 - Data lat/lng/akurasi tiap absen tersimpan permanen di tabel `attendance_records`, dan bisa dilihat kembali
   lengkap dengan peta radiusnya di halaman Riwayat.
 
-### Struktur API
+### Struktur API General
 
 | Method | Endpoint                     | Keterangan                          |
 |--------|-------------------------------|--------------------------------------|
@@ -125,3 +125,11 @@ set `ENABLE_GEOFENCING=true` di `.env` dan isi data pada tabel `offices` (lihat 
 | GET    | `/api/profile`                | Ambil profil                         |
 | PATCH  | `/api/profile`                | Perbarui profil                      |
 | GET    | `/api/office`                 | Lokasi & radius geofencing kantor    |
+
+### Struktur API HRD
+
+| Method | Endpoint                     | Keterangan                           |
+|--------|------------------------------|--------------------------------------|
+| GET    | `/api/hrd/dashboard/overview`| Mendapatkan Data Dashboard Untuk HRD |
+| GET    | `/api/hrd/employees`         | Mendapatkan Seluruh Data Karyawan    |
+| GET    | `/api/hrd/attendance`        | Mendapatkan Data Absensi             |

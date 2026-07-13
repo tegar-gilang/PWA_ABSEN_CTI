@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { pool } from "../db.js";
-import { requireAuth } from "../middleware/authMiddleware.js";
+import { requireAuth } from "../middleware/auth.js";
 import { randomUUID } from "crypto";
 
 const router = Router();
@@ -8,7 +8,7 @@ const router = Router();
 // Middleware to require authentication for admin routes
 async function requireAdmin(req, res, next) {
     try {
-        const [rows] = await pool.query("SELECT role FROM users WHERE id = ?", [req.user.id]);
+        const [rows] = await pool.query("SELECT role FROM users WHERE id = ?", [req.userId]);
         if (rows.length === 0 || rows[0].role !== 'ADMIN') {
             return res.status(403).json({message: "Access denied Admins/HRD only."});
         }
@@ -90,6 +90,32 @@ router.get("/employees", async (req, res) => {
 });
 
 // Route Manajemen Cuti
+// GET 
+router.get("/leaves", async (req, res) => {
+    try {
+        const [rows] = await pool.query(
+            `SELECT 
+                r.id, 
+                u.name, 
+                r.type, 
+                r.reason, 
+                DATE_FORMAT(r.date, '%Y-%m-%d') as date, 
+                r.status, 
+                r.rejection_reason,
+                r.attachment_url,
+                r.created_at
+            FROM requests r
+            JOIN users u ON r.user_id = u.id
+            ORDER BY r.created_at DESC`
+        );
+        
+        res.json({ leaves: rows });
+    } catch (err) {
+        console.error("Error mengambil data cuti:", err);
+        res.status(500).json({ message: "Gagal memuat daftar permintaan cuti/izin." });
+    }
+});
+
 // PATCH
 router.patch("/leaves/:id/approval", async(req, res) => {
     try {
