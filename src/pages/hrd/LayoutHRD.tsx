@@ -1,8 +1,17 @@
 import React from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
+import { useAppStore } from '../../store';
+import { useNavigate } from 'react-router-dom';
 
 const LayoutHRD: React.FC = () => {
   const location = useLocation();
+  const logout = useAppStore(state => state.logout);
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login');
+  }
 
   // Fungsi kecil untuk mengecek apakah menu sedang aktif
   const isActive = (path: string) => location.pathname === path;
@@ -67,7 +76,10 @@ const LayoutHRD: React.FC = () => {
 
         {/* Tombol Logout */}
         <div className="p-4 border-t border-gray-200">
-          <button className="flex items-center px-4 py-2 text-gray-600 hover:text-red-600 transition-colors w-full">
+          <button 
+            className="flex items-center px-4 py-2 text-gray-600 hover:text-red-600 transition-colors w-full"
+            onClick={handleLogout}
+          >
             <span className="mr-3">🚪</span> Logout
           </button>
         </div>

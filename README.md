@@ -130,6 +130,14 @@ set `ENABLE_GEOFENCING=true` di `.env` dan isi data pada tabel `offices` (lihat 
 
 | Method | Endpoint                     | Keterangan                           |
 |--------|------------------------------|--------------------------------------|
-| GET    | `/api/hrd/dashboard/overview`| Mendapatkan Data Dashboard Untuk HRD |
-| GET    | `/api/hrd/employees`         | Mendapatkan Seluruh Data Karyawan    |
-| GET    | `/api/hrd/attendance`        | Mendapatkan Data Absensi             |
+| GET    | `/api/hrd/dashboard/overview`| Menampilkan Data Dashboard Untuk HRD |
+| GET    | `/api/hrd/employees`         | Menampilkan Seluruh Data Karyawan    |
+| GET    | `/api/hrd/attendance`        | Menampilkan Data Absensi             |
+| GET    | `/api/hrd/leaves`            | Menampilkan Data Permintaan Cuti/Izin|
+| PATCH  | `/api/hrd/leaves/:id/approval`| Mengubah Status Permintaan Cuti/Izin|
+| GET    | `/api/hrd/kpi`               | Menampilkan Seluruh Data KPI Karyawan|
+| GET    | `/api/hrd/kpi`               | Menampilkan Seluruh Data KPI Karyawan|
+| POST   | `/api/hrd/recruitment/jobs`  | Menambahkan Jobs Baru di Rekrutmen   |
+| GET    | `/api/hrd/recruitment/overview`| Menampilkan Seluruh Jobs di Rekrutmen|
+| PUT    | `/api/hrd/recruitment/jobs/:id`| Mengedit Jobs                      |
+| DELETE    | `/api/hrd/recruitment/jobs/:id`| Menghapus Jobs                  |
