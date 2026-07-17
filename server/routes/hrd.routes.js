@@ -2,6 +2,7 @@ import { Router } from "express";
 import { pool } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { randomUUID } from "crypto";
+import { getLocalDateString } from "../utils/date.js";
 
 const router = Router();
 
@@ -24,7 +25,7 @@ router.use(requireAuth, requireAdmin);
 // GET
 router.get("/dashboard/overview", async (req, res) => {
     try {
-        const today = new Date().toISOString().split('T')[0]; // Get today's date in YYYY-MM-DD format
+        const today = getLocalDateString();
         const [totalEmp] = await pool.query("SELECT COUNT(*) AS count FROM users WHERE role = 'EMPLOYEE'");
         const [present] = await pool.query("SELECT COUNT(*) AS count FROM attendance_records WHERE date = ? AND status = 'ON_TIME'", [today]);
         const [late] = await pool.query("SELECT COUNT(*) AS count FROM attendance_records WHERE date = ? AND status = 'LATE'", [today]);
@@ -33,7 +34,7 @@ router.get("/dashboard/overview", async (req, res) => {
         // Recent Activities
         const [recentActivities] = await pool.query(
             `SELECT a.id, u.name, u.department as role, 'Check-in/out' as action, 
-                    DATE_FORMAT(a.check_in_time, '%H:%I %p') as time, a.status
+                    DATE_FORMAT(a.check_in_time, '%h:%i %p') as time, a.status
             FROM attendance_records a
             JOIN users u ON a.user_id = u.id
             ORDER BY a.created_at DESC LIMIT 5`
@@ -62,7 +63,7 @@ router.get("/attendance", async (req, res) => {
             `SELECT a.id, u.name, a.status, 
                     DATE_FORMAT(a.check_in_time, '%H:%i') as checkInTime, 
                     DATE_FORMAT(a.check_out_time, '%H:%i') as checkOutTime,
-                    a.check_in_lat, a.check_in_lng, a.check_in_photo_url
+                    a.check_in_lat, a.check_in_lng, a.check_in_photo_url, a.date
             FROM attendance_records a
             JOIN users u ON a.user_id = u.id
             ORDER BY a.date DESC`
