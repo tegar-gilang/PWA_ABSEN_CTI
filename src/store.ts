@@ -23,7 +23,13 @@ import {
   clearToken,
   getToken,
   GeoPayload,
+  apiHrdGetEmployees,
+  apiHrdGetAttendance,
+  apiHrdGetRequests,
+  apiHrdUpdateRequestStatus,
+
 } from "./lib/api";
+import { id } from "date-fns/locale";
 
 /**
  * Antarmuka (Interface) yang mendefinisikan status global (global state) untuk keseluruhan aplikasi.
@@ -37,6 +43,9 @@ interface AppState {
   notifications: Notification[];
   office: OfficeLocation | null; // titik & radius geofencing kantor, untuk validasi & tampilan peta
   isHydrating: boolean; // true saat sedang memuat ulang sesi & data awal
+  hrdEmployees: User[];
+  hrdAttendance: AttendanceRecord[];
+  hrdRequests: RequestRecord[];
 
   login: (employeeId: string, password: string) => Promise<void>;
   signup: (payload: { name: string; employeeId: string; password: string; department: string }) => Promise<void>;
@@ -48,6 +57,10 @@ interface AppState {
   markNotificationRead: (id: string) => Promise<void>;
   updateProfile: (data: Partial<User>) => Promise<void>;
   addNotification: (notification: Notification) => void;
+  // Tambahan untuk HRD
+  fetchAllUserData: () =>  Promise<void>;
+  fetchHrdData: () => Promise<void>;
+  updateRequestStatusHrd: (id: string, status: "APPROVED" | "REJECTED") => Promise<void>;
 }
 
 /**
@@ -79,6 +92,68 @@ export const useAppStore = create<AppState>()(
       notifications: [],
       office: null,
       isHydrating: false,
+      hrdEmployees: [],
+      hrdAttendance: [],
+      hrdRequests: [],
+
+      /**
+       * Mengambil data Karyawan secara mandiri dan kebal error
+       */
+      fetchAllUserData: async () => {
+        try {
+          const historyRes: any = await apiGetAttendanceHistory();
+          set({ attendanceHistory: historyRes.records || historyRes.history || historyRes.attendance || [] });
+        } catch (err) {
+          console.error("Gagal memuat riwayat absen:", err);
+        }
+
+        try {
+          const requestsRes: any = await apiGetRequests();
+          set({ requests: requestsRes.requests || requestsRes.data || [] });
+        } catch (err) {
+          console.error("Gagal memuat data pengajuan:", err);
+        }
+
+        try {
+          const notifRes: any = await apiGetNotifications();
+          set({ notifications: notifRes.notifications || [] });
+        } catch (err) {
+          console.error("Gagal memuat notifikasi:", err);
+        }
+
+        try {
+          const officeRes: any = await apiGetOffice();
+          set({ office: officeRes.office || null });
+        } catch (err) {
+          console.error("Gagal memuat data kantor:", err);
+        }
+      },
+
+      /**
+       * Mengambil data khusus HRD/Admin secara mandiri
+       */
+      fetchHrdData: async () => {
+        try {
+          const empRes: any = await apiHrdGetEmployees();
+          set({ hrdEmployees: Array.isArray(empRes) ? empRes : (empRes.employees || []) });
+        } catch (err) {
+          console.error("Gagal ambil data karyawan:", err);
+        }
+
+        try {
+          const attRes: any = await apiHrdGetAttendance();
+          set({ hrdAttendance: Array.isArray(attRes) ? attRes : (attRes.records || attRes.attendance || []) });
+        } catch (err) {
+          console.error("Gagal ambil data absensi HRD:", err);
+        }
+
+        try {
+          const reqRes: any = await apiHrdGetRequests();
+          set({ hrdRequests: Array.isArray(reqRes) ? reqRes : (reqRes.requests || reqRes.leaves || []) });
+        } catch (err) {
+          console.error("Gagal ambil data pengajuan cuti HRD:", err);
+        }
+      },
 
       /**
        * Login ke backend menggunakan ID Karyawan & kata sandi, lalu memuat data awal pengguna.
@@ -86,8 +161,16 @@ export const useAppStore = create<AppState>()(
       login: async (employeeId, password) => {
         const { token, user } = await apiLogin({ employeeId, password });
         setToken(token);
-        const data = await fetchAllUserData();
-        set({ user, isAuthenticated: true, ...data });
+        
+        set({ user, isAuthenticated: true });
+
+        //Ambil data umum karyawan
+        await get().fetchAllUserData();
+
+        // Hanya ambil data HRD jika pengguna yang login adalah ADMIN
+        if (user.role === 'ADMIN') {
+          await get().fetchHrdData();
+        }
       },
 
       /**
@@ -112,6 +195,9 @@ export const useAppStore = create<AppState>()(
           requests: [],
           notifications: [],
           office: null,
+          hrdEmployees: [],
+          hrdAttendance: [],
+          hrdRequests: [],
         });
       },
 
@@ -127,6 +213,10 @@ export const useAppStore = create<AppState>()(
           const { user } = await apiGetMe();
           const data = await fetchAllUserData();
           set({ user, isAuthenticated: true, ...data });
+          // Cek role saat pemulihan sesi
+          if (user.role === 'ADMIN') {
+            await get().fetchHrdData();
+          }
         } catch (err) {
           // Token tidak valid/kedaluwarsa - bersihkan sesi
           clearToken();
@@ -199,6 +289,23 @@ export const useAppStore = create<AppState>()(
        */
       addNotification: (notification) => {
         set((state) => ({ notifications: [notification, ...state.notifications] }));
+      },
+
+      updateRequestStatusHrd: async (id, status) => {
+        try {
+          // Menggunakan 'request' (tunggal), dengan fallback jika backend langsung me-return objek
+          const res = await apiHrdUpdateRequestStatus(id, status);
+          const updated = res.request || res; 
+          
+          set((state) => ({
+            hrdRequests: state.hrdRequests.map((req) =>
+              req.id === id ? { ...req, ...updated } : req
+            ),
+          }));
+        } catch (error) {
+          console.error("Gagal memperbarui status pengajuan:", error);
+          throw error; // Lempar kembali agar UI CutiHRD.tsx bisa memunculkan alert gagal
+        }
       },
     }),
     {

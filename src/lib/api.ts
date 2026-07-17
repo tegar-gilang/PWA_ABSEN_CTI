@@ -98,7 +98,7 @@ export async function apiCheckOut(payload: GeoPayload): Promise<{ record: Attend
 // Requests (Cuti/Izin/Sakit/Lembur)
 // ---------------------------------------------------------------------------
 export async function apiGetRequests(): Promise<{ requests: RequestRecord[] }> {
-  return request("/requests");
+  return request("/hrd/leaves");
 }
 
 export async function apiSubmitRequest(payload: {
@@ -133,3 +133,55 @@ export async function apiUpdateProfile(payload: Partial<User>): Promise<{ user: 
 export async function apiGetOffice(): Promise<{ office: OfficeLocation | null }> {
   return request("/office");
 }
+
+// ---------------------------------------------------------------------------
+// Mengambil seluruh daftar karyawan
+// ---------------------------------------------------------------------------
+export async function apiHrdGetEmployees(): Promise<{employees: User[]}> {
+  return request("/hrd/employees");
+}
+
+// ---------------------------------------------------------------------------
+// Mengambil seluruh rekap absensi karyawan
+// ---------------------------------------------------------------------------
+export async function apiHrdGetAttendance(date?: string): Promise<{records: AttendanceRecord[]}> {
+  const query = date ? `?date=${date}` : "";
+  return request(`/hrd/attendance${query}`);
+}
+
+// ---------------------------------------------------------------------------
+// Mengambil seluruh pengajuan izin/cuti/sakit dari semua karyawan
+// ---------------------------------------------------------------------------
+export async function apiHrdGetRequests(): Promise<{requests: RequestRecord[]}> {
+  return request("/hrd/leaves");
+}
+
+// ---------------------------------------------------------------------------
+// Memperbarui status pengajuan karyawan (APPROVED / REJECTED)
+// ---------------------------------------------------------------------------
+export async function apiHrdUpdateRequestStatus(id: string, status: "APPROVED" | "REJECTED"): Promise<{request: RequestRecord}> {
+  return request(`/hrd/leaves/${id}/approval`,{method: "PATCH", body: JSON.stringify({status})});
+}
+
+// ---------------------------------------------------------------------------
+// Mengambil data ringkasan untuk Dashboard HRD
+// ---------------------------------------------------------------------------
+export async function apiHrdGetDashboardOverview(): Promise<{
+  metrics: {
+    totalEmployees: number;
+    presentToday: number;
+    lateToday: number;
+    pendingLeaves: number;
+  };
+  recentActivities: Array<{
+    id: string,
+    name: string,
+    role: string,
+    action: string,
+    time: string,
+    status: string,
+  }>;
+}> {
+  return request("/hrd/dashboard/overview");
+}
+

@@ -3,6 +3,8 @@ import cors from "cors";
 import dotenv from "dotenv";
 import { testConnection } from "./db.js";
 
+import { requireAuth } from "./middleware/auth.js";
+
 import authRoutes from "./routes/auth.routes.js";
 import attendanceRoutes from "./routes/attendance.routes.js";
 import requestsRoutes from "./routes/requests.routes.js";
@@ -33,12 +35,12 @@ app.use(express.json({ limit: "20mb" }));
 app.get("/api/health", (req, res) => res.json({ status: "ok" }));
 
 app.use("/api/auth", authRoutes);
-app.use("/api/attendance", attendanceRoutes);
-app.use("/api/requests", requestsRoutes);
+app.use("/api/attendance", requireAuth, attendanceRoutes);
+app.use("/api/requests", requireAuth, requestsRoutes);
 app.use("/api/notifications", notificationsRoutes);
-app.use("/api/profile", profileRoutes);
+app.use("/api/profile", requireAuth, profileRoutes);
 app.use("/api/office", officeRoutes);
-app.use("/api/hrd", hrdRoutes);
+app.use("/api/hrd", requireAuth, hrdRoutes);
 // Penanganan error global sebagai jaring pengaman terakhir
 app.use((err, req, res, next) => {
   // Pesan khusus jika body request (mis. foto base64) melebihi batas ukuran yang diizinkan
@@ -60,7 +62,7 @@ async function start() {
     console.error("❌ Gagal terhubung ke database MySQL:", err.message);
     console.error("   Pastikan MySQL berjalan dan konfigurasi di file .env sudah benar.");
   }
-  app.listen(PORT, () => {
+  app.listen(PORT, "0.0.0.0", () => {
     console.log(`🚀 Server backend berjalan di http://localhost:${PORT}`);
   });
 }
