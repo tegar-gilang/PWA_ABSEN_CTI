@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { apiHrdGetDashboardOverview } from '../../lib/api';
 
 const DashboardHRD: React.FC = () => {
@@ -90,11 +91,10 @@ const DashboardHRD: React.FC = () => {
         </div>
       </div>
 
-      {/* Tabel Aktivitas Terbaru dari Backend */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="flex justify-between items-center p-6 border-b border-gray-200">
           <h3 className="font-bold text-gray-800 text-lg">Recent Activity</h3>
-          <a href="/hrd/attendance" className="text-blue-600 text-sm font-medium hover:underline">View All</a>
+          <Link to="/hrd/kehadiran" className="text-blue-600 text-sm font-medium hover:underline">View All</Link>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">

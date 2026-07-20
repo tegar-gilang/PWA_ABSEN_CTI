@@ -59,18 +59,32 @@ router.get("/dashboard/overview", async (req, res) => {
 // GET
 router.get("/attendance", async (req, res) => {
     try {
-        const [rows] = await pool.query(
-            `SELECT a.id, u.name, a.status, 
-                    DATE_FORMAT(a.check_in_time, '%H:%i') as checkInTime, 
-                    DATE_FORMAT(a.check_out_time, '%H:%i') as checkOutTime,
-                    a.check_in_lat, a.check_in_lng, a.check_in_photo_url, a.date
+        const { date } = req.query;
+
+        let query = `
+            SELECT a.id, u.name, u.department, u.employee_id as employeeId, a.status, 
+                   DATE_FORMAT(a.check_in_time, '%H:%i') as checkInTime, 
+                   DATE_FORMAT(a.check_out_time, '%H:%i') as checkOutTime,
+                   a.check_in_lat, a.check_in_lng, a.check_in_photo_url, 
+                   DATE_FORMAT(a.date, '%Y-%m-%d') as date
             FROM attendance_records a
             JOIN users u ON a.user_id = u.id
-            ORDER BY a.date DESC`
-        );
-        res.json({ attendance: rows });
+            WHERE 1=1
+        `;
+        const params = [];
+
+        if (date) {
+            query += ` AND DATE(a.date) = ?`;
+            params.push(date);
+        }
+
+        query += ` ORDER BY a.date DESC, a.check_in_time DESC`;
+
+        const [rows] = await pool.query(query, params);
+        
+        res.json({ records: rows }); 
     } catch (err) {
-        console.error(err);
+        console.error("SQL Error pada /hrd/attendance:", err);
         res.status(500).json({message: "Failed to Fetch Attendance Records."});
     }
 });
