@@ -94,12 +94,24 @@ router.get("/attendance", async (req, res) => {
 router.get("/employees", async (req, res) => {
     try {
         const [rows] = await pool.query(
-                    `SELECT id, name, department, status_karyawan, performance_status, schedule 
-            FROM users WHERE role = 'EMPLOYEE'`
+            `SELECT 
+                id, 
+                employee_id as employeeId, 
+                name, 
+                email, 
+                department, 
+                status_karyawan, 
+                performance_status, 
+                85 as targetProgress 
+             FROM users 
+             WHERE role = 'EMPLOYEE' 
+             ORDER BY name ASC`
         );
+        
+        console.log(`Berhasil memuat ${rows.length} karyawan`); // Cek di terminal
         res.json({ employees: rows });
     } catch (err) {
-        console.error(err);
+        console.error("SQL Error pada /hrd/employees:", err);
         res.status(500).json({message: "Failed to Fetch Employees."});
     }
 });

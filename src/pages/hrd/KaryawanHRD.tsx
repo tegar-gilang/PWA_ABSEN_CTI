@@ -1,6 +1,55 @@
-import React from 'react';
+import React, {useEffect, useState, useMemo} from 'react';
+import { apiHrdGetEmployees } from '@/src/lib/api';
 
 const KaryawanHRD: React.FC = () => {
+  
+  const [employees, setEmployees] = useState<any[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+
+  const [searchQuery,setSearchQuery] = useState<string>('');
+  const [selectedDept,setSelectedDept] = useState<string>('Semua Divisi');
+
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const itemsPerPage = 6;
+
+  useEffect(() => {
+    const fetchEmployees = async () => {
+      setLoading(true);
+      try {
+        const res = await apiHrdGetEmployees();
+        setEmployees(res.employees || []);
+      }catch (err){
+        console.error("Gagal memuat karyawan:", err);
+      }finally {
+        setLoading(false);
+      }
+    };
+    fetchEmployees();
+  }, []);
+
+  const filteredEmployees = useMemo(() => {
+    return employees.filter((emp) => {
+      const matchSearch = emp.name?.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchDept = selectedDept === 'Semua Divisi' ||
+      emp.department?.toLowerCase() === selectedDept.toLowerCase();
+      return matchSearch && matchDept;
+    });
+  }, [employees, searchQuery, selectedDept]);
+
+  // Pagination states
+  const totalPages = Math.ceil(filteredEmployees.length / itemsPerPage);
+  const paginatedEmployees = filteredEmployees.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  //Division unique for select option
+  const departments = useMemo(() =>{
+    const depts = new Set(employees.map(e => e.department).filter(Boolean));
+    return ['Semua Divisi', ...Array.from(depts)];
+  }, [employees]);
+
+
   return (
     <div className="p-8">
       
@@ -10,7 +59,7 @@ const KaryawanHRD: React.FC = () => {
           <h2 className="text-3xl font-bold text-gray-800 tracking-tight">Manajemen Karyawan</h2>
           <p className="text-gray-500 mt-2 text-sm">Kelola data, status, dan performa tim Anda.</p>
         </div>
-        <button className="border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center shadow-sm">
+        <button onClick={() => alert("Mengunduh data karyawan...")} className="border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center shadow-sm">
           <span className="mr-2">📥</span> Export to Excel
         </button>
       </div>
@@ -24,19 +73,23 @@ const KaryawanHRD: React.FC = () => {
             <span className="absolute left-3 top-2.5 text-gray-400">🔍</span>
             <input 
               type="text" 
-              placeholder="Cari nama karyawan..." 
+              placeholder="Cari nama karyawan..."
+              value={searchQuery}
+              onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }} 
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white" 
             />
           </div>
           <div className="flex items-center space-x-2">
             <span className="text-gray-400">⚡</span>
-            <select className="border border-gray-300 rounded-md px-4 py-2 text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white cursor-pointer">
-              <option>Semua Divisi</option>
-              <option>Teknisi</option>
-              <option>Admin</option>
-              <option>Sales</option>
+            <select 
+            value={selectedDept}
+            onChange={(e) => { setSelectedDept(e.target.value); setCurrentPage(1); }} 
+            className="border border-gray-300 rounded-md px-4 py-2 text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white cursor-pointer">
+              {departments.map((dept, idx) => (
+                <option key={idx} value={dept}>{dept}</option>
+              ))}
             </select>
-          </div>
+           </div>
         </div>
 
         {/* Tabel Data Karyawan */}
@@ -52,154 +105,89 @@ const KaryawanHRD: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 text-sm text-gray-700">
-              
-              {/* Baris 1: Budi Prakoso */}
-              <tr className="hover:bg-gray-50/50 transition-colors">
-                <td className="px-6 py-4 flex items-center">
-                  <div className="w-9 h-9 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold mr-3 shadow-sm">BP</div>
-                  <span className="font-semibold text-gray-800">Budi Prakoso</span>
-                </td>
-                <td className="px-6 py-4 text-gray-600">Teknisi</td>
-                <td className="px-6 py-4">
-                  <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-medium">Aktif</span>
-                </td>
-                <td className="px-6 py-4">
-                  <span className="text-blue-600 font-medium inline-flex items-center">
-                    <span className="mr-1">👍</span> Baik
-                  </span>
-                </td>
-                <td className="px-6 py-4">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-32 bg-gray-200 rounded-full h-1.5 overflow-hidden">
-                      <div className="bg-blue-600 h-1.5 rounded-full" style={{ width: '85%' }}></div>
-                    </div>
-                    <span className="text-xs font-medium text-gray-500 w-8">85%</span>
-                  </div>
-                </td>
-              </tr>
+             {loading ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-12 text-center text-gray-400 font-medium animate-pulse">
+                    Memuat data karyawan...
+                  </td>
+                </tr>
+              ) : paginatedEmployees.length > 0 ? (
+                paginatedEmployees.map((emp, index) => {
+                  // Avatar
+                  const initials = emp.name
+                    ? emp.name.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase()
+                    : 'US';
 
-              {/* Baris 2: Siti Wijaya */}
-              <tr className="hover:bg-gray-50/50 transition-colors">
-                <td className="px-6 py-4 flex items-center">
-                  <div className="w-9 h-9 bg-gray-800 text-white rounded-full flex items-center justify-center text-xs font-bold mr-3 shadow-sm">SW</div>
-                  <span className="font-semibold text-gray-800">Siti Wijaya</span>
-                </td>
-                <td className="px-6 py-4 text-gray-600">Admin</td>
-                <td className="px-6 py-4">
-                  <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-medium">Aktif</span>
-                </td>
-                <td className="px-6 py-4">
-                  <span className="text-blue-600 font-medium inline-flex items-center">
-                    <span className="mr-1">👍</span> Baik
-                  </span>
-                </td>
-                <td className="px-6 py-4">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-32 bg-gray-200 rounded-full h-1.5 overflow-hidden">
-                      <div className="bg-blue-600 h-1.5 rounded-full" style={{ width: '92%' }}></div>
-                    </div>
-                    <span className="text-xs font-medium text-gray-500 w-8">92%</span>
-                  </div>
-                </td>
-              </tr>
+                  //  Warna Avatar
+                  const avatarColors = [
+                    'bg-blue-600 text-white', 'bg-gray-800 text-white', 
+                    'bg-red-100 text-red-600', 'bg-gray-500 text-white', 
+                    'bg-blue-100 text-blue-700'
+                  ];
+                  const avatarClass = avatarColors[index % avatarColors.length];
 
-              {/* Baris 3: Agus Hermawan */}
-              <tr className="hover:bg-gray-50/50 transition-colors">
-                <td className="px-6 py-4 flex items-center">
-                  <div className="w-9 h-9 bg-red-100 text-red-600 rounded-full flex items-center justify-center text-xs font-bold mr-3 shadow-sm">AH</div>
-                  <span className="font-semibold text-gray-800">Agus Hermawan</span>
-                </td>
-                <td className="px-6 py-4 text-gray-600">Sales</td>
-                <td className="px-6 py-4">
-                  <span className="bg-red-100 text-red-600 px-3 py-1 rounded-full text-xs font-medium">Tidak Aktif</span>
-                </td>
-                <td className="px-6 py-4 text-gray-400">
-                  — —
-                </td>
-                <td className="px-6 py-4">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-32 bg-gray-200 rounded-full h-1.5 overflow-hidden">
-                      <div className="bg-gray-400 h-1.5 rounded-full" style={{ width: '0%' }}></div>
-                    </div>
-                    <span className="text-xs font-medium text-gray-500 w-8">0%</span>
-                  </div>
-                </td>
-              </tr>
+                  
+                  const rawStatus = emp.status_karyawan || emp.status || 'Aktif';
+                  const isActive = rawStatus.toUpperCase() === 'ACTIVE' || rawStatus.toLowerCase() === 'aktif';
+                  const statusLabel = isActive ? 'Aktif' : rawStatus;
+                  const statusClass = isActive ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-600';
 
-              {/* Baris 4: Dewi Novita */}
-              <tr className="hover:bg-gray-50/50 transition-colors">
-                <td className="px-6 py-4 flex items-center">
-                  <div className="w-9 h-9 bg-gray-800 text-white rounded-full flex items-center justify-center text-xs font-bold mr-3 shadow-sm">DN</div>
-                  <span className="font-semibold text-gray-800">Dewi Novita</span>
-                </td>
-                <td className="px-6 py-4 text-gray-600">Sales</td>
-                <td className="px-6 py-4">
-                  <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-medium">Aktif</span>
-                </td>
-                <td className="px-6 py-4">
-                  <span className="text-red-600 font-medium inline-flex items-center">
-                    <span className="mr-1">⚠️</span> Perlu Coaching
-                  </span>
-                </td>
-                <td className="px-6 py-4">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-32 bg-gray-200 rounded-full h-1.5 overflow-hidden">
-                      <div className="bg-red-600 h-1.5 rounded-full" style={{ width: '45%' }}></div>
-                    </div>
-                    <span className="text-xs font-medium text-red-600 w-8">45%</span>
-                  </div>
-                </td>
-              </tr>
+                  
+                 const rawPerformance = emp.performance_status || 'Baik';
+                 const isPerluCoaching = rawPerformance.toLowerCase().includes('coaching') || (emp.targetProgress || 0) < 50;
+                 const performanceLabel = rawPerformance;
+                 const performanceIcon = isPerluCoaching ? '⚠️' : rawPerformance.toLowerCase().includes('sangat') ? '🌟' : '👍';
+                 const performanceClass = isPerluCoaching ? 'text-red-600' : 'text-blue-600';
 
-              {/* Baris 5: Rizky Fauzi */}
-              <tr className="hover:bg-gray-50/50 transition-colors">
-                <td className="px-6 py-4 flex items-center">
-                  <div className="w-9 h-9 bg-gray-500 text-white rounded-full flex items-center justify-center text-xs font-bold mr-3 shadow-sm">RF</div>
-                  <span className="font-semibold text-gray-800">Rizky Fauzi</span>
-                </td>
-                <td className="px-6 py-4 text-gray-600">Teknisi</td>
-                <td className="px-6 py-4">
-                  <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-medium">Aktif</span>
-                </td>
-                <td className="px-6 py-4">
-                  <span className="text-blue-600 font-medium inline-flex items-center">
-                    <span className="mr-1">👍</span> Baik
-                  </span>
-                </td>
-                <td className="px-6 py-4">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-32 bg-gray-200 rounded-full h-1.5 overflow-hidden">
-                      <div className="bg-blue-600 h-1.5 rounded-full" style={{ width: '78%' }}></div>
-                    </div>
-                    <span className="text-xs font-medium text-gray-500 w-8">78%</span>
-                  </div>
-                </td>
-              </tr>
+                 const progressBarColor = (emp.targetProgress || 0) === 0 ? 'bg-gray-400' : isPerluCoaching ? 'bg-red-600' : 'bg-blue-600';
+                 const progressTextColor = isPerluCoaching ? 'text-red-600' : 'text-gray-500';
 
-              {/* Baris 6: Lestari Mulya */}
-              <tr className="hover:bg-gray-50/50 transition-colors">
-                <td className="px-6 py-4 flex items-center">
-                  <div className="w-9 h-9 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center text-xs font-bold mr-3 shadow-sm">LM</div>
-                  <span className="font-semibold text-gray-800">Lestari Mulya</span>
-                </td>
-                <td className="px-6 py-4 text-gray-600">Admin</td>
-                <td className="px-6 py-4">
-                  <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-medium">Aktif</span>
-                </td>
-                <td className="px-6 py-4">
-                  <span className="text-blue-600 font-medium inline-flex items-center">
-                    <span className="mr-1">👍</span> Baik
-                  </span>
-                </td>
-                <td className="px-6 py-4">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-32 bg-gray-200 rounded-full h-1.5 overflow-hidden">
-                      <div className="bg-blue-600 h-1.5 rounded-full" style={{ width: '100%' }}></div>
-                    </div>
-                    <span className="text-xs font-medium text-gray-500 w-8">100%</span>
-                  </div>
-                </td>
-              </tr>
+                  return (
+                    <tr key={emp.id || index} className="hover:bg-gray-50/50 transition-colors">
+                      <td className="px-6 py-4 flex items-center">
+                        <div className={`w-9 h-9 ${avatarClass} rounded-full flex items-center justify-center text-xs font-bold mr-3 shadow-sm`}>
+                          {initials}
+                        </div>
+                        <div>
+                          <span className="font-semibold text-gray-800 block">{emp.name || 'Tanpa Nama'}</span>
+                          {emp.email && <span className="text-xs text-gray-400 block">{emp.email}</span>}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-gray-600">{emp.department || 'General'}</td>
+                      <td className="px-6 py-4">
+                        <span className={`${statusClass} px-3 py-1 rounded-full text-xs font-medium inline-block`}>
+                          {statusLabel}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`${performanceClass} font-medium inline-flex items-center`}>
+                          {emp.targetProgress === 0 && !emp.performance ? (
+                            <span className="text-gray-400">— —</span>
+                          ) : (
+                            <>
+                              <span className="mr-1">{performanceIcon}</span> {performanceLabel}
+                            </>
+                          )}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-32 bg-gray-200 rounded-full h-1.5 overflow-hidden">
+                            <div className={`${progressBarColor} h-1.5 rounded-full transition-all duration-500`} style={{ width: `${emp.targetProgress || 0}%` }}></div>
+                          </div>
+                          <span className={`text-xs font-medium ${progressTextColor} w-8`}>{emp.targetProgress || 0}%</span>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              ) : (
+                <tr>
+                  <td colSpan={5} className="px-6 py-12 text-center text-gray-500 font-medium">
+                    Tidak ada data karyawan yang sesuai dengan pencarian Anda.
+                  </td>
+                </tr>
+              )}
 
             </tbody>
           </table>
@@ -207,18 +195,43 @@ const KaryawanHRD: React.FC = () => {
         
         {/* Pagination */}
         <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between bg-gray-50/30">
-          <span className="text-sm text-gray-500">Menampilkan 1-6 dari 24 karyawan</span>
+          <span className="text-sm text-gray-500">
+            Menampilkan {filteredEmployees.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0}-{Math.min(currentPage * itemsPerPage, filteredEmployees.length)} dari {filteredEmployees.length} karyawan
+          </span>
           <div className="flex items-center space-x-1">
-            <button className="px-2 py-1 text-gray-400 hover:text-gray-600 transition-colors">❮</button>
-            <button className="px-3 py-1 bg-gray-800 text-white rounded-md text-sm font-medium shadow-sm">1</button>
-            <button className="px-3 py-1 text-gray-600 hover:bg-gray-200 rounded-md text-sm font-medium transition-colors">2</button>
-            <button className="px-3 py-1 text-gray-600 hover:bg-gray-200 rounded-md text-sm font-medium transition-colors">3</button>
-            <button className="px-2 py-1 text-gray-600 hover:text-gray-800 transition-colors">❯</button>
+            <button 
+              onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+              disabled={currentPage === 1 || totalPages === 0}
+              className="px-2 py-1 text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-30"
+            >
+              ❮
+            </button>
+            
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+              <button
+                key={page}
+                onClick={() => setCurrentPage(page)}
+                className={`px-3 py-1 rounded-md text-sm font-medium transition-colors shadow-sm ${
+                  currentPage === page 
+                    ? 'bg-gray-800 text-white' 
+                    : 'text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                {page}
+              </button>
+            ))}
+
+            <button 
+              onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+              disabled={currentPage === totalPages || totalPages === 0}
+              className="px-2 py-1 text-gray-600 hover:text-gray-800 transition-colors disabled:opacity-30"
+            >
+              ❯
+            </button>
           </div>
         </div>
 
-      </div>
-      
+      </div>  
     </div>
   );
 };
