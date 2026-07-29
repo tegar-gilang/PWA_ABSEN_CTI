@@ -66,7 +66,7 @@ export default function App() {
   // Memulihkan sesi login (token JWT) & memuat ulang data dari backend saat aplikasi pertama kali dibuka
   useEffect(() => {
     hydrateSession();
-  }, [hydrateSession]);
+  }, []);
 
   // Meminta izin notifikasi ketika pengguna berhasil masuk (terotentikasi)
   useEffect(() => {

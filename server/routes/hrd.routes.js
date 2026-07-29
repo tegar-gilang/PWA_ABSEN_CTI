@@ -3,6 +3,7 @@ import { pool } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { randomUUID } from "crypto";
 import { getLocalDateString } from "../utils/date.js";
+import { request } from "https";
 
 const router = Router();
 
@@ -136,7 +137,7 @@ router.get("/leaves", async (req, res) => {
             ORDER BY r.created_at DESC`
         );
         
-        res.json({ leaves: rows });
+        res.json({ requests: rows });
     } catch (err) {
         console.error("Error mengambil data cuti:", err);
         res.status(500).json({ message: "Gagal memuat daftar permintaan cuti/izin." });
