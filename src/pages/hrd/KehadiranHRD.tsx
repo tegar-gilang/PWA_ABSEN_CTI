@@ -1,6 +1,17 @@
-import React, {useEffect, useState, useMemo} from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { apiHrdGetAttendance } from '@/src/lib/api';
 import { AttendanceRecord } from '@/src/types';
+// Import ikon dari lucide-react
+import { 
+  Download, 
+  Search, 
+  Calendar, 
+  Eye, 
+  Ban, 
+  X, 
+  ChevronLeft, 
+  ChevronRight 
+} from 'lucide-react';
 
 const KehadiranHRD: React.FC = () => {
   // simpan data dari be 
@@ -25,14 +36,14 @@ const KehadiranHRD: React.FC = () => {
     try {
       const res = await apiHrdGetAttendance(dateFilter);
       setRecords(res.records || []);
-    }catch (err){
+    } catch (err) {
       console.error("Gagal memuat rekap kehadiran:", err);
-    }finally{
+    } finally {
       setLoading(false);
     }
   };
   
-  useEffect(() =>{
+  useEffect(() => {
     fetchAttendnce(selectedDate);
     setCurrentPage(1);
   }, [selectedDate]); 
@@ -45,11 +56,11 @@ const KehadiranHRD: React.FC = () => {
       rec.employeeId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       rec.department?.toLowerCase().includes(searchQuery.toLowerCase());
 
-      // filter Status
+      // filter Status (SUDAH DIPERBAIKI)
       let matchStatus = true;
       if (selectedStatus === 'Hadir') matchStatus = rec.status === 'ON_TIME';
-      if (selectedStatus === 'Hadir') matchStatus = rec.status === 'late';
-      if (selectedStatus === 'Hadir') matchStatus = ['LEAVE', 'SAKIT', 'IZIN'].includes(rec.status);
+      if (selectedStatus === 'Terlambat') matchStatus = rec.status === 'LATE';
+      if (selectedStatus === 'Cuti') matchStatus = ['LEAVE', 'SICK', 'CUTI'].includes(rec.status);
     
       return matchSearch && matchStatus;
     });
@@ -71,7 +82,7 @@ const KehadiranHRD: React.FC = () => {
           <p className="text-gray-500 mt-1 text-sm">Monitor and manage daily employee attendance records.</p>
         </div>
         <button onClick={() => alert("Mengunduh laporan .. (fitur segera siap)")} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center shadow-sm">
-          <span className="mr-2">📥</span> Export to Excel
+          <Download className="w-4 h-4 mr-2" /> Export to Excel
         </button>
       </div>
 
@@ -80,14 +91,14 @@ const KehadiranHRD: React.FC = () => {
         <div className="flex-1 min-w-[200px]">
           <label className="block text-xs font-semibold text-gray-600 mb-1">Search Record</label>
           <div className="relative">
-            <span className="absolute left-3 top-2 text-gray-400">🔍</span>
+            <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
             <input type="text" placeholder="Name, ID, or Dept..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
           </div>
         </div>
         <div className="w-48">
           <label className="block text-xs font-semibold text-gray-600 mb-1">Date</label>
           <div className="relative">
-            <span className="absolute left-3 top-2 text-gray-400">📅</span>
+            <Calendar className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
             <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
           </div>
         </div>
@@ -187,11 +198,11 @@ const KehadiranHRD: React.FC = () => {
                             onClick={() => setPreviewPhoto(rec.check_in_photo_url)}
                             className="border border-gray-300 text-gray-700 px-3 py-1.5 rounded-md hover:bg-gray-100 text-xs font-medium inline-flex items-center"
                           >
-                            <span className="mr-1">👁️</span> Photo
+                            <Eye className="w-3.5 h-3.5 mr-1.5" /> Photo
                           </button>
                         ) : (
                           <button className="border border-gray-200 text-gray-400 bg-gray-50 px-3 py-1.5 rounded-md text-xs font-medium cursor-not-allowed inline-flex items-center" disabled>
-                            <span className="mr-1">🚫</span> N/A
+                            <Ban className="w-3.5 h-3.5 mr-1.5" /> N/A
                           </button>
                         )}
                       </td>
@@ -218,9 +229,9 @@ const KehadiranHRD: React.FC = () => {
             <button 
               onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
               disabled={currentPage === 1 || totalPages === 0}
-              className="px-2 py-1 text-gray-500 hover:text-gray-700 disabled:opacity-30 disabled:hover:text-gray-500"
+              className="p-1 text-gray-500 hover:text-gray-700 disabled:opacity-30 disabled:hover:text-gray-500 flex items-center justify-center"
             >
-              ❮
+              <ChevronLeft className="w-5 h-5" />
             </button>
             {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
               <button
@@ -238,13 +249,14 @@ const KehadiranHRD: React.FC = () => {
             <button 
               onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
               disabled={currentPage === totalPages || totalPages === 0}
-              className="px-2 py-1 text-gray-500 hover:text-gray-700 disabled:opacity-30 disabled:hover:text-gray-500"
+              className="p-1 text-gray-500 hover:text-gray-700 disabled:opacity-30 disabled:hover:text-gray-500 flex items-center justify-center"
             >
-              ❯
+              <ChevronRight className="w-5 h-5" />
             </button>
           </div>
         </div>
       </div>
+
       {/* Modal Preview Foto */}
       {previewPhoto && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
@@ -253,9 +265,9 @@ const KehadiranHRD: React.FC = () => {
               <h4 className="font-bold text-gray-800 text-base">Bukti Foto Check-In</h4>
               <button 
                 onClick={() => setPreviewPhoto(null)}
-                className="text-gray-400 hover:text-gray-600 font-bold text-xl leading-none"
+                className="text-gray-400 hover:text-gray-600 transition-colors"
               >
-                ✕
+                <X className="w-5 h-5" />
               </button>
             </div>
             <div className="bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center max-h-96 border border-gray-200">

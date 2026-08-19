@@ -1,4 +1,12 @@
 import React from 'react';
+// Import ikon-ikon dari lucide-react
+import { 
+  Download, 
+  FileText, 
+  Search, 
+  ChevronLeft, 
+  ChevronRight 
+} from 'lucide-react';
 
 const KPIHRD: React.FC = () => {
   return (
@@ -11,10 +19,10 @@ const KPIHRD: React.FC = () => {
         </div>
         <div className="flex space-x-3">
           <button className="border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center shadow-sm">
-            <span className="mr-2">📥</span> Export to Excel
+            <Download className="w-4 h-4 mr-2" /> Export to Excel
           </button>
           <button className="bg-gray-900 hover:bg-black text-white px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center shadow-sm">
-            <span className="mr-2">📄</span> Open Satisfaction Form / Benefit Record
+            <FileText className="w-4 h-4 mr-2" /> Open Satisfaction Form / Benefit Record
           </button>
         </div>
       </div>
@@ -54,7 +62,7 @@ const KPIHRD: React.FC = () => {
           <div className="p-5 border-b border-gray-200 flex justify-between items-center bg-gray-50/30">
             <h3 className="font-bold text-gray-800 text-sm uppercase tracking-wider">DATA PENCAPAIAN KPI KARYAWAN</h3>
             <div className="relative">
-              <span className="absolute left-3 top-2 text-gray-400">🔍</span>
+              <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
               <input type="text" placeholder="Cari karyawan..." className="pl-9 pr-4 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 w-64 bg-white" />
             </div>
           </div>
@@ -100,9 +108,13 @@ const KPIHRD: React.FC = () => {
           <div className="px-6 py-4 border-t border-gray-200 text-sm text-gray-500 bg-gray-50/30 flex justify-between items-center">
             <span>Menampilkan 1-8 dari 8 data</span>
             <div className="flex space-x-1">
-              <button className="px-2 py-1 border border-gray-300 rounded text-gray-400 hover:text-gray-600 bg-white">❮</button>
+              <button className="px-2 py-1 border border-gray-300 rounded text-gray-400 hover:text-gray-600 bg-white flex items-center justify-center">
+                <ChevronLeft className="w-4 h-4" />
+              </button>
               <button className="px-3 py-1 bg-gray-900 text-white rounded font-medium">1</button>
-              <button className="px-2 py-1 border border-gray-300 rounded text-gray-400 hover:text-gray-600 bg-white">❯</button>
+              <button className="px-2 py-1 border border-gray-300 rounded text-gray-400 hover:text-gray-600 bg-white flex items-center justify-center">
+                <ChevronRight className="w-4 h-4" />
+              </button>
             </div>
           </div>
         </div>

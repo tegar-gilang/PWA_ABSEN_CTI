@@ -1,4 +1,14 @@
 import React from 'react';
+// Import ikon-ikon dari lucide-react
+import { 
+  Download, 
+  Plus, 
+  Briefcase, 
+  Users, 
+  CalendarDays, 
+  Search, 
+  Trash2 
+} from 'lucide-react';
 
 const RekrutmenHRD: React.FC = () => {
   return (
@@ -11,10 +21,10 @@ const RekrutmenHRD: React.FC = () => {
         </div>
         <div className="flex space-x-3">
           <button className="border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center shadow-sm">
-            <span className="mr-2">📥</span> Export to Excel
+            <Download className="w-4 h-4 mr-2" /> Export to Excel
           </button>
           <button className="bg-black hover:bg-gray-800 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center shadow-sm">
-            <span className="mr-2">➕</span> Add New Job Opening
+            <Plus className="w-4 h-4 mr-2" /> Add New Job Opening
           </button>
         </div>
       </div>
@@ -26,7 +36,7 @@ const RekrutmenHRD: React.FC = () => {
           <div className="flex justify-between items-start">
             <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Total Openings</p>
             <div className="w-10 h-10 bg-blue-50 text-blue-500 rounded-lg flex items-center justify-center text-lg">
-              💼
+              <Briefcase className="w-5 h-5" />
             </div>
           </div>
           <div>
@@ -40,7 +50,7 @@ const RekrutmenHRD: React.FC = () => {
           <div className="flex justify-between items-start">
             <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Total Candidates</p>
             <div className="w-10 h-10 bg-gray-100 text-gray-600 rounded-lg flex items-center justify-center text-lg">
-              👥
+              <Users className="w-5 h-5" />
             </div>
           </div>
           <div>
@@ -54,7 +64,7 @@ const RekrutmenHRD: React.FC = () => {
           <div className="flex justify-between items-start">
             <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Interviews Scheduled</p>
             <div className="w-10 h-10 bg-gray-100 text-gray-600 rounded-lg flex items-center justify-center text-lg">
-              📅
+              <CalendarDays className="w-5 h-5" />
             </div>
           </div>
           <div>
@@ -70,7 +80,7 @@ const RekrutmenHRD: React.FC = () => {
         <div className="p-5 border-b border-gray-200 flex justify-between items-center bg-gray-50/30">
           <h3 className="font-bold text-gray-800 text-lg">Active Job Openings</h3>
           <div className="relative">
-            <span className="absolute left-3 top-2.5 text-gray-400 text-sm">🔍</span>
+            <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
             <input type="text" placeholder="Filter jobs..." className="pl-9 pr-4 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 w-64 bg-white" />
           </div>
         </div>
@@ -106,9 +116,7 @@ const RekrutmenHRD: React.FC = () => {
                 </td>
                 <td className="px-6 py-4 text-right">
                   <button className="text-gray-400 hover:text-red-500 transition-colors">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
+                    <Trash2 className="w-5 h-5 inline" />
                   </button>
                 </td>
               </tr>
@@ -130,9 +138,7 @@ const RekrutmenHRD: React.FC = () => {
                 </td>
                 <td className="px-6 py-4 text-right">
                   <button className="text-gray-400 hover:text-red-500 transition-colors">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
+                    <Trash2 className="w-5 h-5 inline" />
                   </button>
                 </td>
               </tr>
@@ -154,9 +160,7 @@ const RekrutmenHRD: React.FC = () => {
                 </td>
                 <td className="px-6 py-4 text-right">
                   <button className="text-gray-400 hover:text-red-500 transition-colors">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
+                    <Trash2 className="w-5 h-5 inline" />
                   </button>
                 </td>
               </tr>
@@ -178,9 +182,7 @@ const RekrutmenHRD: React.FC = () => {
                 </td>
                 <td className="px-6 py-4 text-right">
                   <button className="text-gray-400 hover:text-red-500 transition-colors">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
+                    <Trash2 className="w-5 h-5 inline" />
                   </button>
                 </td>
               </tr>
