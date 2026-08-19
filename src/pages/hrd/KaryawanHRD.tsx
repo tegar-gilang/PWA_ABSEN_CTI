@@ -1,5 +1,16 @@
-import React, {useEffect, useState, useMemo} from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { apiHrdGetEmployees } from '@/src/lib/api';
+// Import ikon-ikon dari lucide-react
+import { 
+  Download, 
+  Search, 
+  Filter, 
+  AlertTriangle, 
+  Star, 
+  ThumbsUp, 
+  ChevronLeft, 
+  ChevronRight 
+} from 'lucide-react';
 
 const KaryawanHRD: React.FC = () => {
   
@@ -18,9 +29,9 @@ const KaryawanHRD: React.FC = () => {
       try {
         const res = await apiHrdGetEmployees();
         setEmployees(res.employees || []);
-      }catch (err){
+      } catch (err) {
         console.error("Gagal memuat karyawan:", err);
-      }finally {
+      } finally {
         setLoading(false);
       }
     };
@@ -60,7 +71,7 @@ const KaryawanHRD: React.FC = () => {
           <p className="text-gray-500 mt-2 text-sm">Kelola data, status, dan performa tim Anda.</p>
         </div>
         <button onClick={() => alert("Mengunduh data karyawan...")} className="border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center shadow-sm">
-          <span className="mr-2">📥</span> Export to Excel
+          <Download className="w-4 h-4 mr-2" /> Export to Excel
         </button>
       </div>
 
@@ -70,7 +81,7 @@ const KaryawanHRD: React.FC = () => {
         {/* Toolbar (Pencarian & Filter) */}
         <div className="p-4 border-b border-gray-200 flex flex-wrap gap-4 items-center justify-between bg-gray-50/50">
           <div className="relative flex-1 max-w-md">
-            <span className="absolute left-3 top-2.5 text-gray-400">🔍</span>
+            <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
             <input 
               type="text" 
               placeholder="Cari nama karyawan..."
@@ -80,7 +91,7 @@ const KaryawanHRD: React.FC = () => {
             />
           </div>
           <div className="flex items-center space-x-2">
-            <span className="text-gray-400">⚡</span>
+            <Filter className="w-4 h-4 text-gray-400" />
             <select 
             value={selectedDept}
             onChange={(e) => { setSelectedDept(e.target.value); setCurrentPage(1); }} 
@@ -136,7 +147,9 @@ const KaryawanHRD: React.FC = () => {
                  const rawPerformance = emp.performance_status || 'Baik';
                  const isPerluCoaching = rawPerformance.toLowerCase().includes('coaching') || (emp.targetProgress || 0) < 50;
                  const performanceLabel = rawPerformance;
-                 const performanceIcon = isPerluCoaching ? '⚠️' : rawPerformance.toLowerCase().includes('sangat') ? '🌟' : '👍';
+                 
+                 // Mengganti emoji performa dengan ikon komponen Lucide React
+                 const performanceIcon = isPerluCoaching ? <AlertTriangle className="w-4 h-4" /> : rawPerformance.toLowerCase().includes('sangat') ? <Star className="w-4 h-4" /> : <ThumbsUp className="w-4 h-4" />;
                  const performanceClass = isPerluCoaching ? 'text-red-600' : 'text-blue-600';
 
                  const progressBarColor = (emp.targetProgress || 0) === 0 ? 'bg-gray-400' : isPerluCoaching ? 'bg-red-600' : 'bg-blue-600';
@@ -165,7 +178,7 @@ const KaryawanHRD: React.FC = () => {
                             <span className="text-gray-400">— —</span>
                           ) : (
                             <>
-                              <span className="mr-1">{performanceIcon}</span> {performanceLabel}
+                              <span className="mr-1.5">{performanceIcon}</span> {performanceLabel}
                             </>
                           )}
                         </span>
@@ -202,9 +215,9 @@ const KaryawanHRD: React.FC = () => {
             <button 
               onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
               disabled={currentPage === 1 || totalPages === 0}
-              className="px-2 py-1 text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-30"
+              className="p-1 text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-30 flex items-center justify-center"
             >
-              ❮
+              <ChevronLeft className="w-5 h-5" />
             </button>
             
             {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
@@ -224,9 +237,9 @@ const KaryawanHRD: React.FC = () => {
             <button 
               onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
               disabled={currentPage === totalPages || totalPages === 0}
-              className="px-2 py-1 text-gray-600 hover:text-gray-800 transition-colors disabled:opacity-30"
+              className="p-1 text-gray-600 hover:text-gray-800 transition-colors disabled:opacity-30 flex items-center justify-center"
             >
-              ❯
+              <ChevronRight className="w-5 h-5" />
             </button>
           </div>
         </div>

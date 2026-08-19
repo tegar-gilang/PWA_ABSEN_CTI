@@ -1,6 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { apiHrdGetDashboardOverview } from '../../lib/api';
+// Import ikon-ikon yang dibutuhkan dari lucide-react
+import { 
+  Download, 
+  Users, 
+  CheckCircle2, 
+  Clock, 
+  FileText 
+} from 'lucide-react';
 
 const DashboardHRD: React.FC = () => {
   const [data, setData] = useState<{
@@ -41,35 +49,48 @@ const DashboardHRD: React.FC = () => {
           onClick={() => alert("Mengunduh laporan... (Fitur ekspor segera siap)")}
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center shadow-sm"
         >
-          <span className="mr-2">📥</span> Export Report
+          <Download className="w-4 h-4 mr-2" /> Export Report
         </button>
       </div>
 
       {/* Deretan Kartu Statistik (Stats Cards) */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        
+        {/* Total Employees Card */}
         <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-          <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center mb-4 text-xl">👥</div>
+          <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center mb-4">
+            <Users className="w-5 h-5" />
+          </div>
           <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Total Employees</p>
           <h3 className="text-3xl font-bold text-gray-800">{metrics.totalEmployees}</h3>
         </div>
         
+        {/* Present Today Card */}
         <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm relative">
           <div className="absolute top-6 right-6 bg-blue-100 text-blue-700 text-xs font-bold px-2 py-1 rounded">
             {presentPercentage}%
           </div>
-          <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center mb-4 text-xl">✅</div>
+          <div className="w-10 h-10 bg-green-100 text-green-600 rounded-lg flex items-center justify-center mb-4">
+            <CheckCircle2 className="w-5 h-5" />
+          </div>
           <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Present Today</p>
           <h3 className="text-3xl font-bold text-gray-800">{presentCount}</h3>
         </div>
         
+        {/* Late Today Card */}
         <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-          <div className="w-10 h-10 bg-red-100 text-red-600 rounded-lg flex items-center justify-center mb-4 text-xl">⏰</div>
+          <div className="w-10 h-10 bg-yellow-100 text-yellow-600 rounded-lg flex items-center justify-center mb-4">
+            <Clock className="w-5 h-5" />
+          </div>
           <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Late Today</p>
           <h3 className="text-3xl font-bold text-gray-800">{metrics.lateToday}</h3>
         </div>
         
+        {/* Pending Leave Card */}
         <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-          <div className="w-10 h-10 bg-gray-100 text-gray-600 rounded-lg flex items-center justify-center mb-4 text-xl">📝</div>
+          <div className="w-10 h-10 bg-purple-100 text-purple-600 rounded-lg flex items-center justify-center mb-4">
+            <FileText className="w-5 h-5" />
+          </div>
           <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Pending Leave</p>
           <h3 className="text-3xl font-bold text-gray-800">{metrics.pendingLeaves}</h3>
         </div>
@@ -91,6 +112,7 @@ const DashboardHRD: React.FC = () => {
         </div>
       </div>
 
+      {/* Tabel Recent Activity */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="flex justify-between items-center p-6 border-b border-gray-200">
           <h3 className="font-bold text-gray-800 text-lg">Recent Activity</h3>

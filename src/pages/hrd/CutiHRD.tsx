@@ -2,6 +2,15 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { apiGetRequests, apiHrdGetRequests, apiHrdUpdateRequestStatus } from '@/src/lib/api';
 import { id } from 'date-fns/locale';
 import { set } from 'date-fns';
+// Import ikon-ikon dari lucide-react
+import { 
+  Download, 
+  Clock, 
+  CheckCircle2, 
+  XCircle, 
+  Check, 
+  X 
+} from 'lucide-react';
 
 const CutiHRD: React.FC = () => {
   // Data pengajuan Izin/cuti
@@ -36,8 +45,10 @@ const CutiHRD: React.FC = () => {
 
   // Fungsi tombol Approve / Reject
   const handleStatusChange = async (id: string, newStatus: "APPROVED" | "REJECTED") => {
-    const isConfirm = window.confirm(`Apakah Andaa yakin ingin melakukan ${newStatus} pada pengajuan ini?`);
+    // Memperbaiki typo "Andaa" menjadi "Anda"
+    const isConfirm = window.confirm(`Apakah Anda yakin ingin melakukan ${newStatus} pada pengajuan ini?`);
     if(!isConfirm) return;
+    
     try{
       await apiHrdUpdateRequestStatus(id, newStatus);
       setRequests((prev) =>
@@ -61,7 +72,7 @@ const CutiHRD: React.FC = () => {
           onClick={() => alert("Mengunduh laporan cuti...")}
           className="border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center shadow-sm"
         >
-          <span className="mr-2">📥</span> Export to Excel
+          <Download className="w-4 h-4 mr-2" /> Export to Excel
         </button>
       </div>
 
@@ -69,8 +80,8 @@ const CutiHRD: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         {/* Card: Pending */}
         <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex items-center">
-          <div className="w-14 h-14 bg-gray-100 text-gray-600 rounded-xl flex items-center justify-center text-2xl mr-4">
-            📋
+          <div className="w-14 h-14 bg-gray-100 text-gray-600 rounded-xl flex items-center justify-center mr-4">
+            <Clock className="w-7 h-7" />
           </div>
           <div>
             <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Pending</p>
@@ -80,8 +91,8 @@ const CutiHRD: React.FC = () => {
 
         {/* Card: Approved */}
         <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex items-center">
-          <div className="w-14 h-14 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center text-2xl mr-4">
-            ✅
+          <div className="w-14 h-14 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center mr-4">
+            <CheckCircle2 className="w-7 h-7" />
           </div>
           <div>
             <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Approved</p>
@@ -91,8 +102,8 @@ const CutiHRD: React.FC = () => {
 
         {/* Card: Rejected */}
         <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex items-center">
-          <div className="w-14 h-14 bg-red-100 text-red-600 rounded-xl flex items-center justify-center text-2xl mr-4">
-            ❌
+          <div className="w-14 h-14 bg-red-100 text-red-600 rounded-xl flex items-center justify-center mr-4">
+            <XCircle className="w-7 h-7" />
           </div>
           <div>
             <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Rejected</p>
@@ -148,7 +159,7 @@ const CutiHRD: React.FC = () => {
                   return (
                     <tr key={req.id || index} className="hover:bg-gray-50/50 transition-colors">
                       <td className="px-6 py-4 flex items-center">
-                        <div className="w-10 h-10 bg-gray-200 text-gray-600 rounded-full flex items-center justify-center font-semibold mr-3">
+                        <div className="w-10 h-10 bg-gray-200 text-gray-600 rounded-full flex items-center justify-center font-semibold mr-3 shadow-sm">
                           {initials}
                         </div>
                         <span className="font-semibold text-gray-800">{req.name || 'Tanpa Nama'}</span>
@@ -160,11 +171,11 @@ const CutiHRD: React.FC = () => {
                         </p>
                       </td>
                       <td className="px-6 py-4">
-                        <p className="text-gray-800">{req.date}</p>
+                        <p className="text-gray-800 font-medium">{req.date}</p>
                         <p className="text-xs text-gray-500 mt-1">1 Day</p>
                       </td>
                       <td className="px-6 py-4">
-                        <span className={`${statusClass} px-3 py-1.5 rounded-full text-xs font-medium inline-flex items-center`}>
+                        <span className={`${statusClass} px-3 py-1.5 rounded-full text-xs font-medium inline-flex items-center shadow-sm`}>
                           <span className={`w-2 h-2 rounded-full ${dotClass} mr-2`}></span> {req.status || 'PENDING'}
                         </span>
                       </td>
@@ -173,19 +184,19 @@ const CutiHRD: React.FC = () => {
                           <div className="flex justify-end space-x-2">
                             <button 
                               onClick={() => handleStatusChange(req.id, "APPROVED")}
-                              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-md text-xs font-medium transition-colors"
+                              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-md text-xs font-medium transition-colors inline-flex items-center shadow-sm"
                             >
-                              Approve
+                              <Check className="w-3.5 h-3.5 mr-1" /> Approve
                             </button>
                             <button 
                               onClick={() => handleStatusChange(req.id, "REJECTED")}
-                              className="bg-red-700 hover:bg-red-800 text-white px-4 py-1.5 rounded-md text-xs font-medium transition-colors"
+                              className="bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 px-3 py-1.5 rounded-md text-xs font-medium transition-colors inline-flex items-center shadow-sm"
                             >
-                              Reject
+                              <X className="w-3.5 h-3.5 mr-1" /> Reject
                             </button>
                           </div>
                         ) : (
-                          <span className="text-gray-500 text-xs font-medium">
+                          <span className="text-gray-400 text-xs font-medium italic">
                             Processed
                           </span>
                         )}
