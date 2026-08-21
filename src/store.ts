@@ -67,20 +67,21 @@ interface AppState {
  * Memuat data riwayat absensi, pengajuan, notifikasi, dan lokasi kantor
  * dari backend sekaligus - dipanggil setelah login berhasil atau saat sesi dipulihkan.
  */
-async function fetchAllUserData() {
-  const [historyRes, requestsRes, notifRes, officeRes] = await Promise.all([
-    apiGetAttendanceHistory(),
-    apiGetRequests(),
-    apiGetNotifications(),
-    apiGetOffice(),
-  ]);
-  return {
-    attendanceHistory: historyRes.records,
-    requests: requestsRes.requests,
-    notifications: notifRes.notifications,
-    office: officeRes.office,
-  };
-}
+//  PAKAI FUNGSI DI MASING MASING BLOCK YAA KALO GINI REGISTER NYA JADI GAGAL
+// async function fetchAllUserData() {
+//   const [historyRes, requestsRes, notifRes, officeRes] = await Promise.all([
+//     apiGetAttendanceHistory(),
+//     apiGetRequests(),
+//     apiGetNotifications(),
+//     apiGetOffice(),
+//   ]);
+//   return {
+//     attendanceHistory: historyRes.records,
+//     requests: requestsRes.requests,
+//     notifications: notifRes.notifications,
+//     office: officeRes.office,
+//   };
+// }
 
 export const useAppStore = create<AppState>()(
   persist(
@@ -179,8 +180,9 @@ export const useAppStore = create<AppState>()(
       signup: async (payload) => {
         const { token, user } = await apiRegister(payload);
         setToken(token);
-        const data = await fetchAllUserData();
-        set({ user, isAuthenticated: true, ...data });
+        // LANGSUNNG PAKAI GET() KARENA KITA MAU PAKAI FUNGSI YANG ADA DI DALAM STORE YAA
+        set({ user, isAuthenticated: true });
+        await get().fetchAllUserData();
       },
 
       /**
@@ -211,8 +213,8 @@ export const useAppStore = create<AppState>()(
         set({ isHydrating: true });
         try {
           const { user } = await apiGetMe();
-          const data = await fetchAllUserData();
-          set({ user, isAuthenticated: true, ...data });
+          set({ user, isAuthenticated: true });
+          await get().fetchAllUserData();
           // Cek role saat pemulihan sesi
           if (user.role === 'ADMIN') {
             await get().fetchHrdData();
