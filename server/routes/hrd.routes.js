@@ -23,7 +23,7 @@ async function requireAdmin(req, res, next) {
 
 router.use(requireAuth, requireAdmin);
 
-// Register Admin Baru
+// Route Register New Admin 
 // POST
 router.post("/admins/register", async (req, res) => {
     try {
@@ -53,6 +53,70 @@ router.post("/admins/register", async (req, res) => {
             return res.status(409).json({ message: "Email atau NIK sudah digunakan." });
         }
         res.status(500).json({message: "Gagal membuat akun admin."});
+    }
+});
+
+// Route RS Rumah Sakit
+// GET
+router.get("/hospitals", async (req, res)=> {
+    try {
+        const [rows] =  await pool.query("SELECT * FROM hospitals ORDER BY nama_rs ASC");
+        res.json({hospitals: rows});
+    } catch (err) {
+        console.error("Error saat mengambil data rumah sakit:", err);
+        res.status(500).json({message: "Gagal memuat daftar rumah sakit."});
+    }
+});
+
+// Route RS Rumah Sakit
+// POST
+router.post("/hospitals", async (req,res)=> {
+    try {
+        const {nama_rs, address, latitude, longitude, radius_meters = 200} = req.body;
+
+        if(!nama_rs || !address || !latitude || !longitude) {
+            return res.status(400).json({message: "Data tidak lengkap, Silahkan isi semua field."});
+        }
+
+        const id = randomUUID();
+        await pool.query(
+            "INSERT INTO hospitals (id, nama_rs, address, latitude, longitude, radius_meters) VALUES (?, ?, ?, ?, ?, ?)",
+            [id, nama_rs, address, latitude, longitude, radius_meters]
+        );
+        res.status(201).json({message: "Rumah sakit berhasil ditambahkan."});
+    } catch (err) {
+        console.error("Error saat menambahkan rumah sakit:", err);
+        res.status(500).json({message: "Gagal menambahkan rumah sakit."});
+    }
+});
+
+// Route RS Rumah Sakit
+// PUT
+router.put("/hospitals/:id", async (req, res)=> {
+    try {
+        const {id} = req.params;
+        const {nama_rs, address, latitude, longitude, radius_meters} = req.body;
+
+        await pool.query("UPDATE hospitals SET nama_rs = ?, address = ?, latitude = ?, longitude = ?, radius_meters = ? WHERE id = ?",
+            [nama_rs, address, latitude, longitude, radius_meters, id]
+        );
+        res.status(201).json({message: "Rumah sakit berhasil diperbarui."});
+    } catch (err) {
+        console.error("Error saat memperbarui rumah sakit:", err);
+        res.status(500).json({message: "Gagal memperbarui rumah sakit."});
+    }
+});
+
+// Route RS Rumah Sakit
+// DELETE
+router.delete("/hospitals/:id", async (req, res) => {
+    try {
+        const {id} = req.params;
+        await pool.query("DELETE FROM hospitals WHERE id = ?", [id]);
+        res.status(200).json({message: "Rumah sakit berhasil dihapus."});
+    } catch (err) {
+        console.error("Error saat menghapus rumah sakit:", err);
+        res.status(500).json({message: "Gagal menghapus rumah sakit."});
     }
 });
 
@@ -178,6 +242,7 @@ router.get("/leaves", async (req, res) => {
     }
 });
 
+// Route Manajemen Cuti
 // PATCH
 router.patch("/leaves/:id/approval", async(req, res) => {
     try {
@@ -235,6 +300,7 @@ router.post("/recruitment/jobs", async (req, res) => {
     }
 });
 
+// Route Rekrutmen
 //GET
 router.get("/recruitment/overview", async (req, res)=> {
     try {
@@ -253,6 +319,7 @@ router.get("/recruitment/overview", async (req, res)=> {
     }
 });
 
+// Route Rekrutmen
 // EDIT
 router.put("/recruitment/jobs/:id", async (req, res)=> {
     try {
@@ -283,6 +350,7 @@ router.put("/recruitment/jobs/:id", async (req, res)=> {
     }
 });
 
+// Route Rekrutmen
 // DELETE
 router.delete("/recruitment/jobs/:id", async (req, res) => {
     try {

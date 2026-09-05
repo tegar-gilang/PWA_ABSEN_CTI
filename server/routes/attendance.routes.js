@@ -215,4 +215,16 @@ router.post("/checkout", async (req, res) => {
   }
 });
 
+// Route Lokasi(Rumah Sakit) Penugasan
+// GET
+router.get("/locations",requireAuth, async (req, res)=> {
+  try {
+    const [rows] = await pool.query("SELECT id, nama_rs, latitude, longitude, radius_meters FROM hospitals ORDER BY nama_rs ASC");
+    res.json({ locations: rows });
+  } catch (err) {
+    console.error("Error saat mengambil daftar lokasi rumah sakit:", err);
+    res.status(500).json({ message: "Terjadi kesalahan pada server saat mengambil daftar lokasi pengugasan." });
+  }
+})
+
 export default router;
