@@ -185,6 +185,54 @@ router.post("/login", async (req, res) => {
   }
 });
 
+// Login Admin
+// POST
+router.post("/login-admin", async (req, res) => {
+    try {
+        const identifier = req.body.email || req.body.nik;
+        const { password } = req.body;
+
+        if (!identifier || !password) {
+            return res.status(400).json({ message: "Email/NIK dan Password wajib diisi." });
+        }
+
+        const [rows] = await pool.query(
+            "SELECT * FROM users WHERE (email = ? OR nik = ?)", 
+            [identifier, identifier]
+        );
+
+        if (rows.length === 0) {
+            return res.status(401).json({ message: "Kredensial tidak valid." });
+        }
+
+        const user = rows[0];
+
+        if (user.role !== 'ADMIN') {
+            return res.status(403).json({ 
+                message: "Akses ditolak. Anda tidak memiliki izin untuk masuk ke portal HRD." 
+            });
+        }
+
+        const isValid = await bcrypt.compare(password, user.password_hash);
+        if (!isValid) {
+            return res.status(401).json({ message: "Kata sandi salah." });
+        }
+
+        const token = jwt.sign(
+            { id: user.id, role: user.role },
+            process.env.JWT_SECRET || "fallback_secret",
+            { expiresIn: "12h" } 
+        );
+
+        delete user.password_hash;
+        res.json({ message: "Selamat datang di Portal HRD", token, user });
+
+    } catch (err) {
+        console.error("Error Admin Login:", err);
+        res.status(500).json({ message: "Terjadi kesalahan internal server." });
+    }
+});
+
 /**
  * GET /api/auth/me
  * Mengambil data user yang sedang login berdasarkan token.

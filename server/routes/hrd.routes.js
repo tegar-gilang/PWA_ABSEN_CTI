@@ -3,6 +3,7 @@ import { pool } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { randomUUID } from "crypto";
 import { getLocalDateString } from "../utils/date.js";
+import bcrypt from "bcryptjs";
 import { request } from "https";
 
 const router = Router();
@@ -21,6 +22,39 @@ async function requireAdmin(req, res, next) {
 }
 
 router.use(requireAuth, requireAdmin);
+
+// Register Admin Baru
+// POST
+router.post("/admins/register", async (req, res) => {
+    try {
+        const {name, email, nik, password} = req.body;
+
+        if(!name || !email || !nik || !password) {
+            return res.status(400).json({
+                message: "Data tidak lengkap, Slahkan isi Informasi dengan Lengkap."
+            });
+        }
+
+        const salt = await bcrypt.genSalt(10);
+        const password_hash = await bcrypt.hash(password, salt);
+        const userId = randomUUID();
+
+        await pool.query(
+            `INSERT INTO users (id, nik, email, name, password_hash, role) VALUES (?, ?, ?, ?, ?, 'ADMIN')`,
+            [userId, nik, email, name, password_hash]
+        );
+
+        res.status(201).json({
+            message: "Akun Admin Berhasil Terdaftar.",
+        });
+    } catch (err) {
+        console.error("Error saat mendaftarkan Admin:", err);
+        if (err.code === 'ER_DUP_ENTRY') {
+            return res.status(409).json({ message: "Email atau NIK sudah digunakan." });
+        }
+        res.status(500).json({message: "Gagal membuat akun admin."});
+    }
+});
 
 // Route Dahsboard HRD
 // GET

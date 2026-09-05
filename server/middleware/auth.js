@@ -2,11 +2,7 @@ import jwt from "jsonwebtoken";
 
 const JWT_SECRET = process.env.JWT_SECRET || "change_this_secret_in_env";
 
-/**
- * Middleware untuk memverifikasi token JWT pada header Authorization.
- * Format header: "Authorization: Bearer <token>"
- * Jika valid, req.userId akan berisi id pengguna yang sedang login.
- */
+
 export function requireAuth(req, res, next) {
   const authHeader = req.headers.authorization || "";
   const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
@@ -16,8 +12,12 @@ export function requireAuth(req, res, next) {
   }
 
   try {
-    const payload = jwt.verify(token, JWT_SECRET);
-    req.userId = payload.sub;
+    const payload = jwt.verify(token, process.env.JWT_SECRET || "fallback_secret");
+    
+    // PERBAIKAN DI SINI: Gunakan .id dan .role sesuai dengan logic waktu Login
+    req.userId = payload.id; 
+    req.userRole = payload.role; 
+    
     next();
   } catch (err) {
     return res.status(401).json({ message: "Token tidak valid atau sudah kedaluwarsa." });
