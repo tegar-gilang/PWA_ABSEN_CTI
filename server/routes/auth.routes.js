@@ -108,29 +108,80 @@ router.post("/register", async (req, res) => {
  * POST /api/auth/login
  * Login menggunakan ID Karyawan dan kata sandi.
  */
+// OLD CODE login (Masih pakai id dan password)
+// router.post("/login", async (req, res) => {
+//   try {
+//     const { employeeId, password } = req.body;
+//     if (!employeeId || !password) {
+//       return res.status(400).json({ message: "ID Karyawan dan kata sandi wajib diisi." });
+//     }
+
+//     const [rows] = await pool.query("SELECT * FROM users WHERE employee_id = ?", [employeeId]);
+//     if (rows.length === 0) {
+//       return res.status(401).json({ message: "ID Karyawan atau kata sandi salah." });
+//     }
+
+//     const user = rows[0];
+//     const isValid = await bcrypt.compare(password, user.password_hash);
+//     if (!isValid) {
+//       return res.status(401).json({ message: "ID Karyawan atau kata sandi salah." });
+//     }
+
+//     const token = signToken(user.id);
+//     res.json({ token, user: toUserDTO(user) });
+//   } catch (err) {
+//     console.error("Login error:", err);
+//     res.status(500).json({ message: "Terjadi kesalahan pada server saat login." });
+//   }
+// });
+// New code login (Wajib Email & Password)
 router.post("/login", async (req, res) => {
   try {
-    const { employeeId, password } = req.body;
-    if (!employeeId || !password) {
-      return res.status(400).json({ message: "ID Karyawan dan kata sandi wajib diisi." });
+    const identifier = req.body.email || req.body.nik || req.body.employeeId;
+    const {password} = req.body;
+
+    if(!identifier || !password) {
+      return res.status(400).json({
+        message: "Email/NIK/ID Karyawan dan Password wajib diisi."
+      });
     }
 
-    const [rows] = await pool.query("SELECT * FROM users WHERE employee_id = ?", [employeeId]);
+    const [rows] = await pool.query(
+      "SELECT * FROM users WHERE email = ? OR nik = ?",
+      [identifier, identifier]
+    );
+
     if (rows.length === 0) {
-      return res.status(401).json({ message: "ID Karyawan atau kata sandi salah." });
+      return res.status(401).json({
+        message: "Email atau NIK Salah."
+      })
     }
 
     const user = rows[0];
+
     const isValid = await bcrypt.compare(password, user.password_hash);
-    if (!isValid) {
-      return res.status(401).json({ message: "ID Karyawan atau kata sandi salah." });
+    if(!isValid) {
+      return res.status(401).json({
+        message: "Password Salah Silahkan Coba Lagi!."
+      });
     }
 
-    const token = signToken(user.id);
-    res.json({ token, user: toUserDTO(user) });
+    const token = jwt.sign(
+        { id: user.id, role: user.role },
+        process.env.JWT_SECRET || "fallback_secret",
+        { expiresIn: "7d" }
+    );
+
+    delete user.password_hash;
+    res.json({
+      message: "Login berhasil.",
+      token,
+      user
+    });
+
   } catch (err) {
-    console.error("Login error:", err);
-    res.status(500).json({ message: "Terjadi kesalahan pada server saat login." });
+    console.error("Error Login:", err);
+    res.status(500).json({message: "Terjadi kesalahan pada server saat login."});
   }
 });
 
