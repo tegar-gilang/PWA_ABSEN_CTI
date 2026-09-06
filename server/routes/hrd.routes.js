@@ -120,6 +120,126 @@ router.delete("/hospitals/:id", async (req, res) => {
     }
 });
 
+// Route Divisi
+// POST
+router.post("/departments", async (req, res) => {
+    try {
+        const { name } = req.body;
+
+        if( !name ) {
+            return res.status(400).json({message: "Nama divisi tidak boleh kosong. SIlahkan isi nama divisi."});
+        }
+
+        const id = randomUUID();
+        await pool.query("INSERT INTO master_departments (id, name) VALUES (?, ?)", [id, name]);
+        res.status(201).json({message: "Divisi berhasil ditambahkan."});
+    } catch (err) {
+        console.error("Error saat menambahkan divisi:", err);
+        if (err.code === 'ER_DUP_ENTRY') {
+            return res.status(409).json({ message: "Nama divisi sudah ada." });
+        }
+        res.status(500).json({message: "Gagal menambahkan divisi."});
+    }
+});
+
+// Route Divisi
+// PUT
+router.put("/departments/:id", async (req, res) => {
+    try {
+        const { id } =  req.params;
+        const { name } = req.body;
+
+        const [result] = await pool.query("UPDATE master_departments SET name = ? WHERE id = ?", [name, id]);
+        if(result.affectedRows === 0) {
+            return res.status(404).json({message: "Divisi tidak ditemukan."});
+        }
+        res.status(200).json({message: "Divisi berhasil diperbarui."});
+    } catch (err) {
+        console.error("Error saat memperbarui divisi:", err);
+        if (err.code === 'ER_DUP_ENTRY') {
+            return res.status(409).json({ message: "Nama divisi sudah ada." });
+        }
+        res.status(500).json({message: "Gagal memperbarui divisi."});
+    }
+});
+
+// Route Divisi
+// DELETE
+router.delete("/departments/:id", async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        const [result] = await pool.query("DELETE FROM master_departments WHERE id = ?", [id]);
+        if(result.affectedRows === 0) {
+            return res.status(404).json({message: "Divisi tidak ditemukan."});
+        }
+        res.status(200).json({message: "Divisi berhasil dihapus."});
+    } catch (err) {
+        console.error("Error saat menghapus divisi:", err);
+        res.status(500).json({message: "Gagal menghapus divisi."});
+    }
+});
+
+// Route Posisi
+// POST
+router.post("/positions", async (req, res) => {
+    try {
+        const { name } = req.body;
+
+        if( !name ) {
+            return res.status(400).json({message: "Nama posisi tidak boleh kosong. SIlahkan isi nama posisi."});
+        }
+
+        const id = randomUUID();
+        await pool.query("INSERT INTO master_positions (id, name) VALUES (?, ?)", [id, name]);
+        res.status(201).json({message: "Posisi berhasil ditambahkan."});
+    } catch (err) {
+        console.error("Error saat menambahkan posisi:", err);
+        if (err.code === 'ER_DUP_ENTRY') {
+            return res.status(409).json({ message: "Nama posisi sudah ada." });
+        }
+        res.status(500).json({message: "Gagal menambahkan posisi."});
+    }
+});
+
+// Route Posisi
+// PUT
+router.put("/positions/:id", async (req, res) => {
+    try {
+        const { id } =  req.params;
+        const { name } = req.body;
+
+        const [result] = await pool.query("UPDATE master_positions SET name = ? WHERE id = ?", [name, id]);
+        if(result.affectedRows === 0) {
+            return res.status(404).json({message: "Posisi tidak ditemukan."});
+        }
+        res.status(200).json({message: "Posisi berhasil diperbarui."});
+    } catch (err) {
+        console.error("Error saat memperbarui posisi:", err);
+        if (err.code === 'ER_DUP_ENTRY') {
+            return res.status(409).json({ message: "Nama posisi sudah ada." });
+        }
+        res.status(500).json({message: "Gagal memperbarui posisi."});
+    }
+});
+
+// Route Posisi
+// DELETE
+router.delete("/positions/:id", async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        const [result] = await pool.query("DELETE FROM master_positions WHERE id = ?", [id]);
+        if(result.affectedRows === 0) {
+            return res.status(404).json({message: "Posisi tidak ditemukan."});
+        }
+        res.status(200).json({message: "Posisi berhasil dihapus."});
+    } catch (err) {
+        console.error("Error saat menghapus posisi:", err);
+        res.status(500).json({message: "Gagal menghapus posisi."});
+    }
+});
+
 // Route Dahsboard HRD
 // GET
 router.get("/dashboard/overview", async (req, res) => {

@@ -233,6 +233,30 @@ router.post("/login-admin", async (req, res) => {
     }
 });
 
+// Data Divisi/Department
+// GET
+router.get("/departments", async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT id, name FROM master_departments ORDER BY name ASC");
+    res.json({ departments: rows });
+  } catch (err) {
+    console.error("Error fetching departments:", err);
+    res.status(500).json({ message: "Failed to fetch departments." });
+  }
+});
+
+// Data Posisi/Position
+// GET
+router.get("/positions", async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT id, name FROM master_positions ORDER BY name ASC");
+    res.json({ positions: rows });
+  } catch (err) {
+    console.error("Error fetching positions:", err);
+    res.status(500).json({ message: "Failed to fetch positions." });
+  }
+});
+
 /**
  * GET /api/auth/me
  * Mengambil data user yang sedang login berdasarkan token.
