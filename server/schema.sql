@@ -59,6 +59,7 @@ CREATE TABLE IF NOT EXISTS users (
   
   phone VARCHAR(30) DEFAULT NULL,
   email VARCHAR(150) UNIQUE DEFAULT NULL, -- Dibuat UNIQUE untuk opsi login
+  address TEXT DEFAULT NULL,
   
   -- Pengaturan Jam Kerja Fleksibel (Menggantikan schedule)
   jam_masuk TIME NOT NULL DEFAULT '08:00:00',

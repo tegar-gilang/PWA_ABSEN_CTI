@@ -240,6 +240,46 @@ router.delete("/positions/:id", async (req, res) => {
     }
 });
 
+// Route HRD Mengubah Jam Kerja, Department, dan Posisi
+// PUT
+router.put("/employees/:id", async (req,res) => {
+    try {
+        const targetUserId = req.params.id;
+        const { jam_masuk, jam_keluar, id_department, id_position} = req.body;
+
+        const [result] = await pool.query("UPDATE users SET jam_masuk = COALESCE(?, jam_masuk), jam_keluar = COALESCE(?, jam_keluar), id_department = COALESCE(?, id_department), id_position = COALESCE(?, id_position) WHERE id = ?", [jam_masuk, jam_keluar, id_department, id_position, targetUserId]);
+        
+        if(result.affectedRows === 0) {
+            return res.status(404).json({message: "Karyawan tidak ditemukan."});
+        }
+        res.status(200).json({message: "Data karyawan berhasil diperbarui."});
+    } catch (err) {
+        console.error("SQL Error pada /hrd/employees/:id:", err);
+        res.status(500).json({message: "Gagal Memperbarui Data Karyawan."});
+    }
+});
+
+// Route HRD Menghapus Karyawan
+// DELETE
+router.delete("/employees/:id", async (req, res) => {
+    try {
+        const targetUserId = req.params.id;
+
+        if(targetUserId === req.userId) {
+            return res.status(400).json({message: "Tidak dapat menghapus akun sendiri."});
+        }
+
+        const [result] = await pool.query("DELETE FROM users WHERE id = ?", [targetUserId]);
+        if(result.affectedRows === 0) {
+            return res.status(404).json({message: "Karyawan tidak ditemukan."});
+        }
+        res.status(200).json({message: "Karyawan berhasil dihapus."});
+    } catch (err) {
+        console.error("SQL Error pada /hrd/employees/:id:", err);
+        res.status(500).json({message: "Gagal Menghapus Karyawan."});
+    }
+});
+
 // Route Dahsboard HRD
 // GET
 router.get("/dashboard/overview", async (req, res) => {
