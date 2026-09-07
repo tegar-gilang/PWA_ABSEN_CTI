@@ -245,14 +245,14 @@ router.delete("/positions/:id", async (req, res) => {
 router.get("/dashboard/overview", async (req, res) => {
     try {
         const today = getLocalDateString();
-        const [totalEmp] = await pool.query("SELECT COUNT(*) AS count FROM users WHERE role = 'EMPLOYEE'");
+        const [totalEmp] = await pool.query("SELECT COUNT(*) AS count FROM users");
         const [present] = await pool.query("SELECT COUNT(*) AS count FROM attendance_records WHERE date = ? AND status = 'ON_TIME'", [today]);
         const [late] = await pool.query("SELECT COUNT(*) AS count FROM attendance_records WHERE date = ? AND status = 'LATE'", [today]);
         const [pendingLeaves] = await pool.query("SELECT COUNT(*) AS count FROM requests WHERE status = 'PENDING'");
 
         // Recent Activities
         const [recentActivities] = await pool.query(
-            `SELECT a.id, u.name, u.department as role, 'Check-in/out' as action, 
+            `SELECT a.id, u.name, u.id_position as role, 'Check-in/out' as action, 
                     DATE_FORMAT(a.check_in_time, '%h:%i %p') as time, a.status
             FROM attendance_records a
             JOIN users u ON a.user_id = u.id
@@ -281,7 +281,7 @@ router.get("/attendance", async (req, res) => {
         const { date } = req.query;
 
         let query = `
-            SELECT a.id, u.name, u.department, u.employee_id as employeeId, a.status, 
+            SELECT a.id, u.name, u.id_position, u.email as email, a.status, 
                    DATE_FORMAT(a.check_in_time, '%H:%i') as checkInTime, 
                    DATE_FORMAT(a.check_out_time, '%H:%i') as checkOutTime,
                    a.check_in_lat, a.check_in_lng, a.check_in_photo_url, 
@@ -315,15 +315,15 @@ router.get("/employees", async (req, res) => {
         const [rows] = await pool.query(
             `SELECT 
                 id, 
-                employee_id as employeeId, 
+                nik, 
                 name, 
                 email, 
-                department, 
+                id_department,
+                id_position,
+                phone, 
                 status_karyawan, 
-                performance_status, 
-                85 as targetProgress 
-             FROM users 
-             WHERE role = 'EMPLOYEE' 
+                performance_status
+             FROM users  
              ORDER BY name ASC`
         );
         
