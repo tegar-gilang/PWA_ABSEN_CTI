@@ -1,5 +1,6 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 import { randomUUID } from "crypto";
 import { pool } from "../db.js";
 import { requireAuth, signToken } from "../middleware/auth.js";
@@ -26,65 +27,233 @@ function toUserDTO(row) {
  * POST /api/auth/register
  * Mendaftarkan akun karyawan baru.
  */
+// OLD CODE register (Masih pakai id dan password)
+// router.post("/register", async (req, res) => {
+//   try {
+//     const { name, employeeId, password, department, phone, email, position, schedule } = req.body;
+
+//     if (!name || !employeeId || !password) {
+//       return res.status(400).json({ message: "Nama, ID Karyawan, dan kata sandi wajib diisi." });
+//     }
+
+//     const [existing] = await pool.query("SELECT id FROM users WHERE employee_id = ?", [employeeId]);
+//     if (existing.length > 0) {
+//       return res.status(409).json({ message: "ID Karyawan sudah terdaftar." });
+//     }
+
+//     const id = randomUUID();
+//     const passwordHash = await bcrypt.hash(password, 10);
+
+//     await pool.query(
+//       `INSERT INTO users (id, employee_id, name, password_hash, department, phone, email, position, schedule)
+//        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+//       [id, employeeId, name, passwordHash, department || null, phone || null, email || null, position || null, schedule || "Senin - Jumat, 09:00 - 17:00"],
+//     );
+
+//     const [rows] = await pool.query("SELECT * FROM users WHERE id = ?", [id]);
+//     const token = signToken(id);
+
+//     res.status(201).json({ token, user: toUserDTO(rows[0]) });
+//   } catch (err) {
+//     console.error("Register error:", err);
+//     res.status(500).json({ message: "Terjadi kesalahan pada server saat mendaftar." });
+//   }
+// });
+// New code register (Wajib NIK & Email + Foreign Key)
 router.post("/register", async (req, res) => {
   try {
-    const { name, employeeId, password, department, phone, email, position, schedule } = req.body;
+    const {name, email, nik, password, id_department, id_position, phone} = req.body;
 
-    if (!name || !employeeId || !password) {
-      return res.status(400).json({ message: "Nama, ID Karyawan, dan kata sandi wajib diisi." });
+    if(!name || !email || !nik || !password || !id_department || !id_position || !phone) {
+      return res.status(400).json({message: "Nama, Email, NIK, Password, ID Department, ID Position, dan No HP wajib diisi."});
     }
 
-    const [existing] = await pool.query("SELECT id FROM users WHERE employee_id = ?", [employeeId]);
-    if (existing.length > 0) {
-      return res.status(409).json({ message: "ID Karyawan sudah terdaftar." });
+    const [existingUser] = await pool.query("SELECT id FROM users WHERE email = ? OR nik = ?", 
+      [email, nik]
+    );
+    if(existingUser.length > 0) {
+      return res.status(409).json({message: "Email atau NIK sudah terdaftar."});
     }
 
-    const id = randomUUID();
-    const passwordHash = await bcrypt.hash(password, 10);
+    const salt = await bcrypt.genSalt(10);
+    const password_hash = await bcrypt.hash(password, salt);
+    const userId = randomUUID();
 
     await pool.query(
-      `INSERT INTO users (id, employee_id, name, password_hash, department, phone, email, position, schedule)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, employeeId, name, passwordHash, department || null, phone || null, email || null, position || null, schedule || "Senin - Jumat, 09:00 - 17:00"],
+      `INSERT INTO users (id, name, email, nik, password_hash, id_department, id_position, phone)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [userId, name, email, nik, password_hash, id_department, id_position, phone]
     );
 
-    const [rows] = await pool.query("SELECT * FROM users WHERE id = ?", [id]);
-    const token = signToken(id);
+    const token = jwt.sign(
+      { id: userId, role: 'EMPLOYEE' },
+      process.env.JWT_SECRET || "fallback_secret",
+      { expiresIn: "7d" }
+    );
 
-    res.status(201).json({ token, user: toUserDTO(rows[0]) });
+    res.status(201).json({
+      message: "Akun berhasil dibuat.",
+      token,
+      user: { id: userId, name, email, nik, role: 'EMPLOYEE'}
+    });
+
+
   } catch (err) {
-    console.error("Register error:", err);
-    res.status(500).json({ message: "Terjadi kesalahan pada server saat mendaftar." });
+    console.error("Error Register:", err);
+    res.status(500).json({message: "Terjadi kesalahan pada server saat mendaftar."});
   }
-});
+})
 
 /**
  * POST /api/auth/login
  * Login menggunakan ID Karyawan dan kata sandi.
  */
+// OLD CODE login (Masih pakai id dan password)
+// router.post("/login", async (req, res) => {
+//   try {
+//     const { employeeId, password } = req.body;
+//     if (!employeeId || !password) {
+//       return res.status(400).json({ message: "ID Karyawan dan kata sandi wajib diisi." });
+//     }
+
+//     const [rows] = await pool.query("SELECT * FROM users WHERE employee_id = ?", [employeeId]);
+//     if (rows.length === 0) {
+//       return res.status(401).json({ message: "ID Karyawan atau kata sandi salah." });
+//     }
+
+//     const user = rows[0];
+//     const isValid = await bcrypt.compare(password, user.password_hash);
+//     if (!isValid) {
+//       return res.status(401).json({ message: "ID Karyawan atau kata sandi salah." });
+//     }
+
+//     const token = signToken(user.id);
+//     res.json({ token, user: toUserDTO(user) });
+//   } catch (err) {
+//     console.error("Login error:", err);
+//     res.status(500).json({ message: "Terjadi kesalahan pada server saat login." });
+//   }
+// });
+// New code login (Wajib Email & Password)
 router.post("/login", async (req, res) => {
   try {
-    const { employeeId, password } = req.body;
-    if (!employeeId || !password) {
-      return res.status(400).json({ message: "ID Karyawan dan kata sandi wajib diisi." });
+    const identifier = req.body.email || req.body.nik || req.body.employeeId;
+    const {password} = req.body;
+
+    if(!identifier || !password) {
+      return res.status(400).json({
+        message: "Email/NIK/ID Karyawan dan Password wajib diisi."
+      });
     }
 
-    const [rows] = await pool.query("SELECT * FROM users WHERE employee_id = ?", [employeeId]);
+    const [rows] = await pool.query(
+      "SELECT * FROM users WHERE email = ? OR nik = ?",
+      [identifier, identifier]
+    );
+
     if (rows.length === 0) {
-      return res.status(401).json({ message: "ID Karyawan atau kata sandi salah." });
+      return res.status(401).json({
+        message: "Email atau NIK Salah."
+      })
     }
 
     const user = rows[0];
+
     const isValid = await bcrypt.compare(password, user.password_hash);
-    if (!isValid) {
-      return res.status(401).json({ message: "ID Karyawan atau kata sandi salah." });
+    if(!isValid) {
+      return res.status(401).json({
+        message: "Password Salah Silahkan Coba Lagi!."
+      });
     }
 
-    const token = signToken(user.id);
-    res.json({ token, user: toUserDTO(user) });
+    const token = jwt.sign(
+        { id: user.id, role: user.role },
+        process.env.JWT_SECRET || "fallback_secret",
+        { expiresIn: "7d" }
+    );
+
+    delete user.password_hash;
+    res.json({
+      message: "Login berhasil.",
+      token,
+      user
+    });
+
   } catch (err) {
-    console.error("Login error:", err);
-    res.status(500).json({ message: "Terjadi kesalahan pada server saat login." });
+    console.error("Error Login:", err);
+    res.status(500).json({message: "Terjadi kesalahan pada server saat login."});
+  }
+});
+
+// Login Admin
+// POST
+router.post("/login-admin", async (req, res) => {
+    try {
+        const identifier = req.body.email || req.body.nik;
+        const { password } = req.body;
+
+        if (!identifier || !password) {
+            return res.status(400).json({ message: "Email/NIK dan Password wajib diisi." });
+        }
+
+        const [rows] = await pool.query(
+            "SELECT * FROM users WHERE (email = ? OR nik = ?)", 
+            [identifier, identifier]
+        );
+
+        if (rows.length === 0) {
+            return res.status(401).json({ message: "Kredensial tidak valid." });
+        }
+
+        const user = rows[0];
+
+        if (user.role !== 'ADMIN') {
+            return res.status(403).json({ 
+                message: "Akses ditolak. Anda tidak memiliki izin untuk masuk ke portal HRD." 
+            });
+        }
+
+        const isValid = await bcrypt.compare(password, user.password_hash);
+        if (!isValid) {
+            return res.status(401).json({ message: "Kata sandi salah." });
+        }
+
+        const token = jwt.sign(
+            { id: user.id, role: user.role },
+            process.env.JWT_SECRET || "fallback_secret",
+            { expiresIn: "12h" } 
+        );
+
+        delete user.password_hash;
+        res.json({ message: "Selamat datang di Portal HRD", token, user });
+
+    } catch (err) {
+        console.error("Error Admin Login:", err);
+        res.status(500).json({ message: "Terjadi kesalahan internal server." });
+    }
+});
+
+// Data Divisi/Department
+// GET
+router.get("/departments", async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT id, name FROM master_departments ORDER BY name ASC");
+    res.json({ departments: rows });
+  } catch (err) {
+    console.error("Error fetching departments:", err);
+    res.status(500).json({ message: "Failed to fetch departments." });
+  }
+});
+
+// Data Posisi/Position
+// GET
+router.get("/positions", async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT id, name FROM master_positions ORDER BY name ASC");
+    res.json({ positions: rows });
+  } catch (err) {
+    console.error("Error fetching positions:", err);
+    res.status(500).json({ message: "Failed to fetch positions." });
   }
 });
 

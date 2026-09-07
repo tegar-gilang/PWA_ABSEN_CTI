@@ -2,7 +2,8 @@ import { Router } from "express";
 import { randomUUID } from "crypto";
 import { pool } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
-import { haversineDistanceMeters, classifyAccuracy } from "../utils/geo.js";
+import { haversineDistanceMeters, classifyAccuracy, calculateDistance } from "../utils/geo.js";
+
 import { getLocalDateString, getMinutesSinceMidnight } from "../utils/date.js";
 
 const router = Router();
@@ -134,41 +135,105 @@ router.get("/history", async (req, res) => {
  * POST /api/attendance/checkin
  * Body: { lat, lng, accuracy, photoUrl }
  */
-router.post("/checkin", async (req, res) => {
-  try {
-    const { lat, lng, accuracy, photoUrl } = req.body;
-    const { distance } = await validateGeoOrThrow({ lat, lng, accuracy });
+// OLD CODE
+// router.post("/checkin", async (req, res) => {
+//   try {
+//     const { lat, lng, accuracy, photoUrl } = req.body;
+//     const { distance } = await validateGeoOrThrow({ lat, lng, accuracy });
 
-    const today = getLocalDateString();
-    const [existing] = await pool.query("SELECT id FROM attendance_records WHERE user_id = ? AND date = ?", [req.userId, today]);
-    if (existing.length > 0) {
-      return res.status(409).json({ message: "Anda sudah melakukan absen masuk hari ini." });
+//     const today = getLocalDateString();
+//     const [existing] = await pool.query("SELECT id FROM attendance_records WHERE user_id = ? AND date = ?", [req.userId, today]);
+//     if (existing.length > 0) {
+//       return res.status(409).json({ message: "Anda sudah melakukan absen masuk hari ini." });
+//     }
+
+//     const now = new Date();
+//     // Bandingkan jam:menit di timezone aplikasi (bukan timezone OS server) agar status
+//     // ON_TIME/LATE selalu konsisten di mana pun server dijalankan.
+//     const nowMinutes = getMinutesSinceMidnight(now);
+//     const thresholdMinutes = WORK_START_HOUR * 60 + WORK_START_MINUTE + LATE_GRACE_MINUTES;
+//     const status = nowMinutes > thresholdMinutes ? "LATE" : "ON_TIME";
+
+//     const id = randomUUID();
+//     await pool.query(
+//       `INSERT INTO attendance_records
+//         (id, user_id, date, check_in_time, status, check_in_lat, check_in_lng, check_in_accuracy_m, check_in_distance_m, check_in_photo_url)
+//        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+//       [id, req.userId, today, now, status, lat, lng, accuracy, distance, photoUrl || null],
+//     );
+
+//     const [rows] = await pool.query("SELECT * FROM attendance_records WHERE id = ?", [id]);
+//     res.status(201).json({
+//       record: toRecordDTO(rows[0]),
+//       geo: { distanceMeters: distance, accuracyQuality: classifyAccuracy(accuracy) },
+//     });
+//   } catch (err) {
+//     if (err.status) return res.status(err.status).json({ message: err.message, code: err.code });
+//     console.error("Checkin error:", err);
+//     res.status(500).json({ message: "Terjadi kesalahan pada server saat absen masuk." });
+//   }
+// });
+// NEW CODE 
+router.post("/checkin", async (req, res)=> {
+  try {
+    const { latitude, longitude, hospital_id, custom_location_name, photo_url } = req.body;
+    const userId =  req.userId;
+    const today = new Date().toISOString().split('T')[0];
+
+    const [users] = await pool.query("SELECT jam_masuk FROM users WHERE id = ?", [userId]);
+    if (users.length === 0) {
+      return res.status(404).json({ message: "User tidak ditemukan." });
+    }
+    const user = users[0];
+
+    let finalHospitalId = null;
+    let finalCustomLocation = null;
+    let distanceMeters = null;
+
+    if (custom_location_name) {
+      finalCustomLocation = custom_location_name;
+
+    } else if (hospital_id) {
+      const [hospitals] = await pool.query("SELECT latitude, longitude, radius_meters FROM hospitals WHERE id = ?", [hospital_id]);
+
+      if(hospitals.length === 0) {
+        return res.status(404).json({ message: "Rumah sakit tidak ditemukan." });
+      }
+
+      const rs = hospitals[0];
+      distanceMeters = calculateDistance(latitude, longitude, rs.latitude, rs.longitude);
+
+      if(distanceMeters > rs.radius_meters) {
+        return res.status(403).json({message: `Jarak Anda terlalu jauh dari lokasi penugasan. Jarak saat ini: ${Math.round(distanceMeters)} meter. (Maksimal: ${rs.radius_meters} meter).` });
+      }
+
+      finalHospitalId = hospital_id;
+    } else {
+      return res.status(400).json({ message: "Wajib memilih Rumah Sakit atau mengisi Lokasi Lainnya." });
     }
 
-    const now = new Date();
-    // Bandingkan jam:menit di timezone aplikasi (bukan timezone OS server) agar status
-    // ON_TIME/LATE selalu konsisten di mana pun server dijalankan.
-    const nowMinutes = getMinutesSinceMidnight(now);
-    const thresholdMinutes = WORK_START_HOUR * 60 + WORK_START_MINUTE + LATE_GRACE_MINUTES;
-    const status = nowMinutes > thresholdMinutes ? "LATE" : "ON_TIME";
+    const checkInTime = new Date();
+    const [hours, minutes, seconds] = user.jam_masuk.split(':');
 
-    const id = randomUUID();
-    await pool.query(
-      `INSERT INTO attendance_records
-        (id, user_id, date, check_in_time, status, check_in_lat, check_in_lng, check_in_accuracy_m, check_in_distance_m, check_in_photo_url)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, req.userId, today, now, status, lat, lng, accuracy, distance, photoUrl || null],
-    );
+    const limitWaktu = new Date();
+    limitWaktu.setHours(parseInt(hours), parseInt(minutes) + 5, parseInt(seconds || 0), 0);
 
-    const [rows] = await pool.query("SELECT * FROM attendance_records WHERE id = ?", [id]);
-    res.status(201).json({
-      record: toRecordDTO(rows[0]),
-      geo: { distanceMeters: distance, accuracyQuality: classifyAccuracy(accuracy) },
-    });
+    const attendanceStatus = checkInTime > limitWaktu ? 'LATE' : 'ON_TIME';
+
+    const recordId = randomUUID();
+    await pool.query("INSERT INTO attendance_records (id, user_id, date, check_in_time, status, hospital_id, custom_location_name, check_in_lat, check_in_lng, check_in_distance_m, check_in_photo_url) VALUES (?, ?, ?, NOW(), ?, ?, ?, ?, ?, ?, ?)",
+      [recordId, userId, today, attendanceStatus, finalHospitalId, finalCustomLocation, latitude, longitude, distanceMeters, photo_url]);
+    
+    res.status(201).json({ 
+            message: `Check-in berhasil. Status: ${attendanceStatus === 'LATE' ? 'Terlambat' : 'Tepat Waktu'}`,
+            status: attendanceStatus
+        });
   } catch (err) {
-    if (err.status) return res.status(err.status).json({ message: err.message, code: err.code });
-    console.error("Checkin error:", err);
-    res.status(500).json({ message: "Terjadi kesalahan pada server saat absen masuk." });
+    if (err.code === 'ER_DUP_ENTRY') {
+        return res.status(400).json({ message: "Anda sudah melakukan check-in hari ini." });
+    }
+    console.error("Error Check-in:", err);
+    res.status(500).json({ message: "Terjadi kesalahan sistem saat check-in." });
   }
 });
 
@@ -176,43 +241,99 @@ router.post("/checkin", async (req, res) => {
  * POST /api/attendance/checkout
  * Body: { lat, lng, accuracy, photoUrl }
  */
-router.post("/checkout", async (req, res) => {
+// OLD CODE
+// router.post("/checkout", async (req, res) => {
+//   try {
+//     const { lat, lng, accuracy, photoUrl } = req.body;
+//     const { distance } = await validateGeoOrThrow({ lat, lng, accuracy });
+
+//     const today = getLocalDateString();
+//     const [rows] = await pool.query("SELECT * FROM attendance_records WHERE user_id = ? AND date = ?", [req.userId, today]);
+//     const record = rows[0];
+
+//     if (!record) {
+//       return res.status(400).json({ message: "Anda belum melakukan absen masuk hari ini." });
+//     }
+//     if (record.check_out_time) {
+//       return res.status(409).json({ message: "Anda sudah melakukan absen pulang hari ini." });
+//     }
+
+//     const now = new Date();
+//     const checkInTime = new Date(record.check_in_time);
+//     const workingHours = (now.getTime() - checkInTime.getTime()) / (1000 * 60 * 60);
+
+//     await pool.query(
+//       `UPDATE attendance_records
+//        SET check_out_time = ?, working_hours = ?, check_out_lat = ?, check_out_lng = ?, check_out_accuracy_m = ?, check_out_distance_m = ?, check_out_photo_url = ?
+//        WHERE id = ?`,
+//       [now, workingHours.toFixed(2), lat, lng, accuracy, distance, photoUrl || null, record.id],
+//     );
+
+//     const [updated] = await pool.query("SELECT * FROM attendance_records WHERE id = ?", [record.id]);
+//     res.json({
+//       record: toRecordDTO(updated[0]),
+//       geo: { distanceMeters: distance, accuracyQuality: classifyAccuracy(accuracy) },
+//     });
+//   } catch (err) {
+//     if (err.status) return res.status(err.status).json({ message: err.message, code: err.code });
+//     console.error("Checkout error:", err);
+//     res.status(500).json({ message: "Terjadi kesalahan pada server saat absen pulang." });
+//   }
+// });
+// NEW CODE
+router.post("/checkout", async (req, res)=> {
   try {
-    const { lat, lng, accuracy, photoUrl } = req.body;
-    const { distance } = await validateGeoOrThrow({ lat, lng, accuracy });
+    const { latitude, longitude, photo_url } = req.body;
+    const userId = req.userId;
+    const today = new Date().toISOString().split('T')[0];
 
-    const today = getLocalDateString();
-    const [rows] = await pool.query("SELECT * FROM attendance_records WHERE user_id = ? AND date = ?", [req.userId, today]);
-    const record = rows[0];
+    const [records] = await pool.query("SELECT id, check_in_time, check_out_time, hospital_id FROM attendance_records WHERE user_id = ? AND date = ?", [userId, today]);
 
-    if (!record) {
-      return res.status(400).json({ message: "Anda belum melakukan absen masuk hari ini." });
-    }
-    if (record.check_out_time) {
-      return res.status(409).json({ message: "Anda sudah melakukan absen pulang hari ini." });
+    if(records.length === 0) {
+      return res.status(400).json({ message: "Anda belum melakukan Absen masuk hari ini." });
     }
 
-    const now = new Date();
+    const record = records[0];
+
+    if (record.check_out_time !== null) {
+        return res.status(400).json({ message: "Anda sudah melakukan absen pulang (Check-Out) hari ini." });
+    }
+
+    let distanceMeters = null;
+    if(record.hospital_id) {
+      const [hospitals] = await pool.query("SELECT latitude, longitude FROM hospitals WHERE id = ?", [record.hospital_id]);
+
+      if(hospitals.length > 0) {
+        const rs = hospitals[0];
+        distanceMeters = calculateDistance(latitude, longitude, rs.latitude, rs.longitude);
+      }
+    }
+
     const checkInTime = new Date(record.check_in_time);
-    const workingHours = (now.getTime() - checkInTime.getTime()) / (1000 * 60 * 60);
+    const checkOutTime = new Date();
 
-    await pool.query(
-      `UPDATE attendance_records
-       SET check_out_time = ?, working_hours = ?, check_out_lat = ?, check_out_lng = ?, check_out_accuracy_m = ?, check_out_distance_m = ?, check_out_photo_url = ?
-       WHERE id = ?`,
-      [now, workingHours.toFixed(2), lat, lng, accuracy, distance, photoUrl || null, record.id],
-    );
+    const diffMs = checkOutTime - checkInTime;
+    const workingHours = (diffMs / (1000 * 60 * 60)).toFixed(2)
 
-    const [updated] = await pool.query("SELECT * FROM attendance_records WHERE id = ?", [record.id]);
-    res.json({
-      record: toRecordDTO(updated[0]),
-      geo: { distanceMeters: distance, accuracyQuality: classifyAccuracy(accuracy) },
-    });
+    await pool.query("UPDATE attendance_records SET check_out_time = NOW(), working_hours = ?, check_out_lat = ?, check_out_lng = ?, check_out_distance_m = ?,  check_out_photo_url = ? WHERE id = ?", [workingHours, latitude, longitude, distanceMeters, photo_url, record.id]);
+    res.status(200).json({ message: "Check-out berhasil.", working_hours: workingHours });
+
   } catch (err) {
-    if (err.status) return res.status(err.status).json({ message: err.message, code: err.code });
-    console.error("Checkout error:", err);
-    res.status(500).json({ message: "Terjadi kesalahan pada server saat absen pulang." });
+    console.error("Error Check-out:", err);
+    res.status(500).json({ message: "Terjadi kesalahan sistem saat check-out." });
   }
 });
+
+// Route Lokasi(Rumah Sakit) Penugasan
+// GET
+router.get("/locations",requireAuth, async (req, res)=> {
+  try {
+    const [rows] = await pool.query("SELECT id, nama_rs, latitude, longitude, radius_meters FROM hospitals ORDER BY nama_rs ASC");
+    res.json({ locations: rows });
+  } catch (err) {
+    console.error("Error saat mengambil daftar lokasi rumah sakit:", err);
+    res.status(500).json({ message: "Terjadi kesalahan pada server saat mengambil daftar lokasi pengugasan." });
+  }
+})
 
 export default router;
