@@ -23,6 +23,7 @@ async function requireAdmin(req, res, next) {
 
 router.use(requireAuth, requireAdmin);
 
+// API FOR AUTH ADMIN (REGISTER ADMIN) ===========================================================================================================================>
 // Route Register New Admin 
 // POST
 router.post("/admins/register", async (req, res) => {
@@ -55,7 +56,11 @@ router.post("/admins/register", async (req, res) => {
         res.status(500).json({message: "Gagal membuat akun admin."});
     }
 });
+// ============================================================================================================================================================>
 
+
+
+// API FOR RUMAH SAKIT CRUD ===================================================================================================================================>
 // Route RS Rumah Sakit
 // GET
 router.get("/hospitals", async (req, res)=> {
@@ -119,7 +124,11 @@ router.delete("/hospitals/:id", async (req, res) => {
         res.status(500).json({message: "Gagal menghapus rumah sakit."});
     }
 });
+// ============================================================================================================================================================>
 
+
+
+// API FOR DEPARTMENTS AND POSISI ===================================================================================================================================>
 // Route Divisi
 // POST
 router.post("/departments", async (req, res) => {
@@ -239,47 +248,11 @@ router.delete("/positions/:id", async (req, res) => {
         res.status(500).json({message: "Gagal menghapus posisi."});
     }
 });
+// ============================================================================================================================================================>
 
-// Route HRD Mengubah Jam Kerja, Department, dan Posisi
-// PUT
-router.put("/employees/:id", async (req,res) => {
-    try {
-        const targetUserId = req.params.id;
-        const { jam_masuk, jam_keluar, id_department, id_position} = req.body;
 
-        const [result] = await pool.query("UPDATE users SET jam_masuk = COALESCE(?, jam_masuk), jam_keluar = COALESCE(?, jam_keluar), id_department = COALESCE(?, id_department), id_position = COALESCE(?, id_position) WHERE id = ?", [jam_masuk, jam_keluar, id_department, id_position, targetUserId]);
-        
-        if(result.affectedRows === 0) {
-            return res.status(404).json({message: "Karyawan tidak ditemukan."});
-        }
-        res.status(200).json({message: "Data karyawan berhasil diperbarui."});
-    } catch (err) {
-        console.error("SQL Error pada /hrd/employees/:id:", err);
-        res.status(500).json({message: "Gagal Memperbarui Data Karyawan."});
-    }
-});
 
-// Route HRD Menghapus Karyawan
-// DELETE
-router.delete("/employees/:id", async (req, res) => {
-    try {
-        const targetUserId = req.params.id;
-
-        if(targetUserId === req.userId) {
-            return res.status(400).json({message: "Tidak dapat menghapus akun sendiri."});
-        }
-
-        const [result] = await pool.query("DELETE FROM users WHERE id = ?", [targetUserId]);
-        if(result.affectedRows === 0) {
-            return res.status(404).json({message: "Karyawan tidak ditemukan."});
-        }
-        res.status(200).json({message: "Karyawan berhasil dihapus."});
-    } catch (err) {
-        console.error("SQL Error pada /hrd/employees/:id:", err);
-        res.status(500).json({message: "Gagal Menghapus Karyawan."});
-    }
-});
-
+// API FOR DASHBOARD ===================================================================================================================================>    
 // Route Dahsboard HRD
 // GET
 router.get("/dashboard/overview", async (req, res) => {
@@ -313,8 +286,12 @@ router.get("/dashboard/overview", async (req, res) => {
         res.status(500).json({message: "Failed to Fetch Dashboard Data."});
     }
 });
+// ============================================================================================================================================================>
 
-// Route Manajemen Kehadiran
+
+
+// API FOR ABSEN KEHADIRAN ===================================================================================================================================>
+// Route Lihat Data Kehadiran Karyawan
 // GET
 router.get("/attendance", async (req, res) => {
     try {
@@ -324,7 +301,8 @@ router.get("/attendance", async (req, res) => {
             SELECT a.id, u.name, u.id_position, u.email as email, a.status, 
                    DATE_FORMAT(a.check_in_time, '%H:%i') as checkInTime, 
                    DATE_FORMAT(a.check_out_time, '%H:%i') as checkOutTime,
-                   a.check_in_lat, a.check_in_lng, a.check_in_photo_url, 
+                   a.check_in_lat, a.check_in_lng, a.check_in_photo_url,
+                   a.check_out_lat, a.check_out_lng, a.check_out_photo_url, 
                    DATE_FORMAT(a.date, '%Y-%m-%d') as date
             FROM attendance_records a
             JOIN users u ON a.user_id = u.id
@@ -347,38 +325,93 @@ router.get("/attendance", async (req, res) => {
         res.status(500).json({message: "Failed to Fetch Attendance Records."});
     }
 });
+// ============================================================================================================================================================>
 
-// Route Manajemen Karyawan
+
+
+
+// API Manajemen Data Karyawan ================================================================================================================================>
+// Route Lihat Data Karyawan
 // GET
 router.get("/employees", async (req, res) => {
     try {
-        const [rows] = await pool.query(
-            `SELECT 
-                id, 
-                nik, 
-                name, 
-                email, 
-                id_department,
-                id_position,
-                jam_masuk,
-                jam_keluar,
-                phone, 
-                status_karyawan, 
-                performance_status
-             FROM users WHERE role = 'EMPLOYEE'  
-             ORDER BY name ASC`
-        );
-        
-        console.log(`Berhasil memuat ${rows.length} karyawan`); // Cek di terminal
-        res.json({ employees: rows });
+        const { name, department } = req.query;
+        let query = `
+            SELECT u.name, u.nik, u.email, u.phone, u.address, u.status_karyawan, u.photo_url as profile_photo_url,
+                d.name as department_name, p.name as position_name, 
+                u.jam_masuk, u.jam_keluar
+            FROM users u
+            LEFT JOIN master_departments d ON u.id_department = d.id
+            LEFT JOIN master_positions p ON u.id_position = p.id
+            WHERE u.role = 'EMPLOYEE'
+        `;
+        const params = [];
+
+        if (name) {
+            query += ` AND u.name LIKE ?`;
+            params.push(`%${name}%`);
+        }
+        if (department) {
+            query += ` AND d.name LIKE ?`;
+            params.push(`%${department}%`);
+        }
+
+        query += ` ORDER BY d.name ASC, u.name ASC`;
+
+        const [employees] = await pool.query(query, params);
+        res.status(200).json({ total: employees.length, data: employees });
     } catch (err) {
-        console.error("SQL Error pada /hrd/employees:", err);
-        res.status(500).json({message: "Failed to Fetch Employees."});
+        console.error("Error Laporan Karyawan:", err);
+        res.status(500).json({ message: "Gagal memuat data karyawan." });
     }
 });
 
-// Route Manajemen Cuti
-// GET 
+// Route HRD Menghapus Karyawan
+// DELETE
+router.delete("/employees/:id", async (req, res) => {
+    try {
+        const targetUserId = req.params.id;
+
+        if(targetUserId === req.userId) {
+            return res.status(400).json({message: "Tidak dapat menghapus akun sendiri."});
+        }
+
+        const [result] = await pool.query("DELETE FROM users WHERE id = ?", [targetUserId]);
+        if(result.affectedRows === 0) {
+            return res.status(404).json({message: "Karyawan tidak ditemukan."});
+        }
+        res.status(200).json({message: "Karyawan berhasil dihapus."});
+    } catch (err) {
+        console.error("SQL Error pada /hrd/employees/:id:", err);
+        res.status(500).json({message: "Gagal Menghapus Karyawan."});
+    }
+});
+
+// Route HRD Mengubah Jam Kerja, Department, dan Posisi
+// PUT
+router.put("/employees/:id", async (req,res) => {
+    try {
+        const targetUserId = req.params.id;
+        const { jam_masuk, jam_keluar, id_department, id_position} = req.body;
+
+        const [result] = await pool.query("UPDATE users SET jam_masuk = COALESCE(?, jam_masuk), jam_keluar = COALESCE(?, jam_keluar), id_department = COALESCE(?, id_department), id_position = COALESCE(?, id_position) WHERE id = ?", [jam_masuk, jam_keluar, id_department, id_position, targetUserId]);
+        
+        if(result.affectedRows === 0) {
+            return res.status(404).json({message: "Karyawan tidak ditemukan."});
+        }
+        res.status(200).json({message: "Data karyawan berhasil diperbarui."});
+    } catch (err) {
+        console.error("SQL Error pada /hrd/employees/:id:", err);
+        res.status(500).json({message: "Gagal Memperbarui Data Karyawan."});
+    }
+});
+// =========================================================================================================================================================================================>
+
+
+
+// API Manajemen Perizinan =================================================================================================================================================================>
+// Route Lihat Data Cuti/Izin/Sakit Karyawan
+    // GET 
 router.get("/leaves", async (req, res) => {
     try {
         const [rows] = await pool.query(
@@ -402,6 +435,7 @@ router.get("/leaves", async (req, res) => {
         console.error("Error mengambil data cuti:", err);
         res.status(500).json({ message: "Gagal memuat daftar permintaan cuti/izin." });
     }
+    
 });
 
 // Route Manajemen Cuti
@@ -423,6 +457,46 @@ router.patch("/leaves/:id/approval", async(req, res) => {
     } catch (err) {
         console.error(err);
         res.status(500).json({ message: "Failed to update leave request." });
+    }
+});
+// =========================================================================================================================================================================================>
+
+
+
+
+// API LAPORAN LAPORAN =====================================================================================================================================================================>
+// Route Laporan Data Karyawan
+// GET
+router.get("/reports/employees", async (req, res) => {
+    try {
+        const { name, department } = req.query;
+        let query = `
+            SELECT u.name, u.nik, u.email, u.phone, u.address, u.status_karyawan,
+                d.name as department_name, p.name as position_name, 
+                u.jam_masuk, u.jam_keluar
+            FROM users u
+            LEFT JOIN master_departments d ON u.id_department = d.id
+            LEFT JOIN master_positions p ON u.id_position = p.id
+            WHERE u.role = 'EMPLOYEE'
+        `;
+        const params = [];
+
+        if (name) {
+            query += ` AND u.name LIKE ?`;
+            params.push(`%${name}%`);
+        }
+        if (department) {
+            query += ` AND d.name LIKE ?`;
+            params.push(`%${department}%`);
+        }
+
+        query += ` ORDER BY d.name ASC, u.name ASC`;
+
+        const [employees] = await pool.query(query, params);
+        res.status(200).json({ total: employees.length, data: employees });
+    } catch (err) {
+        console.error("Error Laporan Karyawan:", err);
+        res.status(500).json({ message: "Gagal memuat data karyawan." });
     }
 });
 
@@ -538,6 +612,14 @@ router.get("/reports/export", async (req, res) => {
         res.status(500).json({ message: "Gagal menghasilkan data export." });
     }
 });
+// ==================================================================================================================================>
+
+
+
+
+
+
+
 
 // Route Manajemen KPI
 // GET

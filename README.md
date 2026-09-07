@@ -107,37 +107,86 @@ set `ENABLE_GEOFENCING=true` di `.env` dan isi data pada tabel `offices` (lihat 
 - Data lat/lng/akurasi tiap absen tersimpan permanen di tabel `attendance_records`, dan bisa dilihat kembali
   lengkap dengan peta radiusnya di halaman Riwayat.
 
-### Struktur API General
+
+## Struktur API SystemWork CTI
+
+### Auth
+|Type | Method | Endpoint                     | Keterangan                           |
+|----|--------|------------------------------|--------------------------------------|
+|Public| POST   | `/api/auth/register`| Daftar Akun Baru Untuk Karyawan |
+|Public| POST   | `/api/auth/login`| Login Mengembalikan JWT  |
+|Admin| POST   | `/api/hrd/admins/register`| Daftar Admin Baru di halaman dashboard  |
+|Public| POST   | `/api/auth/login-admin`| Login untuk Admin mengembalikan JWT  |
+| - | GET    | `/api/auth/me`                | Data user dari token                 |
+---
+
+### Rumah Sakit
+|Type | Method | Endpoint                     | Keterangan                           |
+|----|--------|------------------------------|--------------------------------------|
+|Admin| GET   | `/api/hrd/hospitals`| Menampilkan Data Rumah Sakit  |
+|Karyawan| GET   | `/api/attendance/locations`| Menampilkan Data Rumah Sakit Untuk Absensi  |
+|Admin| POST   | `/api/hrd/hospitals`| Menambahkan data Rumah Sakit  |
+|Admin| PUT   | `/api/hrd/hospitals/:id`| Mengedit data rumah Sakit  |
+|Admin| DELETE   | `/api/hrd/hospitals/:id`| Menghapus data rumah Sakit  |
+---
+
+### Divisi/Departments
+|Type | Method | Endpoint                     | Keterangan                           |
+|----|--------|------------------------------|--------------------------------------|
+|Karyawan| GET   | `/api/auth/departments`| Menampilkan Data Departments/Divis yang tersedia  |
+|Admin| POST   | `/api/hrd/departments`| Menambahkan Data Divisi/Department  |
+|Admin| PUT   | `/api/hrd/departments/:id`| Mengedit Divisi/Department  |
+|Admin| DELETE   | `/api/hrd/departments/:id`| Menghapus Divisi/Department  |
+
+### Posisi
+|Type | Method | Endpoint                     | Keterangan                           |
+|----|--------|------------------------------|--------------------------------------|
+|Karyawan| GET   | `/api/auth/positions`| Menampilkan Data Posisi Yang Tersedia  |
+|Admin| POST   | `/api/hrd/positions`| Menambahkan Posisi   |
+|Admin| PUT   | `/api/hrd/positions/:id`| Mengedit Posisi Seperti nama dll   |
+|Admin| DELETE   | `/api/hrd/positions/:id`| Menghapus Posisi   |
+
+### Absen/Attendance
+|Type | Method | Endpoint                     | Keterangan                           |
+|----|--------|------------------------------|--------------------------------------|
+|Admin| GET   | `/api/hrd/attendance`| Menampilkan Data Absen aktif Karyawan  |
+|Karyawan| POST   | `/api/hrd/attendance/checkin`| Digunakan Saat Check-in Absensi Masuk   |
+|Karyawan| POST   | `/api/hrd/attendance/checkout`| Digunakan Saat Check-out Absensi Keluar   |
+
+### Manajemen Data Karyawan
+|Type | Method | Endpoint                     | Keterangan                           |
+|----|--------|------------------------------|--------------------------------------|
+|Admin| GET   | `/api/hrd/employees`| Menampilkan Data karyawan, dan dapat menggunakan params key: 'name' dan value: 'nama_kryawan' |
+|Admin| PUT   | `/api/hrd/employees/:id`| Mengedit Data Karyawan mulai dari jam_masuk, jam_keluar, id_departments, id_positions   |
+|Admin| DELETE   | `/api/hrd/employees/:id`| Menghapus karyawan berdasarkan Id   |
+
+### Profile
+|Type | Method | Endpoint                     | Keterangan                           |
+|----|--------|------------------------------|--------------------------------------|
+|Karyawan| GET   | `/api/profile`| Menampilkan data profile karyawan tersebut  |
+|Karyawan| PUT   | `/api/profile`| Mengedit data profile karyawan tersebut  |
+
+### Perizinan
+|Type | Method | Endpoint                     | Keterangan                           |
+|----|--------|------------------------------|--------------------------------------|
+|Admin| GET   | `/api/hrd/leaves`| Menampilkan Data Permintaan Cuti/Izin  |
+|Admin| PATCH  | `/api/hrd/leaves/:id/approval`| Mengubah Status Permintaan Cuti/Izin|
+
+### Dashboard HRD
+|Type | Method | Endpoint                     | Keterangan                           |
+|----|--------|------------------------------|--------------------------------------|
+|Admin|  GET  | `/api/hrd/dashboard/overview`| Menampilkan Data Dashboard Untuk HRD |
+---
+
+### WIP(Work In Progress) API General
 
 | Method | Endpoint                     | Keterangan                          |
 |--------|-------------------------------|--------------------------------------|
-| POST   | `/api/auth/register`          | Daftar akun baru                     |
-| POST   | `/api/auth/login`             | Login, mengembalikan JWT             |
 | GET    | `/api/auth/me`                | Data user dari token                 |
 | GET    | `/api/attendance/today`       | Status absen hari ini                |
 | GET    | `/api/attendance/history`     | Riwayat absensi                      |
-| POST   | `/api/attendance/checkin`     | Absen masuk (lat, lng, accuracy, photoUrl) |
-| POST   | `/api/attendance/checkout`    | Absen pulang                         |
 | GET    | `/api/requests`               | Daftar pengajuan                     |
-| POST   | `/api/requests`                | Kirim pengajuan baru                 |
+| POST   | `/api/requests`               | Kirim pengajuan baru                 |
 | GET    | `/api/notifications`          | Daftar notifikasi                    |
 | PATCH  | `/api/notifications/:id/read` | Tandai notifikasi dibaca             |
-| GET    | `/api/profile`                | Ambil profil                         |
-| PATCH  | `/api/profile`                | Perbarui profil                      |
 | GET    | `/api/office`                 | Lokasi & radius geofencing kantor    |
-
-### Struktur API HRD
-
-| Method | Endpoint                     | Keterangan                           |
-|--------|------------------------------|--------------------------------------|
-| GET    | `/api/hrd/dashboard/overview`| Menampilkan Data Dashboard Untuk HRD |
-| GET    | `/api/hrd/employees`         | Menampilkan Seluruh Data Karyawan    |
-| GET    | `/api/hrd/attendance`        | Menampilkan Data Absensi             |
-| GET    | `/api/hrd/leaves`            | Menampilkan Data Permintaan Cuti/Izin|
-| PATCH  | `/api/hrd/leaves/:id/approval`| Mengubah Status Permintaan Cuti/Izin|
-| GET    | `/api/hrd/kpi`               | Menampilkan Seluruh Data KPI Karyawan|
-| GET    | `/api/hrd/kpi`               | Menampilkan Seluruh Data KPI Karyawan|
-| POST   | `/api/hrd/recruitment/jobs`  | Menambahkan Jobs Baru di Rekrutmen   |
-| GET    | `/api/hrd/recruitment/overview`| Menampilkan Seluruh Jobs di Rekrutmen|
-| PUT    | `/api/hrd/recruitment/jobs/:id`| Mengedit Jobs                      |
-| DELETE    | `/api/hrd/recruitment/jobs/:id`| Menghapus Jobs                  |
