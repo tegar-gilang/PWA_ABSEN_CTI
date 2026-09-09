@@ -2,11 +2,15 @@ export type User = {
   id: string;
   name: string;
   employeeId: string;
+  nik?: string;
   department: string;
   position: string;
   phone: string;
   email: string;
+  address?: string;
   schedule: string;
+  jamMasuk?: string;
+  jamKeluar?: string;
   photoUrl: string;
   emergencyContact: string;
   role: 'EMPLOYEE' | 'ADMIN';
@@ -39,6 +43,38 @@ export type OfficeLocation = {
   radiusMeters: number;
 };
 
+export type HospitalLocation = {
+  id: string;
+  nama_rs: string;
+  name?: string;
+  address?: string;
+  latitude: number;
+  longitude: number;
+  radius_meters: number;
+};
+
+export type MasterDepartment = {
+  id: string;
+  name: string;
+};
+
+export type MasterPosition = {
+  id: string;
+  name: string;
+};
+
+export type JobOpening = {
+  id: string;
+  title: string;
+  role: string;
+  status: 'OPEN' | 'CLOSED';
+  total_candidates?: number;
+  interview_count?: number;
+  created_at?: string;
+  updated_at?: string;
+};
+
+
 export type AttendanceRecord = {
   id: string;
   date: string; // YYYY-MM-DD
@@ -46,6 +82,8 @@ export type AttendanceRecord = {
   checkOutTime: string | null;
   status: AttendanceStatus;
   workingHours: number | null;
+  hospitalId?: string | null;
+  customLocationName?: string | null;
   location?: GeoPoint | null;
   photoUrl?: string | null;
   checkInLocation?: GeoPoint | null;
@@ -64,8 +102,10 @@ export type RequestRecord = {
   type: RequestType;
   reason: string;
   date: string;
+  endDate?: string;
   status: RequestStatus;
   attachmentUrl?: string;
+  rejectionReason?: string;
   createdAt: string;
 };
 
@@ -77,3 +117,15 @@ export type Notification = {
   createdAt: string;
   type: 'SUCCESS' | 'WARNING' | 'INFO';
 };
+
+export type Candidate = {
+  id: string;
+  job_opening_id: string;
+  job_title?: string;
+  job_role?: string;
+  name: string;
+  stage: 'SCREENING' | 'INTERVIEW' | 'HIRED' | 'REJECTED';
+  created_at?: string;
+  updated_at?: string;
+};
+

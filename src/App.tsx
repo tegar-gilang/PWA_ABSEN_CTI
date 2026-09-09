@@ -19,10 +19,12 @@ import { useAppStore, processSyncQueue } from './store';
 import LayoutHRD from './pages/hrd/LayoutHRD';
 import KehadiranHRD from './pages/hrd/KehadiranHRD';
 import KaryawanHRD from './pages/hrd/KaryawanHRD';
+import DataAbsensiHRD from './pages/hrd/DataAbsensiHRD';
 import CutiHRD from './pages/hrd/CutiHRD';
 import KPIHRD from './pages/hrd/KPIHRD';
 import RekrutmenHRD from './pages/hrd/RekrutmenHRD';
 import DashboardHRD from './pages/hrd/DashboardHRD';
+import DataRumahSakitHRD from './pages/hrd/DataRumahSakitHRD';
 import { requestNotificationPermission, onMessageListener } from './lib/fcm';
 
 
@@ -114,6 +116,8 @@ export default function App() {
           <Route path="/hrd" element={<DashboardHRD />} />
           <Route path="/hrd/kehadiran" element={<KehadiranHRD />} />
           <Route path="/hrd/karyawan" element={<KaryawanHRD />} />
+          <Route path="/hrd/data-absensi" element={<DataAbsensiHRD />} />
+          <Route path="/hrd/data-rumah-sakit" element={<DataRumahSakitHRD />} />
           <Route path="/hrd/cuti" element={<CutiHRD />} />
           <Route path="/hrd/kpi" element={<KPIHRD />} />
           <Route path="/hrd/rekrutmen" element={<RekrutmenHRD />} />
@@ -127,3 +131,4 @@ export default function App() {
     </BrowserRouter>
   );
 }
+

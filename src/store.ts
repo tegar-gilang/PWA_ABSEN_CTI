@@ -47,13 +47,24 @@ interface AppState {
   hrdAttendance: AttendanceRecord[];
   hrdRequests: RequestRecord[];
 
-  login: (employeeId: string, password: string) => Promise<void>;
-  signup: (payload: { name: string; employeeId: string; password: string; department: string }) => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
+  signup: (payload: {
+    name: string;
+    employeeId?: string;
+    nik?: string;
+    email?: string;
+    phone?: string;
+    password: string;
+    department?: string;
+    id_department?: string;
+    id_position?: string;
+    position?: string;
+  }) => Promise<void>;
   logout: () => Promise<void>;
   hydrateSession: () => Promise<void>; // memuat ulang sesi & data awal saat aplikasi dibuka
   checkIn: (payload: GeoPayload) => Promise<void>;
   checkOut: (payload: GeoPayload) => Promise<void>;
-  submitRequest: (request: { type: string; reason: string; date: string }) => Promise<void>;
+  submitRequest: (request: { type: string; reason: string; date: string; endDate?: string }) => Promise<void>;
   markNotificationRead: (id: string) => Promise<void>;
   updateProfile: (data: Partial<User>) => Promise<void>;
   addNotification: (notification: Notification) => void;
@@ -157,10 +168,10 @@ export const useAppStore = create<AppState>()(
       },
 
       /**
-       * Login ke backend menggunakan ID Karyawan & kata sandi, lalu memuat data awal pengguna.
+       * Login ke backend menggunakan Email & kata sandi, lalu memuat data awal pengguna.
        */
-      login: async (employeeId, password) => {
-        const { token, user } = await apiLogin({ employeeId, password });
+      login: async (email, password) => {
+        const { token, user } = await apiLogin({ email, password });
         setToken(token);
         
         set({ user, isAuthenticated: true });

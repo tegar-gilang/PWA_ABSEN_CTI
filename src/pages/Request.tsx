@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAppStore } from '../store';
 import { FileText, Send, CheckCircle2, FileClock, Clock, Loader2 } from 'lucide-react';
 import { RequestType } from '../types';
@@ -9,27 +9,58 @@ import { motion, AnimatePresence } from 'motion/react';
 export default function Request() {
   const submitRequest = useAppStore(state => state.submitRequest);
   const requests = useAppStore(state => state.requests);
+  const fetchAllUserData = useAppStore(state => state.fetchAllUserData);
   
   const [activeTab, setActiveTab] = useState<'NEW' | 'HISTORY'>('NEW');
   const [type, setType] = useState<RequestType>('LEAVE');
-  const [date, setDate] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [reason, setReason] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
+  useEffect(() => {
+    fetchAllUserData();
+  }, [activeTab]);
+
+  const parseDateSafe = (dStr: string) => {
+    if (!dStr) return new Date();
+    const datePart = dStr.split('T')[0];
+    const parts = datePart.split('-');
+    if (parts.length === 3) {
+      return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    }
+    return new Date(dStr);
+  };
+
+  const calculateDays = (start: string, end: string) => {
+    if (!start) return 0;
+    if (!end || end === start) return 1;
+    const s = parseDateSafe(start);
+    const e = parseDateSafe(end);
+    const diffTime = e.getTime() - s.getTime();
+    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    return Math.max(1, diffDays);
+  };
+  const totalDays = calculateDays(startDate, endDate);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!startDate) return;
+    const finalEndDate = endDate || startDate;
     setIsLoading(true);
     try {
       await submitRequest({
         type,
-        date,
+        date: startDate,
+        endDate: finalEndDate !== startDate ? finalEndDate : undefined,
         reason,
       });
       setSubmitted(true);
       setTimeout(() => {
         setSubmitted(false);
-        setDate('');
+        setStartDate('');
+        setEndDate('');
         setReason('');
         setActiveTab('HISTORY');
       }, 2000);
@@ -104,14 +135,43 @@ export default function Request() {
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-500 mb-2 uppercase tracking-wider">Tanggal</label>
-                    <input
-                      type="date"
-                      value={date}
-                      onChange={(e) => setDate(e.target.value)}
-                      required
-                      className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none text-slate-900 bg-slate-50 font-medium"
-                    />
+                    <div className="flex justify-between items-center mb-2">
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                        Tanggal
+                      </label>
+                      {startDate && (
+                        <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-100">
+                          {totalDays} Hari
+                        </span>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[10px] font-semibold text-slate-400 mb-1">Dari Tanggal</label>
+                        <input
+                          type="date"
+                          value={startDate}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setStartDate(val);
+                            if (!endDate || val > endDate) setEndDate(val);
+                          }}
+                          required
+                          className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none text-slate-900 bg-slate-50 font-medium text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-semibold text-slate-400 mb-1">Sampai Tanggal</label>
+                        <input
+                          type="date"
+                          min={startDate || undefined}
+                          value={endDate}
+                          onChange={(e) => setEndDate(e.target.value)}
+                          required
+                          className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none text-slate-900 bg-slate-50 font-medium text-sm"
+                        />
+                      </div>
+                    </div>
                   </div>
 
                   <div>
@@ -128,7 +188,7 @@ export default function Request() {
 
                   <button
                     type="submit"
-                    disabled={!date || !reason || isLoading}
+                    disabled={!startDate || !reason || isLoading}
                     className="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-2xl py-4 font-bold flex items-center justify-center gap-2 transition-all mt-4 shadow-xl shadow-blue-100 disabled:opacity-70 disabled:shadow-none"
                   >
                     {isLoading ? 'Mengirim...' : 'Kirim Permohonan'}
@@ -154,27 +214,45 @@ export default function Request() {
                   <p className="text-slate-500 text-sm font-medium">Permohonan Anda yang terkirim akan muncul di sini.</p>
                 </div>
               ) : (
-                requests.map(req => (
-                  <div key={req.id} className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200">
-                    <div className="flex justify-between items-start mb-4">
-                      <div>
-                        <span className={`inline-block px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider mb-2 border ${getStatusColor(req.status)}`}>
-                          {req.status === 'APPROVED' ? 'Disetujui' : req.status === 'REJECTED' ? 'Ditolak' : 'Menunggu'}
-                        </span>
-                        <h4 className="font-bold text-slate-900 text-lg uppercase tracking-wide">
-                          {req.type === 'LEAVE' ? 'Cuti' : req.type === 'SICK' ? 'Sakit' : req.type === 'PERMISSION' ? 'Izin' : 'Lembur'}
-                        </h4>
+                requests.map(req => {
+                  const hasRange = req.endDate && req.endDate !== req.date;
+                  const startFmt = format(parseDateSafe(req.date), 'dd MMM yyyy', { locale: id });
+                  const endFmt = hasRange ? format(parseDateSafe(req.endDate!), 'dd MMM yyyy', { locale: id }) : '';
+                  const reqDays = hasRange
+                    ? Math.max(1, Math.round((parseDateSafe(req.endDate!).getTime() - parseDateSafe(req.date).getTime()) / (1000 * 60 * 60 * 24)) + 1)
+                    : 1;
+
+                  return (
+                    <div key={req.id} className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200">
+                      <div className="flex justify-between items-start mb-4">
+                        <div>
+                          <span className={`inline-block px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider mb-2 border ${getStatusColor(req.status)}`}>
+                            {req.status === 'APPROVED' ? 'Disetujui' : req.status === 'REJECTED' ? 'Ditolak' : 'Menunggu'}
+                          </span>
+                          <h4 className="font-bold text-slate-900 text-lg uppercase tracking-wide">
+                            {req.type === 'LEAVE' ? 'Cuti' : req.type === 'SICK' ? 'Sakit' : req.type === 'PERMISSION' ? 'Izin' : 'Lembur'}
+                          </h4>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-bold text-slate-900">
+                            {hasRange ? `${startFmt} - ${endFmt}` : startFmt}
+                          </p>
+                          <p className="text-xs text-slate-500 font-semibold mt-0.5">{reqDays} Hari</p>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-sm font-bold text-slate-900">{format(new Date(req.date), 'dd MMM yyyy', { locale: id })}</p>
-                      </div>
+                      <p className="text-sm text-slate-600 bg-slate-50 p-4 rounded-2xl border border-slate-100 font-medium leading-relaxed">{req.reason}</p>
+                      {req.status === 'REJECTED' && req.rejectionReason && (
+                        <div className="mt-3 p-4 bg-red-50 rounded-2xl border border-red-100">
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-red-600 mb-1">Alasan Penolakan:</p>
+                          <p className="text-sm text-red-700 font-medium">{req.rejectionReason}</p>
+                        </div>
+                      )}
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mt-4 flex items-center gap-1.5">
+                        <Clock className="w-3 h-3" /> Dikirim {format(new Date(req.createdAt), 'dd MMM, HH:mm', { locale: id })}
+                      </p>
                     </div>
-                    <p className="text-sm text-slate-600 bg-slate-50 p-4 rounded-2xl border border-slate-100 font-medium leading-relaxed">{req.reason}</p>
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mt-4 flex items-center gap-1.5">
-                      <Clock className="w-3 h-3" /> Dikirim {format(new Date(req.createdAt), 'dd MMM, HH:mm', { locale: id })}
-                    </p>
-                  </div>
-                ))
+                  );
+                })
               )}
             </motion.div>
           )}

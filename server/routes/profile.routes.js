@@ -11,9 +11,16 @@ router.use(requireAuth);
  */
 router.get("/", async (req, res) => {
   try {
-    const [rows] = await pool.query("SELECT name, nik, email, phone, address, jam_masuk, jam_keluar, photo_url, id_department, id_position FROM users WHERE id = ?", [req.userId]);
+    const [rows] = await pool.query(
+      `SELECT u.*, d.name as department, p.name as position 
+       FROM users u
+       LEFT JOIN master_departments d ON u.id_department = d.id
+       LEFT JOIN master_positions p ON u.id_position = p.id
+       WHERE u.id = ?`,
+      [req.userId]
+    );
     if (rows.length === 0) return res.status(404).json({ message: "Pengguna tidak ditemukan." });
-    res.json({ user: rows[0] });
+    res.json({ user: toUserDTO(rows[0]) });
   } catch (err) {
     console.error("Get profile error:", err);
     res.status(500).json({ message: "Terjadi kesalahan pada server saat mengambil profil." });
@@ -21,69 +28,76 @@ router.get("/", async (req, res) => {
 });
 
 /**
- * PATCH /api/profile
- * Body bisa berisi sebagian field: phone, emergencyContact, photoUrl, name, department, position, email, schedule
+ * Handler pembaruan profil (mendukung PUT dan PATCH)
  */
-// OLD CODE
-// router.patch("/", async (req, res) => {
-//   try {
-//     const allowedFields = {
-//       phone: "phone",
-//       emergencyContact: "emergency_contact",
-//       photoUrl: "photo_url",
-//       name: "name",
-//       department: "department",
-//       position: "position",
-//       email: "email",
-//       schedule: "schedule",
-//     };
-
-//     const updates = [];
-//     const values = [];
-//     for (const [key, column] of Object.entries(allowedFields)) {
-//       if (req.body[key] !== undefined) {
-//         updates.push(`${column} = ?`);
-//         values.push(req.body[key]);
-//       }
-//     }
-
-//     if (updates.length === 0) {
-//       return res.status(400).json({ message: "Tidak ada data yang diperbarui." });
-//     }
-
-//     values.push(req.userId);
-//     await pool.query(`UPDATE users SET ${updates.join(", ")} WHERE id = ?`, values);
-
-//     const [rows] = await pool.query("SELECT * FROM users WHERE id = ?", [req.userId]);
-//     res.json({ user: toUserDTO(rows[0]) });
-//   } catch (err) {
-//     console.error("Update profile error:", err);
-//     // Pesan khusus jika penyebabnya foto/field terlalu besar untuk kolom database
-//     if (err.code === "ER_DATA_TOO_LONG") {
-//       return res.status(413).json({ message: "Data yang dikirim terlalu besar (mis. ukuran foto). Coba gunakan foto dengan resolusi lebih kecil." });
-//     }
-//     res.status(500).json({ message: "Terjadi kesalahan pada server saat memperbarui profil." });
-//   }
-// });
-// NEW CODE
-router.put("/", async (req, res)=> {
+async function handleUpdateProfile(req, res) {
   try {
     const userId = req.userId;
-    const {name, nik, email, address, phone, photo_url} = req.body;
-    
-    const [result] = await pool.query("UPDATE users SET name = COALESCE(?, name), nik = COALESCE(?, nik), email = COALESCE(?, email), address = COALESCE(?, address), phone = COALESCE(?, phone), photo_url = COALESCE(?, photo_url) WHERE id = ?", [name, nik, email, address, phone, photo_url, userId]); 
+    const name = req.body.name;
+    const nik = req.body.nik;
+    const email = req.body.email;
+    const address = req.body.address;
+    const phone = req.body.phone;
+    const photo_url = req.body.photo_url || req.body.photoUrl;
+    const emergency_contact = req.body.emergency_contact || req.body.emergencyContact;
+
+    let id_department = req.body.id_department;
+    if (!id_department && req.body.department) {
+      const [depts] = await pool.query("SELECT id FROM master_departments WHERE name = ?", [req.body.department]);
+      if (depts.length > 0) id_department = depts[0].id;
+    }
+
+    let id_position = req.body.id_position;
+    if (!id_position && req.body.position) {
+      const [positions] = await pool.query("SELECT id FROM master_positions WHERE name = ?", [req.body.position]);
+      if (positions.length > 0) id_position = positions[0].id;
+    }
+
+    const [result] = await pool.query(
+      `UPDATE users 
+       SET name = COALESCE(?, name),
+           nik = COALESCE(?, nik),
+           email = COALESCE(?, email),
+           address = COALESCE(?, address),
+           phone = COALESCE(?, phone),
+           photo_url = COALESCE(?, photo_url),
+           emergency_contact = COALESCE(?, emergency_contact),
+           id_department = COALESCE(?, id_department),
+           id_position = COALESCE(?, id_position)
+       WHERE id = ?`,
+      [name, nik, email, address, phone, photo_url, emergency_contact, id_department, id_position, userId]
+    );
 
     if (result.affectedRows === 0) {
       return res.status(404).json({ message: "Pengguna tidak ditemukan." });
     }
-    res.json({ message: "Profil berhasil diperbarui." });
+
+    const [rows] = await pool.query(
+      `SELECT u.*, d.name as department, p.name as position 
+       FROM users u
+       LEFT JOIN master_departments d ON u.id_department = d.id
+       LEFT JOIN master_positions p ON u.id_position = p.id
+       WHERE u.id = ?`,
+      [userId]
+    );
+
+    res.json({
+      message: "Profil berhasil diperbarui.",
+      user: toUserDTO(rows[0])
+    });
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') {
       return res.status(409).json({ message: "Email atau NIK sudah terdaftar pada akun lain." });
     }
+    if (err.code === "ER_DATA_TOO_LONG") {
+      return res.status(413).json({ message: "Data yang dikirim terlalu besar. Gunakan foto dengan resolusi lebih kecil." });
+    }
     console.error("Update profile error:", err);
     res.status(500).json({ message: "Terjadi kesalahan pada server saat memperbarui profil." });
   }
-});
+}
+
+router.put("/", handleUpdateProfile);
+router.patch("/", handleUpdateProfile);
 
 export default router;
