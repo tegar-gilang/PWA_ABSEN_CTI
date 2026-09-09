@@ -1,4 +1,4 @@
-import { AttendanceRecord, Notification, OfficeLocation, RequestRecord, User } from "../types";
+import { AttendanceRecord, Notification, OfficeLocation, RequestRecord, User, HospitalLocation, MasterDepartment, MasterPosition, JobOpening, Candidate } from "../types";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "/api";
 
@@ -55,15 +55,22 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 // ---------------------------------------------------------------------------
 export async function apiRegister(payload: {
   name: string;
-  employeeId: string;
+  employeeId?: string;
+  nik?: string;
+  email?: string;
+  phone?: string;
   password: string;
-  department: string;
+  department?: string;
+  id_department?: string;
+  id_position?: string;
+  position?: string;
 }): Promise<{ token: string; user: User }> {
   return request("/auth/register", { method: "POST", body: JSON.stringify(payload) });
 }
 
 export async function apiLogin(payload: {
-  employeeId: string;
+  email?: string;
+  employeeId?: string;
   password: string;
 }): Promise<{ token: string; user: User }> {
   return request("/auth/login", { method: "POST", body: JSON.stringify(payload) });
@@ -71,6 +78,14 @@ export async function apiLogin(payload: {
 
 export async function apiGetMe(): Promise<{ user: User }> {
   return request("/auth/me");
+}
+
+export async function apiGetDepartments(): Promise<{ departments: MasterDepartment[] }> {
+  return request("/auth/departments");
+}
+
+export async function apiGetPositions(): Promise<{ positions: MasterPosition[] }> {
+  return request("/auth/positions");
 }
 
 // ---------------------------------------------------------------------------
@@ -84,7 +99,15 @@ export async function apiGetAttendanceHistory(): Promise<{ records: AttendanceRe
   return request("/attendance/history");
 }
 
-export type GeoPayload = { lat: number; lng: number; accuracy: number; photoUrl?: string | null; history?: { lat: number; lng: number }[] };
+export type GeoPayload = { 
+  lat: number; 
+  lng: number; 
+  accuracy: number; 
+  photoUrl?: string | null; 
+  history?: { lat: number; lng: number }[];
+  hospitalId?: string | null;
+  customLocationName?: string | null;
+};
 
 export async function apiCheckIn(payload: GeoPayload): Promise<{ record: AttendanceRecord }> {
   return request("/attendance/checkin", { method: "POST", body: JSON.stringify(payload) });
@@ -94,17 +117,22 @@ export async function apiCheckOut(payload: GeoPayload): Promise<{ record: Attend
   return request("/attendance/checkout", { method: "POST", body: JSON.stringify(payload) });
 }
 
+export async function apiGetAttendanceLocations(): Promise<{ locations: HospitalLocation[] }> {
+  return request("/attendance/locations");
+}
+
 // ---------------------------------------------------------------------------
 // Requests (Cuti/Izin/Sakit/Lembur)
 // ---------------------------------------------------------------------------
 export async function apiGetRequests(): Promise<{ requests: RequestRecord[] }> {
-  return request("/hrd/leaves");
+  return request("/requests");
 }
 
 export async function apiSubmitRequest(payload: {
   type: string;
   reason: string;
   date: string;
+  endDate?: string;
 }): Promise<{ request: RequestRecord }> {
   return request("/requests", { method: "POST", body: JSON.stringify(payload) });
 }
@@ -124,7 +152,7 @@ export async function apiMarkNotificationRead(id: string): Promise<{ success: bo
 // Profile
 // ---------------------------------------------------------------------------
 export async function apiUpdateProfile(payload: Partial<User>): Promise<{ user: User }> {
-  return request("/profile", { method: "PATCH", body: JSON.stringify(payload) });
+  return request("/profile", { method: "PUT", body: JSON.stringify(payload) });
 }
 
 // ---------------------------------------------------------------------------
@@ -132,6 +160,39 @@ export async function apiUpdateProfile(payload: Partial<User>): Promise<{ user: 
 // ---------------------------------------------------------------------------
 export async function apiGetOffice(): Promise<{ office: OfficeLocation | null }> {
   return request("/office");
+}
+
+// ---------------------------------------------------------------------------
+// Hospital Management (HRD)
+// ---------------------------------------------------------------------------
+export async function apiHrdGetHospitals(): Promise<{ hospitals: HospitalLocation[] }> {
+  return request("/hrd/hospitals");
+}
+
+export async function apiHrdCreateHospital(payload: {
+  name?: string;
+  nama_rs?: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+  radius_meters?: number;
+}): Promise<{ message: string; hospital?: HospitalLocation }> {
+  return request("/hrd/hospitals", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export async function apiHrdUpdateHospital(id: string, payload: {
+  name?: string;
+  nama_rs?: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+  radius_meters?: number;
+}): Promise<{ message: string; hospital?: HospitalLocation }> {
+  return request(`/hrd/hospitals/${id}`, { method: "PUT", body: JSON.stringify(payload) });
+}
+
+export async function apiHrdDeleteHospital(id: string): Promise<{ message: string }> {
+  return request(`/hrd/hospitals/${id}`, { method: "DELETE" });
 }
 
 // ---------------------------------------------------------------------------
@@ -150,11 +211,20 @@ export async function apiHrdDeleteEmployee(id: string): Promise<{message: string
 }
 
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
 // Mengambil seluruh rekap absensi karyawan
 // ---------------------------------------------------------------------------
-export async function apiHrdGetAttendance(date?: string): Promise<{records: AttendanceRecord[]}> {
-  const query = date ? `?date=${date}` : "";
-  return request(`/hrd/attendance${query}`);
+export async function apiHrdGetAttendance(params?: string | { date?: string; startDate?: string; endDate?: string }): Promise<{records: AttendanceRecord[]}> {
+  if (typeof params === 'string') {
+    const query = params ? `?date=${params}` : "";
+    return request(`/hrd/attendance${query}`);
+  }
+  const searchParams = new URLSearchParams();
+  if (params?.startDate) searchParams.append("startDate", params.startDate);
+  if (params?.endDate) searchParams.append("endDate", params.endDate);
+  if (params?.date && !params.startDate) searchParams.append("date", params.date);
+  const qs = searchParams.toString();
+  return request(`/hrd/attendance${qs ? `?${qs}` : ""}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -167,8 +237,15 @@ export async function apiHrdGetRequests(): Promise<{requests: RequestRecord[]}> 
 // ---------------------------------------------------------------------------
 // Memperbarui status pengajuan karyawan (APPROVED / REJECTED)
 // ---------------------------------------------------------------------------
-export async function apiHrdUpdateRequestStatus(id: string, status: "APPROVED" | "REJECTED"): Promise<{request: RequestRecord}> {
-  return request(`/hrd/leaves/${id}/approval`,{method: "PATCH", body: JSON.stringify({status})});
+export async function apiHrdUpdateRequestStatus(
+  id: string, 
+  status: "APPROVED" | "REJECTED", 
+  rejection_reason?: string
+): Promise<{request: RequestRecord}> {
+  return request(`/hrd/leaves/${id}/approval`, {
+    method: "PATCH", 
+    body: JSON.stringify({ status, rejection_reason })
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -202,26 +279,15 @@ export async function apiHrdUpdateKpi(payload: any): Promise<{ message: string }
   return request("/hrd/kpi", { method: "POST", body: JSON.stringify(payload) });
 }
 
-export async function apiHrdGetRecruitmentOverview(): Promise<{ recruitment: any[] }> {
-  return request("/hrd/recruitment/overview");
-}
-
-export async function apiHrdCreateJobOpening(payload: { title: string; role: string }): Promise<{ message: string; jobId: string }> {
-  return request("/hrd/recruitment/jobs", { method: "POST", body: JSON.stringify(payload) });
-}
-
-export async function apiHrdUpdateJobOpening(id: string, payload: { title: string; role: string; status: string }): Promise<{ message: string }> {
-  return request(`/hrd/recruitment/jobs/${id}`, { method: "PUT", body: JSON.stringify(payload) });
-}
-
-export async function apiHrdDeleteJobOpening(id: string): Promise<{ message: string }> {
-  return request(`/hrd/recruitment/jobs/${id}`, { method: "DELETE" });
-}
-
 // ---------------------------------------------------------------------------
 // Mengambil data ringkasan absensi seluruh karyawan (Izin, Cuti, Telat)
 // ---------------------------------------------------------------------------
-export async function apiHrdGetAttendanceSummary(params?: { date?: string; search?: string }): Promise<{
+export async function apiHrdGetAttendanceSummary(params?: { 
+  date?: string; 
+  startDate?: string; 
+  endDate?: string; 
+  search?: string 
+}): Promise<{
   summary: Array<{
     id: string;
     employeeId: string;
@@ -240,7 +306,9 @@ export async function apiHrdGetAttendanceSummary(params?: { date?: string; searc
   }>;
 }> {
   const searchParams = new URLSearchParams();
-  if (params?.date) searchParams.append("date", params.date);
+  if (params?.startDate) searchParams.append("startDate", params.startDate);
+  if (params?.endDate) searchParams.append("endDate", params.endDate);
+  if (params?.date && !params.startDate) searchParams.append("date", params.date);
   if (params?.search) searchParams.append("search", params.search);
   const qs = searchParams.toString();
   return request(`/hrd/attendance-summary${qs ? `?${qs}` : ""}`);
@@ -249,7 +317,7 @@ export async function apiHrdGetAttendanceSummary(params?: { date?: string; searc
 // ---------------------------------------------------------------------------
 // Mengambil rincian detail laporan absensi 1 orang karyawan (untuk ekspor spreadsheet)
 // ---------------------------------------------------------------------------
-export async function apiHrdGetEmployeeReport(userId: string, params?: { date?: string }): Promise<{
+export async function apiHrdGetEmployeeReport(userId: string, params?: { date?: string; startDate?: string; endDate?: string }): Promise<{
   employee: {
     id: string;
     name: string;
@@ -281,10 +349,49 @@ export async function apiHrdGetEmployeeReport(userId: string, params?: { date?: 
   incidentDetails: any[];
 }> {
   const searchParams = new URLSearchParams();
-  if (params?.date) searchParams.append("date", params.date);
+  if (params?.startDate) searchParams.append("startDate", params.startDate);
+  if (params?.endDate) searchParams.append("endDate", params.endDate);
+  if (params?.date && !params.startDate) searchParams.append("date", params.date);
   const qs = searchParams.toString();
   return request(`/hrd/employee-report/${userId}${qs ? `?${qs}` : ""}`);
 }
+
+// ---------------------------------------------------------------------------
+// Recruitment / Rekrutmen API
+// ---------------------------------------------------------------------------
+export async function apiHrdGetRecruitmentOverview(): Promise<{ recruitment: JobOpening[] }> {
+  return request("/hrd/recruitment/overview");
+}
+
+export async function apiHrdCreateJobOpening(payload: { title: string; role: string }): Promise<{ message: string; jobId: string }> {
+  return request("/hrd/recruitment/jobs", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export async function apiHrdUpdateJobOpening(id: string, payload: { title: string; role: string; status: 'OPEN' | 'CLOSED' }): Promise<{ message: string }> {
+  return request(`/hrd/recruitment/jobs/${id}`, { method: "PUT", body: JSON.stringify(payload) });
+}
+
+export async function apiHrdDeleteJobOpening(id: string): Promise<{ message: string }> {
+  return request(`/hrd/recruitment/jobs/${id}`, { method: "DELETE" });
+}
+
+export async function apiHrdGetCandidates(jobOpeningId?: string): Promise<{ candidates: Candidate[] }> {
+  const query = jobOpeningId ? `?job_opening_id=${encodeURIComponent(jobOpeningId)}` : "";
+  return request(`/hrd/recruitment/candidates${query}`);
+}
+
+export async function apiHrdCreateCandidate(payload: { job_opening_id: string; name: string; stage?: 'SCREENING' | 'INTERVIEW' | 'HIRED' | 'REJECTED' }): Promise<{ message: string; candidateId: string }> {
+  return request("/hrd/recruitment/candidates", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export async function apiHrdUpdateCandidateStage(id: string, stage: 'SCREENING' | 'INTERVIEW' | 'HIRED' | 'REJECTED'): Promise<{ message: string }> {
+  return request(`/hrd/recruitment/candidates/${id}/stage`, { method: "PATCH", body: JSON.stringify({ stage }) });
+}
+
+export async function apiHrdDeleteCandidate(id: string): Promise<{ message: string }> {
+  return request(`/hrd/recruitment/candidates/${id}`, { method: "DELETE" });
+}
+
 
 
 
