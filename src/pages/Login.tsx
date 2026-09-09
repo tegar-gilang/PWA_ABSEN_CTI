@@ -15,11 +15,11 @@ export default function Login() {
   
   // State untuk penanda loading saat proses autentikasi berlangsung
   const [loading, setLoading] = useState(false);
-  // State untuk menyimpan nilai ID karyawan yang diketik
-  const [employeeId, setEmployeeId] = useState('');
+  // State untuk menyimpan nilai email yang diketik
+  const [email, setEmail] = useState('');
   // State untuk menyimpan nilai kata sandi yang diketik
   const [password, setPassword] = useState('');
-  // State untuk menampilkan pesan error dari backend (mis. ID/kata sandi salah)
+  // State untuk menampilkan pesan error dari backend (mis. Email/kata sandi salah)
   const [error, setError] = useState('');
   
   // State untuk toggle lihat sandi
@@ -27,11 +27,11 @@ export default function Login() {
 
   /**
    * Menangani pengiriman form login.
-   * Memanggil API login sungguhan ke backend, lalu mengalihkan ke halaman Home bila berhasil.
+   * Memanggil API login ke backend menggunakan Email dan Kata Sandi.
    */
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!employeeId || !password) return;
+    if (!email || !password) return;
     
     if (password.length < 6) {
       setError('Kata sandi minimal harus 6 karakter.');
@@ -41,7 +41,7 @@ export default function Login() {
     setLoading(true);
     setError('');
     try {
-      await login(employeeId, password);
+      await login(email, password);
       if (useAppStore.getState().user?.role === 'ADMIN') {
         return navigate('/hrd', { replace: true });
       }
@@ -72,22 +72,22 @@ export default function Login() {
 
         <form onSubmit={handleLogin} className="space-y-5">
           <div>
-            <label className="block text-sm font-bold text-slate-700 mb-1.5 uppercase tracking-wider">ID Karyawan</label>
+            <label className="block text-sm font-bold text-slate-700 mb-1.5 uppercase tracking-wider">Email</label>
             <input
               type="text"
-              value={employeeId}
+              value={email}
               onChange={(e) => {
-                setEmployeeId(e.target.value);
+                setEmail(e.target.value);
                 e.target.setCustomValidity('');
               }}
               onInvalid={(e) => {
                 const target = e.target as HTMLInputElement;
                 if (target.validity.valueMissing) {
-                  target.setCustomValidity('ID Karyawan wajib diisi.');
+                  target.setCustomValidity('Email wajib diisi.');
                 }
               }}
               className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none text-slate-900 placeholder-slate-400 bg-slate-50"
-              placeholder="contoh: EMP-0042"
+              placeholder="contoh: budi@cti.co.id"
               required
             />
           </div>
@@ -143,7 +143,7 @@ export default function Login() {
 
           <button
             type="submit"
-            disabled={loading || !employeeId || !password}
+            disabled={loading || !email || !password}
             className="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-2xl py-4 font-bold flex items-center justify-center gap-2 transition-all disabled:opacity-70 disabled:cursor-not-allowed mt-4 shadow-xl shadow-blue-100"
           >
             {loading ? (

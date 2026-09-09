@@ -48,10 +48,10 @@ const KehadiranHRD: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
 
   // filter dan pencarian
+  const todayStr = new Date().toISOString().split('T')[0];
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [selectedDate, setSelectedDate] = useState<string>(
-    new Date().toISOString().split('T')[0]
-  );
+  const [startDate, setStartDate] = useState<string>(todayStr);
+  const [endDate, setEndDate] = useState<string>(todayStr);
   const [selectedStatus, setSelectedStatus] = useState<string>('All Status');
 
   // Modal Foto
@@ -62,10 +62,10 @@ const KehadiranHRD: React.FC = () => {
   const itemsPerPage = 5;
 
   // ambil data dari be
-  const fetchAttendnce = async (dateFilter?: string) => {
+  const fetchAttendance = async (start?: string, end?: string) => {
     setLoading(true);
     try {
-      const res = await apiHrdGetAttendance(dateFilter);
+      const res = await apiHrdGetAttendance({ startDate: start, endDate: end });
       setRecords(res.records || []);
     } catch (err) {
       console.error("Gagal memuat rekap kehadiran:", err);
@@ -75,9 +75,9 @@ const KehadiranHRD: React.FC = () => {
   };
   
   useEffect(() => {
-    fetchAttendnce(selectedDate);
+    fetchAttendance(startDate, endDate);
     setCurrentPage(1);
-  }, [selectedDate]); 
+  }, [startDate, endDate]); 
 
   const filteredRecords = useMemo(() => {
     return records.filter((rec: any) => {
@@ -117,7 +117,7 @@ const KehadiranHRD: React.FC = () => {
       </div>
 
       {/* Filter Bar */}
-      <div className="bg-white p-4 md:p-5 rounded-xl border border-gray-200 shadow-sm mb-6 flex flex-col md:flex-row gap-4 md:items-end">
+      <div className="bg-white p-4 md:p-5 rounded-xl border border-gray-200 shadow-sm mb-6 flex flex-col lg:flex-row gap-4 lg:items-end">
         <div className="flex-1 w-full">
           <label className="block text-xs font-semibold text-gray-600 mb-1">Search Record</label>
           <div className="relative">
@@ -125,14 +125,53 @@ const KehadiranHRD: React.FC = () => {
             <input type="text" placeholder="Name, ID, or Dept..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
           </div>
         </div>
-        <div className="w-full md:w-48">
-          <label className="block text-xs font-semibold text-gray-600 mb-1">Date</label>
-          <div className="relative">
-            <Calendar className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
-            <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+
+        {/* Rentang Tanggal */}
+        <div className="w-full lg:w-auto flex flex-col sm:flex-row items-stretch sm:items-end gap-2">
+          <div className="w-full sm:w-44">
+            <div className="flex justify-between items-center mb-1">
+              <label className="block text-xs font-semibold text-gray-600">Dari Tanggal</label>
+              {(startDate !== todayStr || endDate !== todayStr) && (
+                <button
+                  type="button"
+                  onClick={() => { setStartDate(todayStr); setEndDate(todayStr); }}
+                  className="text-[11px] text-blue-600 hover:underline"
+                >
+                  Hari Ini
+                </button>
+              )}
+            </div>
+            <div className="relative">
+              <Calendar className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
+              <input 
+                type="date" 
+                value={startDate} 
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setStartDate(val);
+                  if (endDate && val > endDate) setEndDate(val);
+                }} 
+                className="w-full pl-9 pr-2 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white" 
+              />
+            </div>
+          </div>
+          <span className="hidden sm:inline-block text-gray-400 pb-2.5 font-bold">-</span>
+          <div className="w-full sm:w-44">
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Sampai Tanggal</label>
+            <div className="relative">
+              <Calendar className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
+              <input 
+                type="date" 
+                min={startDate || undefined}
+                value={endDate} 
+                onChange={(e) => setEndDate(e.target.value)} 
+                className="w-full pl-9 pr-2 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white" 
+              />
+            </div>
           </div>
         </div>
-        <div className="w-full md:w-48">
+
+        <div className="w-full lg:w-40">
           <label className="block text-xs font-semibold text-gray-600 mb-1">Status</label>
           <select value={selectedStatus} onChange={(e) => setSelectedStatus(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white">
             <option value="All Status">All Status</option>
@@ -145,10 +184,11 @@ const KehadiranHRD: React.FC = () => {
       {/* Tabel Data Kehadiran */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden w-full">
         <div className="overflow-x-auto w-full">
-          <table className="w-full text-left border-collapse min-w-[700px]">
+          <table className="w-full text-left border-collapse min-w-[800px]">
             <thead>
               <tr className="bg-gray-50 text-gray-600 text-xs uppercase tracking-wider border-b border-gray-200">
                 <th className="px-6 py-4 font-semibold">Employee</th>
+                <th className="px-6 py-4 font-semibold">Date</th>
                 <th className="px-6 py-4 font-semibold">Status</th>
                 <th className="px-6 py-4 font-semibold">Check-In</th>
                 <th className="px-6 py-4 font-semibold">Check-Out</th>
@@ -159,7 +199,7 @@ const KehadiranHRD: React.FC = () => {
             <tbody className="divide-y divide-gray-200 text-sm text-gray-700">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-gray-400 font-medium animate-pulse">
+                  <td colSpan={7} className="px-6 py-12 text-center text-gray-400 font-medium animate-pulse">
                     Memuat data kehadiran...
                   </td>
                 </tr>
@@ -199,6 +239,9 @@ const KehadiranHRD: React.FC = () => {
                             {rec.employeeId || `EMP-${rec.user_id || rec.id || '000'}`} • {rec.department || 'Staff'}
                           </p>
                         </div>
+                      </td>
+                      <td className="px-6 py-4 text-gray-800 font-medium whitespace-nowrap">
+                        {rec.date || '-'}
                       </td>
                       <td className="px-6 py-4">
                         <span className={`${statusClass} px-3 py-1 rounded-md text-xs font-medium inline-block`}>
@@ -244,7 +287,7 @@ const KehadiranHRD: React.FC = () => {
                 })
               ) : (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-gray-500 font-medium">
+                  <td colSpan={7} className="px-6 py-12 text-center text-gray-500 font-medium">
                     Tidak ada data kehadiran yang sesuai dengan filter Anda.
                   </td>
                 </tr>
