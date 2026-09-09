@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS hospitals (
 ) ENGINE=InnoDB;
 
 -- ---------------------------------------------------------
--- Tabel: offices (Opsional untuk Radius Pusat)
+-- Tabel: offices (Opsional untuk Radius Pusat / Kantor)
 -- ---------------------------------------------------------
 CREATE TABLE IF NOT EXISTS offices (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -42,7 +42,6 @@ CREATE TABLE IF NOT EXISTS offices (
   radius_meters INT NOT NULL DEFAULT 150,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
-
 
 -- =========================================================
 -- 2. TABEL USERS (KARYAWAN & ADMIN)
@@ -68,6 +67,7 @@ CREATE TABLE IF NOT EXISTS users (
   photo_url LONGTEXT DEFAULT NULL,
   tanda_tangan_digital LONGTEXT DEFAULT NULL,
   emergency_contact VARCHAR(100) DEFAULT NULL,
+  assigned_office_id INT DEFAULT NULL,
   
   role ENUM('EMPLOYEE','ADMIN') NOT NULL DEFAULT 'EMPLOYEE',
   status_karyawan ENUM('ACTIVE', 'INACTIVE') NOT NULL DEFAULT 'ACTIVE',
@@ -77,7 +77,8 @@ CREATE TABLE IF NOT EXISTS users (
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   
   CONSTRAINT fk_user_dept FOREIGN KEY (id_department) REFERENCES master_departments(id) ON DELETE SET NULL,
-  CONSTRAINT fk_user_pos FOREIGN KEY (id_position) REFERENCES master_positions(id) ON DELETE SET NULL
+  CONSTRAINT fk_user_pos FOREIGN KEY (id_position) REFERENCES master_positions(id) ON DELETE SET NULL,
+  CONSTRAINT fk_user_office FOREIGN KEY (assigned_office_id) REFERENCES offices(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
 
@@ -153,7 +154,6 @@ CREATE TABLE IF NOT EXISTS notifications (
   CONSTRAINT fk_notifications_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
-
 -- =========================================================
 -- 6. TABEL KPI
 -- =========================================================
@@ -170,6 +170,23 @@ CREATE TABLE IF NOT EXISTS kpi_records (
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   
   CONSTRAINT fk_kpi_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- Table KPI Evaluations (Berdasarkan Evaluasi Bulanan & Skoring Excel)
+CREATE TABLE IF NOT EXISTS kpi_evaluations (
+  id VARCHAR(36) NOT NULL PRIMARY KEY,
+  user_id VARCHAR(36) NOT NULL,
+  month_year VARCHAR(7) NOT NULL, -- Format periode, contoh: '2026-08'
+  terlambat_laporan INT NOT NULL DEFAULT 0,
+  laporan_tidak_sesuai INT NOT NULL DEFAULT 0,
+  komplain INT NOT NULL DEFAULT 0,
+  target_persen INT NOT NULL DEFAULT 0,
+  pelanggaran_sop BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  
+  CONSTRAINT fk_kpi_eval_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  UNIQUE KEY uniq_kpi_eval (user_id, month_year)
 ) ENGINE=InnoDB;
 
 
@@ -204,4 +221,5 @@ CREATE INDEX idx_attendance_user_date ON attendance_records(user_id, date);
 CREATE INDEX idx_requests_user ON requests(user_id);
 CREATE INDEX idx_notifications_user ON notifications(user_id);
 CREATE INDEX idx_kpi_user ON kpi_records(user_id);
+CREATE INDEX idx_kpi_eval_user ON kpi_evaluations(user_id);
 CREATE INDEX idx_candidates_job ON candidates(job_opening_id);

@@ -1,10 +1,10 @@
-import { useState, useRef, useEffect, ChangeEvent } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store';
 import { ApiError } from '../lib/api';
 import { classifyAccuracy, accuracyQualityLabel, accuracyQualityColorClasses } from '../lib/geo';
 import MiniMap from '../components/MiniMap';
-import { MapPin, AlertCircle, Loader2, CheckCircle2, Camera, RefreshCw, X, Upload, Navigation } from 'lucide-react';
+import { MapPin, AlertCircle, Loader2, CheckCircle2, Camera, RefreshCw, X, Navigation } from 'lucide-react';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { motion } from 'motion/react';
@@ -30,6 +30,9 @@ export default function Attendance() {
   const [location, setLocation] = useState<{lat: number, lng: number, accuracy: number | null} | null>(null);
   const [error, setError] = useState<string>('');
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  
+  // Ref untuk mengumpulkan semua sampel lokasi (Jitter Analysis)
+  const locationHistoryRef = useRef<{lat: number, lng: number}[]>([]);
   
   // Refs untuk menyimpan referensi aliran media (kamera) dan input file (unggah foto)
   const [stream, setStream] = useState<MediaStream | null>(null);
@@ -73,18 +76,7 @@ export default function Attendance() {
     };
   }, [stream]);
 
-  // Menangani pengunggahan foto alternatif dari penyimpanan internal perangkat jika kamera tidak digunakan
-  const handleFileUpload = (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPhotoUrl(reader.result as string);
-        setStep('PREVIEW'); // Pindah ke tahapan pratinjau (preview) foto
-      };
-      reader.readAsDataURL(file);
-    }
-  };
+
 
   // Memulai inisialisasi kamera untuk pengambilan foto secara langsung (live)
   const startCamera = async () => {
@@ -146,9 +138,10 @@ export default function Attendance() {
   // Menggunakan watchPosition (bukan hanya getCurrentPosition sekali) agar akurasi GPS terus
   // membaik selama beberapa detik sebelum digunakan - perangkat mobile umumnya butuh waktu
   // untuk beralih dari sinyal jaringan/wifi kasar ke sinyal satelit GPS yang lebih presisi.
-  const startProcess = () => {
+  const startProcess = async () => {
     setError('');
     setStep('LOCATING');
+    locationHistoryRef.current = []; // Reset history
 
     if (!('geolocation' in navigator)) {
       const errorMsg = 'Gagal Absen! Browser Anda tidak mendukung fitur lokasi.';
@@ -179,17 +172,18 @@ export default function Attendance() {
     const onPosition = (position: GeolocationPosition) => {
       const { latitude, longitude, accuracy } = position.coords;
 
+      // Simpan semua sampel ke dalam history untuk analisa Jitter (Anti-Fake GPS) di server
+      locationHistoryRef.current.push({ lat: latitude, lng: longitude });
+
       // Hanya perbarui state jika pembacaan ini lebih akurat (angka accuracy lebih kecil = lebih presisi)
       if (accuracy <= bestAccuracySoFar) {
         bestAccuracySoFar = accuracy;
         setLocation({ lat: latitude, lng: longitude, accuracy });
       }
 
-      // Jika sudah cukup akurat, tidak perlu menunggu lebih lama lagi
-      if (accuracy <= TARGET_ACCURACY_METERS) {
-        stopWatching();
-        setStep((prev) => (prev === 'LOCATING' ? 'LOCATION_FOUND' : prev));
-      }
+      // Jangan berhenti terlalu cepat meskipun akurasi sudah bagus, 
+      // kita perlu mengumpulkan beberapa sampel (minimal 2-3 detik) untuk mendeteksi Jitter Fake GPS.
+      // Jadi kita tidak memanggil stopWatching() secara otomatis di sini lagi.
     };
 
     const onError = (err: GeolocationPositionError) => {
@@ -203,8 +197,10 @@ export default function Attendance() {
 
     watchIdRef.current = navigator.geolocation.watchPosition(onPosition, onError, geoOptions);
 
-    // Jika setelah beberapa detik akurasi belum mencapai target, tetap lanjutkan
-    // dengan bacaan terbaik yang berhasil didapat (lebih baik daripada menunggu tanpa batas).
+    // Setel durasi perekaman (sampling) selama 4 detik.
+    // Selama 4 detik, watchPosition akan mengumpulkan sampel koordinat.
+    const SAMPLING_DURATION_MS = 4000;
+    
     fallbackTimerRef.current = window.setTimeout(() => {
       stopWatching();
       setStep((prev) => {
@@ -217,7 +213,7 @@ export default function Attendance() {
         }
         return 'LOCATION_FOUND';
       });
-    }, MAX_WATCH_DURATION_MS);
+    }, SAMPLING_DURATION_MS);
   };
 
   // Mengirimkan catatan kehadiran akhir (check-in atau check-out) menuju backend.
@@ -237,6 +233,7 @@ export default function Attendance() {
         lng: location.lng,
         accuracy: location.accuracy ?? 9999,
         photoUrl: photoUrl || null,
+        history: locationHistoryRef.current,
       };
 
       if (isCheckedIn) {
@@ -411,7 +408,7 @@ export default function Attendance() {
   }
 
   // Antarmuka UI untuk tahap pratinjau (preview) foto sebelum dikonfirmasi pengirimannya
-  if (step === 'PREVIEW' && photoUrl) {
+  if ((step === 'PREVIEW' || step === 'SUBMITTING') && photoUrl) {
     return (
       <div className="flex-1 bg-black flex flex-col p-6 pt-6 text-white pb-safe">
         <h1 className="text-2xl font-bold mb-6">Konfirmasi Foto</h1>
@@ -536,26 +533,12 @@ export default function Attendance() {
       {/* Tombol Aksi (Bawah) */}
       {step === 'LOCATION_FOUND' ? (
         <div className="flex gap-3">
-          <input 
-            type="file" 
-            accept="image/*" 
-            ref={fileInputRef} 
-            onChange={handleFileUpload} 
-            className="hidden" 
-          />
           <button
             onClick={startCamera}
-            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl py-5 font-bold text-lg shadow-xl shadow-blue-100 flex items-center justify-center gap-3 transition-all active:scale-[0.98] disabled:opacity-70 disabled:shadow-none"
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-2xl py-5 font-bold text-lg shadow-xl shadow-blue-100 flex items-center justify-center gap-3 transition-all active:scale-[0.98] disabled:opacity-70 disabled:shadow-none"
           >
             <Camera className="w-6 h-6" />
             Kamera
-          </button>
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="flex-[0.6] bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-2xl py-5 font-bold text-lg flex items-center justify-center gap-3 transition-all active:scale-[0.98]"
-          >
-            <Upload className="w-6 h-6" />
-            Unggah
           </button>
         </div>
       ) : (

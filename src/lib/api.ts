@@ -1,6 +1,6 @@
 import { AttendanceRecord, Notification, OfficeLocation, RequestRecord, User } from "../types";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
+const API_BASE_URL = import.meta.env.VITE_API_URL || "/api";
 
 const TOKEN_KEY = "employee-pwa-token";
 
@@ -84,7 +84,7 @@ export async function apiGetAttendanceHistory(): Promise<{ records: AttendanceRe
   return request("/attendance/history");
 }
 
-export type GeoPayload = { lat: number; lng: number; accuracy: number; photoUrl?: string | null };
+export type GeoPayload = { lat: number; lng: number; accuracy: number; photoUrl?: string | null; history?: { lat: number; lng: number }[] };
 
 export async function apiCheckIn(payload: GeoPayload): Promise<{ record: AttendanceRecord }> {
   return request("/attendance/checkin", { method: "POST", body: JSON.stringify(payload) });
@@ -141,6 +141,14 @@ export async function apiHrdGetEmployees(): Promise<{employees: User[]}> {
   return request("/hrd/employees");
 }
 
+export async function apiHrdUpdateEmployee(id: string, payload: any): Promise<{message: string}> {
+  return request(`/hrd/employees/${id}`, { method: "PUT", body: JSON.stringify(payload) });
+}
+
+export async function apiHrdDeleteEmployee(id: string): Promise<{message: string}> {
+  return request(`/hrd/employees/${id}`, { method: "DELETE" });
+}
+
 // ---------------------------------------------------------------------------
 // Mengambil seluruh rekap absensi karyawan
 // ---------------------------------------------------------------------------
@@ -184,4 +192,99 @@ export async function apiHrdGetDashboardOverview(): Promise<{
 }> {
   return request("/hrd/dashboard/overview");
 }
+
+export async function apiHrdGetKpi(month?: string): Promise<{ kpi: any[] }> {
+  const query = month ? `?month=${month}` : '';
+  return request(`/hrd/kpi${query}`);
+}
+
+export async function apiHrdUpdateKpi(payload: any): Promise<{ message: string }> {
+  return request("/hrd/kpi", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export async function apiHrdGetRecruitmentOverview(): Promise<{ recruitment: any[] }> {
+  return request("/hrd/recruitment/overview");
+}
+
+export async function apiHrdCreateJobOpening(payload: { title: string; role: string }): Promise<{ message: string; jobId: string }> {
+  return request("/hrd/recruitment/jobs", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export async function apiHrdUpdateJobOpening(id: string, payload: { title: string; role: string; status: string }): Promise<{ message: string }> {
+  return request(`/hrd/recruitment/jobs/${id}`, { method: "PUT", body: JSON.stringify(payload) });
+}
+
+export async function apiHrdDeleteJobOpening(id: string): Promise<{ message: string }> {
+  return request(`/hrd/recruitment/jobs/${id}`, { method: "DELETE" });
+}
+
+// ---------------------------------------------------------------------------
+// Mengambil data ringkasan absensi seluruh karyawan (Izin, Cuti, Telat)
+// ---------------------------------------------------------------------------
+export async function apiHrdGetAttendanceSummary(params?: { date?: string; search?: string }): Promise<{
+  summary: Array<{
+    id: string;
+    employeeId: string;
+    name: string;
+    department: string;
+    email?: string;
+    phone?: string;
+    position?: string;
+    izin: number | null;
+    cuti: number | null;
+    telat: number | null;
+    hadir: number;
+    periode: string;
+    periodeSubtext?: string | null;
+    hasData: boolean;
+  }>;
+}> {
+  const searchParams = new URLSearchParams();
+  if (params?.date) searchParams.append("date", params.date);
+  if (params?.search) searchParams.append("search", params.search);
+  const qs = searchParams.toString();
+  return request(`/hrd/attendance-summary${qs ? `?${qs}` : ""}`);
+}
+
+// ---------------------------------------------------------------------------
+// Mengambil rincian detail laporan absensi 1 orang karyawan (untuk ekspor spreadsheet)
+// ---------------------------------------------------------------------------
+export async function apiHrdGetEmployeeReport(userId: string, params?: { date?: string }): Promise<{
+  employee: {
+    id: string;
+    name: string;
+    employeeId: string;
+    department: string;
+    position?: string;
+    email?: string;
+    phone?: string;
+  };
+  summary: {
+    totalIzin: number;
+    totalCuti: number;
+    totalTelat: number;
+    totalHadir: number;
+    totalHariAktif?: number;
+  };
+  periode: string;
+  details: Array<{
+    date: string;
+    dayName: string;
+    category: 'TERLAMBAT' | 'IZIN' | 'CUTI' | 'HADIR' | string;
+    categoryLabel: string;
+    checkInTime?: string;
+    checkOutTime?: string;
+    workingHours?: number | null;
+    keterangan?: string;
+    status?: string;
+  }>;
+  incidentDetails: any[];
+}> {
+  const searchParams = new URLSearchParams();
+  if (params?.date) searchParams.append("date", params.date);
+  const qs = searchParams.toString();
+  return request(`/hrd/employee-report/${userId}${qs ? `?${qs}` : ""}`);
+}
+
+
 

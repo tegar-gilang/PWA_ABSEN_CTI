@@ -170,6 +170,12 @@ export default function Request() {
                       </div>
                     </div>
                     <p className="text-sm text-slate-600 bg-slate-50 p-4 rounded-2xl border border-slate-100 font-medium leading-relaxed">{req.reason}</p>
+                    {req.status === 'REJECTED' && req.rejectionReason && (
+                      <div className="mt-3 p-4 bg-red-50 rounded-2xl border border-red-100">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-red-600 mb-1">Alasan Penolakan:</p>
+                        <p className="text-sm text-red-700 font-medium">{req.rejectionReason}</p>
+                      </div>
+                    )}
                     <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mt-4 flex items-center gap-1.5">
                       <Clock className="w-3 h-3" /> Dikirim {format(new Date(req.createdAt), 'dd MMM, HH:mm', { locale: id })}
                     </p>

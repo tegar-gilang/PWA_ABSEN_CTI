@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAppStore } from '../store';
 import { ApiError } from '../lib/api';
-import { Briefcase, ArrowRight, Loader2, UserPlus, ArrowLeft } from 'lucide-react';
+import { Briefcase, ArrowRight, Loader2, UserPlus, ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import { motion } from 'motion/react';
 
 /**
@@ -22,6 +22,9 @@ export default function Signup() {
   const [password, setPassword] = useState('');
   // State untuk menampilkan pesan error dari backend (mis. ID Karyawan sudah terdaftar)
   const [error, setError] = useState('');
+  
+  // State untuk toggle lihat sandi
+  const [showPassword, setShowPassword] = useState(false);
 
   /**
    * Menangani pengiriman form pendaftaran.
@@ -30,6 +33,19 @@ export default function Signup() {
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !employeeId || !password || !department) return;
+    
+    if (password.length < 6) {
+      setError('Kata sandi minimal harus 6 karakter.');
+      return;
+    }
+    
+    const hasLetter = /[a-zA-Z]/.test(password);
+    const hasNumber = /[0-9]/.test(password);
+    
+    if (!hasLetter || !hasNumber) {
+      setError('Kata sandi harus mengandung kombinasi huruf dan angka.');
+      return;
+    }
     
     setLoading(true);
     setError('');
@@ -72,7 +88,16 @@ export default function Signup() {
             <input
               type="text"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value);
+                e.target.setCustomValidity('');
+              }}
+              onInvalid={(e) => {
+                const target = e.target as HTMLInputElement;
+                if (target.validity.valueMissing) {
+                  target.setCustomValidity('Nama Lengkap wajib diisi.');
+                }
+              }}
               className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none text-slate-900 placeholder-slate-400 bg-slate-50"
               placeholder="contoh: Budi Santoso"
               required
@@ -84,7 +109,16 @@ export default function Signup() {
             <input
               type="text"
               value={employeeId}
-              onChange={(e) => setEmployeeId(e.target.value)}
+              onChange={(e) => {
+                setEmployeeId(e.target.value);
+                e.target.setCustomValidity('');
+              }}
+              onInvalid={(e) => {
+                const target = e.target as HTMLInputElement;
+                if (target.validity.valueMissing) {
+                  target.setCustomValidity('ID Karyawan wajib diisi.');
+                }
+              }}
               className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none text-slate-900 placeholder-slate-400 bg-slate-50"
               placeholder="contoh: EMP-0042"
               required
@@ -96,7 +130,16 @@ export default function Signup() {
             <input
               type="text"
               value={department}
-              onChange={(e) => setDepartment(e.target.value)}
+              onChange={(e) => {
+                setDepartment(e.target.value);
+                e.target.setCustomValidity('');
+              }}
+              onInvalid={(e) => {
+                const target = e.target as HTMLInputElement;
+                if (target.validity.valueMissing) {
+                  target.setCustomValidity('Divisi wajib diisi.');
+                }
+              }}
               className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none text-slate-900 placeholder-slate-400 bg-slate-50"
               placeholder="contoh: Teknisi"
               required
@@ -105,14 +148,35 @@ export default function Signup() {
 
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
             <label className="block text-sm font-bold text-slate-700 mb-1.5 uppercase tracking-wider">Kata Sandi</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none text-slate-900 placeholder-slate-400 bg-slate-50"
-              placeholder="••••••••"
-              required
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  e.target.setCustomValidity('');
+                }}
+                onInvalid={(e) => {
+                  const target = e.target as HTMLInputElement;
+                  if (target.validity.valueMissing) {
+                    target.setCustomValidity('Kata sandi wajib diisi.');
+                  } else if (target.validity.tooShort) {
+                    target.setCustomValidity('Kata sandi minimal harus 6 karakter.');
+                  }
+                }}
+                className="w-full pl-4 pr-12 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none text-slate-900 placeholder-slate-400 bg-slate-50"
+                placeholder="••••••••"
+                required
+                minLength={6}
+              />
+              <button 
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
+            </div>
           </motion.div>
 
           {error && (

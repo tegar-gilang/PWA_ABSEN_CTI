@@ -66,6 +66,7 @@ export type RequestRecord = {
   date: string;
   status: RequestStatus;
   attachmentUrl?: string;
+  rejectionReason?: string;
   createdAt: string;
 };
 

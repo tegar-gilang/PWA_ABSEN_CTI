@@ -12,18 +12,18 @@ import {
 
 const RekrutmenHRD: React.FC = () => {
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8 relative w-full">
       {/* Header */}
-      <div className="flex justify-between items-start mb-8">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 mb-8">
         <div>
           <h2 className="text-3xl font-bold text-gray-800 tracking-tight">Rekrutmen</h2>
           <p className="text-gray-500 mt-2 text-sm">Kelola lowongan pekerjaan dan kandidat.</p>
         </div>
-        <div className="flex space-x-3">
-          <button className="border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center shadow-sm">
+        <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3 w-full sm:w-auto">
+          <button className="border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center shadow-sm w-full sm:w-auto justify-center">
             <Download className="w-4 h-4 mr-2" /> Export to Excel
           </button>
-          <button className="bg-black hover:bg-gray-800 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center shadow-sm">
+          <button className="bg-black hover:bg-gray-800 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center shadow-sm w-full sm:w-auto justify-center">
             <Plus className="w-4 h-4 mr-2" /> Add New Job Opening
           </button>
         </div>
