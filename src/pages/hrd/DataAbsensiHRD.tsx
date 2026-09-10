@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { apiHrdGetAttendanceSummary, apiHrdGetEmployeeReport } from '../../lib/api';
-import { exportSingleEmployeeReport, exportAllEmployeesSummary, EmployeeInfo, AttendanceSummaryCounts, AttendanceDetailItem } from '../../lib/excelExport';
 import {
   Download,
   Search,
@@ -38,8 +37,6 @@ const DataAbsensiHRD: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [startDate, setStartDate] = useState<string>(todayStr);
   const [endDate, setEndDate] = useState<string>(todayStr);
-  const [exportingId, setExportingId] = useState<string | null>(null);
-  const [exportingAll, setExportingAll] = useState<boolean>(false);
   const [successToast, setSuccessToast] = useState<string | null>(null);
 
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -91,85 +88,6 @@ const DataAbsensiHRD: React.FC = () => {
     }, 4000);
   };
 
-  // Ekspor Laporan Khusus 1 Karyawan (Single-Employee Export dari Backend)
-  const handleExportIndividual = async (emp: EmployeeSummaryItem) => {
-    if (!emp.hasData) return;
-    setExportingId(emp.id);
-
-    try {
-      // Ambil detail laporan karyawan langsung dari endpoint backend
-      const res = await apiHrdGetEmployeeReport(emp.id, {
-        startDate: startDate || undefined,
-        endDate: endDate || undefined
-      });
-
-      const employeeInfo: EmployeeInfo = res.employee || {
-        id: emp.id,
-        name: emp.name,
-        employeeId: emp.employeeId,
-        department: emp.department,
-        position: emp.position || 'Staff',
-        email: emp.email,
-        phone: emp.phone
-      };
-
-      const summaryCounts: AttendanceSummaryCounts = res.summary || {
-        totalIzin: emp.izin ?? 0,
-        totalCuti: emp.cuti ?? 0,
-        totalTelat: emp.telat ?? 0,
-        totalHadir: emp.hadir ?? 0,
-        totalHariAktif: (emp.hadir ?? 0) + (emp.telat ?? 0) + (emp.izin ?? 0) + (emp.cuti ?? 0)
-      };
-
-      const details: AttendanceDetailItem[] = res.details || [];
-
-      const periodeLabel = emp.periode && emp.periode !== '-' 
-        ? emp.periode 
-        : (startDate && endDate 
-            ? (startDate === endDate ? `Tanggal ${startDate}` : `${startDate} s/d ${endDate}`)
-            : '08/07/2026 - Sekarang');
-
-      exportSingleEmployeeReport(employeeInfo, summaryCounts, details, periodeLabel);
-      showToast(`Laporan absensi ${emp.name} berhasil diekspor ke Spreadsheet!`);
-    } catch (err: any) {
-      console.error("Gagal mengekspor laporan karyawan:", err);
-      alert(`Gagal mengekspor laporan: ${err?.message || 'Server error'}`);
-    } finally {
-      setExportingId(null);
-    }
-  };
-
-  // Ekspor Rekap Seluruh Karyawan (Tombol Export to Excel di Kanan Atas)
-  const handleExportAll = () => {
-    if (records.length === 0) return;
-    setExportingAll(true);
-    try {
-      const periodeLabel = startDate && endDate 
-        ? (startDate === endDate ? `Filter Tanggal ${startDate}` : `Rentang Tanggal ${startDate} s/d ${endDate}`)
-        : '08/07/2026 - Sekarang';
-      exportAllEmployeesSummary(
-        records.map(r => ({
-          id: r.id,
-          name: r.name,
-          employeeId: r.employeeId,
-          department: r.department,
-          izin: r.izin,
-          cuti: r.cuti,
-          telat: r.telat,
-          hadir: r.hadir,
-          periode: r.periode
-        })),
-        periodeLabel
-      );
-      showToast('Rekap absensi seluruh karyawan berhasil diekspor ke Excel!');
-    } catch (err) {
-      console.error("Gagal export semua:", err);
-      alert("Gagal mengunduh rekap Excel.");
-    } finally {
-      setExportingAll(false);
-    }
-  };
-
   return (
     <div className="p-4 md:p-8 relative w-full font-sans">
       
@@ -181,24 +99,12 @@ const DataAbsensiHRD: React.FC = () => {
         </div>
       )}
 
-      {/* HEADER: Judul Halaman & Tombol Export to Excel */}
+      {/* HEADER: Judul Halaman */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <div>
           <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Data Absensi</h2>
           <p className="text-gray-500 mt-0.5 text-sm">Seluruh Data Absensi Karyawan PT CTI</p>
         </div>
-        <button
-          onClick={handleExportAll}
-          disabled={exportingAll || records.length === 0}
-          className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors flex items-center shadow-sm w-full sm:w-auto justify-center cursor-pointer"
-        >
-          {exportingAll ? (
-            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-          ) : (
-            <Download className="w-4 h-4 mr-2" />
-          )}
-          Export to Excel
-        </button>
       </div>
 
       {/* FILTER BAR: Pencarian Nama & Pilihan Rentang Tanggal */}
@@ -316,13 +222,12 @@ const DataAbsensiHRD: React.FC = () => {
                 <th className="px-6 py-3.5 font-semibold">CUTI</th>
                 <th className="px-6 py-3.5 font-semibold">TELAT</th>
                 <th className="px-6 py-3.5 font-semibold">PERIODE</th>
-                <th className="px-6 py-3.5 font-semibold text-right">ACTIONS</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 text-sm text-gray-700">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-gray-400 font-medium">
+                  <td colSpan={6} className="px-6 py-12 text-center text-gray-400 font-medium">
                     <div className="flex items-center justify-center space-x-2">
                       <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
                       <span>Mengambil data karyawan dari server...</span>
@@ -341,8 +246,6 @@ const DataAbsensiHRD: React.FC = () => {
                         .join('')
                         .toUpperCase()
                     : 'US';
-
-                  const isExportingThis = exportingId === rec.id;
 
                   return (
                     <tr key={rec.id} className="hover:bg-gray-50/80 transition-colors">
@@ -391,40 +294,12 @@ const DataAbsensiHRD: React.FC = () => {
                           <span className="text-gray-400">-</span>
                         )}
                       </td>
-
-                      {/* Actions */}
-                      <td className="px-6 py-4 text-right">
-                        {rec.hasData ? (
-                          <button
-                            onClick={() => handleExportIndividual(rec)}
-                            disabled={isExportingThis}
-                            className="border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded-md text-xs font-medium shadow-sm transition-colors inline-flex items-center cursor-pointer"
-                          >
-                            {isExportingThis ? (
-                              <>
-                                <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin text-blue-600" />
-                                Mengunduh...
-                              </>
-                            ) : (
-                              'Export Laporan'
-                            )}
-                          </button>
-                        ) : (
-                          <button
-                            disabled
-                            className="border border-gray-200 bg-gray-50 text-gray-400 px-3 py-1.5 rounded-md text-xs font-medium cursor-not-allowed inline-flex items-center"
-                          >
-                            <EyeOff className="w-3.5 h-3.5 mr-1.5 text-gray-400" />
-                            N/A
-                          </button>
-                        )}
-                      </td>
                     </tr>
                   );
                 })
               ) : (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-gray-500 font-medium">
+                  <td colSpan={6} className="px-6 py-12 text-center text-gray-500 font-medium">
                     Tidak ada data karyawan yang ditemukan dari backend.
                   </td>
                 </tr>

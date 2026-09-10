@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { apiHrdGetEmployees, apiHrdUpdateEmployee, apiHrdDeleteEmployee, apiGetDepartments, apiGetPositions, apiHrdGetHospitals } from '@/src/lib/api';
 import { MasterDepartment, MasterPosition, HospitalLocation } from '@/src/types';
-import { exportEmployeesList } from '../../lib/excelExport';
 import { 
   Download, 
   Search, 
@@ -165,15 +164,6 @@ const KaryawanHRD: React.FC = () => {
           <h2 className="text-3xl font-bold text-gray-800 tracking-tight">Manajemen Karyawan</h2>
           <p className="text-gray-500 mt-2 text-sm">Kelola data Karyawan</p>
         </div>
-        <button 
-          onClick={() => {
-            if (employees.length === 0) return alert('Tidak ada data karyawan untuk diekspor.');
-            exportEmployeesList(employees);
-          }} 
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors flex items-center shadow-sm w-full sm:w-auto justify-center cursor-pointer"
-        >
-          <Download className="w-4 h-4 mr-2" /> Export to Excel
-        </button>
       </div>
       
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
