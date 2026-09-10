@@ -114,7 +114,7 @@
 // };
 
 // export default LayoutHRD;
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAppStore } from '../../store';
 import { useNavigate } from 'react-router-dom';
@@ -131,7 +131,9 @@ import {
   Menu,
   X,
   FileSpreadsheet,
-  Hospital
+  Hospital,
+  ChevronDown,
+  UserCheck
 } from 'lucide-react';
 
 const LayoutHRD: React.FC = () => {
@@ -139,6 +141,15 @@ const LayoutHRD: React.FC = () => {
   const location = useLocation();
   const logout = useAppStore(state => state.logout);
   const navigate = useNavigate();
+
+  const isKaryawanRoute = location.pathname.startsWith('/hrd/karyawan') || location.pathname.startsWith('/hrd/data-absensi');
+  const [isKaryawanOpen, setIsKaryawanOpen] = useState(isKaryawanRoute);
+
+  useEffect(() => {
+    if (isKaryawanRoute) {
+      setIsKaryawanOpen(true);
+    }
+  }, [location.pathname]);
 
   const handleLogout = async () => {
     await logout();
@@ -203,20 +214,53 @@ const LayoutHRD: React.FC = () => {
             >
               <CalendarCheck className="w-5 h-5 mr-3" /> Kehadiran
             </Link>
-            <Link 
-              to="/hrd/karyawan" 
-              onClick={() => setIsSidebarOpen(false)}
-              className={`flex items-center px-4 py-3 rounded-lg transition-colors ${isActive('/hrd/karyawan') ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'}`}
-            >
-              <Users className="w-5 h-5 mr-3" /> Karyawan
-            </Link>
-            <Link 
-              to="/hrd/data-absensi" 
-              onClick={() => setIsSidebarOpen(false)}
-              className={`flex items-center px-4 py-3 rounded-lg transition-colors ${isActive('/hrd/data-absensi') ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'}`}
-            >
-              <FileSpreadsheet className="w-5 h-5 mr-3" /> Data Absensi Karyawan
-            </Link>
+            {/* Dropdown Menu Karyawan */}
+            <div className="space-y-1">
+              <button 
+                type="button"
+                onClick={() => setIsKaryawanOpen(!isKaryawanOpen)}
+                className={`w-full flex items-center justify-between px-4 py-3 rounded-lg transition-colors cursor-pointer ${
+                  isKaryawanRoute
+                    ? 'bg-blue-50 text-blue-700 font-semibold' 
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                <div className="flex items-center">
+                  <Users className={`w-5 h-5 mr-3 ${isKaryawanRoute ? 'text-blue-600' : 'text-gray-500'}`} />
+                  <span>Karyawan</span>
+                </div>
+                <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${
+                  isKaryawanOpen ? 'rotate-180 text-blue-600' : 'text-gray-400'
+                }`} />
+              </button>
+
+              {isKaryawanOpen && (
+                <div className="ml-4 pl-3 border-l-2 border-slate-200 space-y-1 py-1">
+                  <Link 
+                    to="/hrd/karyawan" 
+                    onClick={() => setIsSidebarOpen(false)}
+                    className={`flex items-center px-3 py-2 rounded-lg text-sm transition-colors ${
+                      isActive('/hrd/karyawan') 
+                        ? 'bg-blue-600 text-white font-medium shadow-sm' 
+                        : 'text-gray-600 hover:bg-gray-100'
+                    }`}
+                  >
+                    <UserCheck className="w-4 h-4 mr-2.5" /> Data Karyawan
+                  </Link>
+                  <Link 
+                    to="/hrd/data-absensi" 
+                    onClick={() => setIsSidebarOpen(false)}
+                    className={`flex items-center px-3 py-2 rounded-lg text-sm transition-colors ${
+                      isActive('/hrd/data-absensi') 
+                        ? 'bg-blue-600 text-white font-medium shadow-sm' 
+                        : 'text-gray-600 hover:bg-gray-100'
+                    }`}
+                  >
+                    <FileSpreadsheet className="w-4 h-4 mr-2.5" /> Data Absensi
+                  </Link>
+                </div>
+              )}
+            </div>
             <Link 
               to="/hrd/data-rumah-sakit" 
               onClick={() => setIsSidebarOpen(false)}
