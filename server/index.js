@@ -2,7 +2,6 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import { testConnection } from "./db.js";
-import { runAutoMigration } from "./autoMigrate.js";
 
 import { requireAuth } from "./middleware/auth.js";
 
@@ -59,7 +58,6 @@ const PORT = process.env.PORT || 4000;
 async function start() {
   try {
     await testConnection();
-    await runAutoMigration();
   } catch (err) {
     console.error("❌ Gagal terhubung ke database MySQL:", err.message);
     console.error("   Pastikan MySQL berjalan dan konfigurasi di file .env sudah benar.");
