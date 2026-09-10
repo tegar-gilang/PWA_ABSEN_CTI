@@ -337,7 +337,7 @@ router.get("/employees", async (req, res) => {
     try {
         const { name, department } = req.query;
         let query = `
-            SELECT u.name, u.nik, u.email, u.phone, u.address, u.status_karyawan, u.photo_url as profile_photo_url,
+            SELECT u.id, u.name, u.nik, u.email, u.phone, u.address, u.status_karyawan, u.photo_url as profile_photo_url,
                 d.name as department_name, p.name as position_name, 
                 u.jam_masuk, u.jam_keluar
             FROM users u
@@ -392,9 +392,9 @@ router.delete("/employees/:id", async (req, res) => {
 router.put("/employees/:id", async (req,res) => {
     try {
         const targetUserId = req.params.id;
-        const { jam_masuk, jam_keluar, id_department, id_position} = req.body;
+        const { nik, name, phone, email, address, jam_masuk, jam_keluar, id_department, id_position} = req.body;
 
-        const [result] = await pool.query("UPDATE users SET jam_masuk = COALESCE(?, jam_masuk), jam_keluar = COALESCE(?, jam_keluar), id_department = COALESCE(?, id_department), id_position = COALESCE(?, id_position) WHERE id = ?", [jam_masuk, jam_keluar, id_department, id_position, targetUserId]);
+        const [result] = await pool.query("UPDATE users SET nik = COALESCE(?, nik), name = COALESCE(?, name), phone = COALESCE(?, phone), email = COALESCE(?, email), address = COALESCE(?, address), jam_masuk = COALESCE(?, jam_masuk), jam_keluar = COALESCE(?, jam_keluar), id_department = COALESCE(?, id_department), id_position = COALESCE(?, id_position) WHERE id = ?", [nik, name, phone, email, address, jam_masuk, jam_keluar, id_department, id_position, targetUserId]);
         
         if(result.affectedRows === 0) {
             return res.status(404).json({message: "Karyawan tidak ditemukan."});
