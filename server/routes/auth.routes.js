@@ -30,30 +30,120 @@ function toUserDTO(row) {
  * POST /api/auth/register
  * Mendaftarkan akun karyawan baru.
  */
+// router.post("/register", async (req, res) => {
+//   try {
+//     const { name, nik, password, phone } = req.body;
+//     let { email, id_department, id_position } = req.body;
+
+//     if (!name || !nik || !password || !email) {
+//       return res.status(400).json({ message: "Nama, NIK, Email, dan Password wajib diisi." });
+//     }
+
+//     // Validasi NIK hanya boleh angka
+//     if (!/^\d+$/.test(String(nik).trim())) {
+//       return res.status(400).json({ message: "NIK hanya boleh berisi angka." });
+//     }
+
+//     // Cek apakah email atau NIK sudah ada
+//     const [existingUser] = await pool.query(
+//       "SELECT id FROM users WHERE email = ? OR nik = ?",
+//       [email, nik]
+//     );
+//     if (existingUser.length > 0) {
+//       return res.status(409).json({ message: "Email atau NIK sudah terdaftar." });
+//     }
+
+//     // Resolusi id_department jika dikirim sebagai nama atau belum terisi
+//     if (!id_department && req.body.department) {
+//       const [depts] = await pool.query("SELECT id FROM master_departments WHERE name = ?", [req.body.department]);
+//       if (depts.length > 0) {
+//         id_department = depts[0].id;
+//       } else {
+//         const newDeptId = randomUUID();
+//         await pool.query("INSERT INTO master_departments (id, name) VALUES (?, ?)", [newDeptId, req.body.department]);
+//         id_department = newDeptId;
+//       }
+//     }
+//     if (!id_department) {
+//       const [depts] = await pool.query("SELECT id FROM master_departments LIMIT 1");
+//       if (depts.length > 0) id_department = depts[0].id;
+//     }
+
+//     // Resolusi id_position jika dikirim sebagai nama atau belum terisi
+//     if (!id_position && req.body.position) {
+//       const [positions] = await pool.query("SELECT id FROM master_positions WHERE name = ?", [req.body.position]);
+//       if (positions.length > 0) {
+//         id_position = positions[0].id;
+//       } else {
+//         const newPosId = randomUUID();
+//         await pool.query("INSERT INTO master_positions (id, name) VALUES (?, ?)", [newPosId, req.body.position]);
+//         id_position = newPosId;
+//       }
+//     }
+//     if (!id_position) {
+//       const [positions] = await pool.query("SELECT id FROM master_positions LIMIT 1");
+//       if (positions.length > 0) id_position = positions[0].id;
+//     }
+
+//     const salt = await bcrypt.genSalt(10);
+//     const password_hash = await bcrypt.hash(password, salt);
+//     const userId = randomUUID();
+
+//     await pool.query(
+//       `INSERT INTO users (id, name, email, nik, password_hash, id_department, id_position, phone)
+//       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+//       [userId, name, email, nik, password_hash, id_department || null, id_position || null, phone]
+//     );
+
+//     const token = jwt.sign(
+//       { id: userId, role: 'EMPLOYEE' },
+//       process.env.JWT_SECRET || "fallback_secret",
+//       { expiresIn: "7d" }
+//     );
+
+//     const [rows] = await pool.query(
+//       `SELECT u.*, d.name as department, p.name as position 
+//        FROM users u
+//        LEFT JOIN master_departments d ON u.id_department = d.id
+//        LEFT JOIN master_positions p ON u.id_position = p.id
+//        WHERE u.id = ?`,
+//       [userId]
+//     );
+
+//     res.status(201).json({
+//       message: "Akun berhasil dibuat.",
+//       token,
+//       user: toUserDTO(rows[0])
+//     });
+//   } catch (err) {
+//     console.error("Error Register:", err);
+//     res.status(500).json({ message: "Terjadi kesalahan pada server saat mendaftar." });
+//   }
+// });
 router.post("/register", async (req, res) => {
   try {
-    const { name, nik, password, phone } = req.body;
+    // 1. KITA AMBIL JUGA employee_id DARI POSTMAN
+    const { name, nik, employee_id, password, phone } = req.body;
     let { email, id_department, id_position } = req.body;
 
-    if (!name || !nik || !password || !email) {
-      return res.status(400).json({ message: "Nama, NIK, Email, dan Password wajib diisi." });
-    }
+    // 2. Fallback cerdas: kalau Postman cuma ngirim employee_id, jadikan itu sebagai NIK juga
+    const finalNik = nik || employee_id;
+    const finalEmployeeId = employee_id || nik;
 
-    // Validasi NIK hanya boleh angka
-    if (!/^\d+$/.test(String(nik).trim())) {
-      return res.status(400).json({ message: "NIK hanya boleh berisi angka." });
+    if (!name || !finalEmployeeId || !password || !email) {
+      return res.status(400).json({ message: "Nama, NIK/Employee ID, Email, dan Password wajib diisi." });
     }
 
     // Cek apakah email atau NIK sudah ada
     const [existingUser] = await pool.query(
-      "SELECT id FROM users WHERE email = ? OR nik = ?",
-      [email, nik]
+      "SELECT id FROM users WHERE email = ? OR employee_id = ? OR nik = ?",
+      [email, finalEmployeeId, finalNik]
     );
     if (existingUser.length > 0) {
       return res.status(409).json({ message: "Email atau NIK sudah terdaftar." });
     }
 
-    // Resolusi id_department jika dikirim sebagai nama atau belum terisi
+    // Resolusi id_department 
     if (!id_department && req.body.department) {
       const [depts] = await pool.query("SELECT id FROM master_departments WHERE name = ?", [req.body.department]);
       if (depts.length > 0) {
@@ -69,7 +159,7 @@ router.post("/register", async (req, res) => {
       if (depts.length > 0) id_department = depts[0].id;
     }
 
-    // Resolusi id_position jika dikirim sebagai nama atau belum terisi
+    // Resolusi id_position
     if (!id_position && req.body.position) {
       const [positions] = await pool.query("SELECT id FROM master_positions WHERE name = ?", [req.body.position]);
       if (positions.length > 0) {
@@ -89,10 +179,11 @@ router.post("/register", async (req, res) => {
     const password_hash = await bcrypt.hash(password, salt);
     const userId = randomUUID();
 
+    // 3. MASUKKAN finalEmployeeId KE DALAM QUERY DATABASE!
     await pool.query(
-      `INSERT INTO users (id, name, email, nik, password_hash, id_department, id_position, phone)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [userId, name, email, nik, password_hash, id_department || null, id_position || null, phone]
+      `INSERT INTO users (id, name, email, employee_id, nik, password_hash, id_department, id_position, phone)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [userId, name, email, finalEmployeeId, finalNik, password_hash, id_department || null, id_position || null, phone]
     );
 
     const token = jwt.sign(
@@ -113,10 +204,10 @@ router.post("/register", async (req, res) => {
     res.status(201).json({
       message: "Akun berhasil dibuat.",
       token,
-      user: toUserDTO(rows[0])
+      user: rows[0]
     });
   } catch (err) {
-    console.error("Error Register:", err);
+    console.error("Error Register:", err); // <-- INI YANG AKAN MUNCUL DI TERMINAL
     res.status(500).json({ message: "Terjadi kesalahan pada server saat mendaftar." });
   }
 });

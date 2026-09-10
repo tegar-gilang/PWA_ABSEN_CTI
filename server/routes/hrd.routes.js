@@ -32,7 +32,7 @@ router.post("/admins/register", async (req, res) => {
 
         if(!name || !email || !nik || !password) {
             return res.status(400).json({
-                message: "Data tidak lengkap, Slahkan isi Informasi dengan Lengkap."
+                message: "Data tidak lengkap, Silahkan isi Informasi dengan Lengkap."
             });
         }
 
@@ -41,8 +41,8 @@ router.post("/admins/register", async (req, res) => {
         const userId = randomUUID();
 
         await pool.query(
-            `INSERT INTO users (id, nik, email, name, password_hash, role) VALUES (?, ?, ?, ?, ?, 'ADMIN')`,
-            [userId, nik, email, name, password_hash]
+            `INSERT INTO users (id, employee_id, nik, email, name, password_hash, role) VALUES (?, ?, ?, ?, ?, ?, 'ADMIN')`,
+            [userId, nik, nik, email, name, password_hash]
         );
 
         res.status(201).json({
@@ -51,7 +51,7 @@ router.post("/admins/register", async (req, res) => {
     } catch (err) {
         console.error("Error saat mendaftarkan Admin:", err);
         if (err.code === 'ER_DUP_ENTRY') {
-            return res.status(409).json({ message: "Email atau NIK sudah digunakan." });
+            return res.status(409).json({ message: "Email atau NIK/Employee ID sudah digunakan." });
         }
         res.status(500).json({message: "Gagal membuat akun admin."});
     }
