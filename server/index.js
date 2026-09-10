@@ -2,9 +2,7 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import { testConnection } from "./db.js";
-
 import { requireAuth } from "./middleware/auth.js";
-
 import authRoutes from "./routes/auth.routes.js";
 import attendanceRoutes from "./routes/attendance.routes.js";
 import requestsRoutes from "./routes/requests.routes.js";
