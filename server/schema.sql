@@ -2,8 +2,8 @@
 -- Skema Database MySQL - Aplikasi Absensi PWA (PWA_ABSEN_CTI)
 -- =========================================================
 
-DROP DATABASE IF EXISTS absensi_cti;
-CREATE DATABASE absensi_cti CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+-- DROP DATABASE IF EXISTS absensi_cti;
+CREATE DATABASE IF NOT EXISTS absensi_cti CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE absensi_cti;
 
 -- =========================================================
