@@ -9,6 +9,7 @@ import Layout from './components/Layout';
 import Splash from './pages/Splash';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
+import ForgotPassword from './pages/ForgotPassword';
 import Home from './pages/Home';
 import Attendance from './pages/Attendance';
 import History from './pages/History';
@@ -101,6 +102,7 @@ export default function App() {
         <Route path="/" element={<Splash />} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
         
         {/* Rute Privat dengan Navigasi Layout: Rute yang dilindungi dan menampilkan bilah navigasi di bawah layar */}
         <Route element={<PrivateRoute><Layout /></PrivateRoute>}>

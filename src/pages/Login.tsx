@@ -136,9 +136,9 @@ export default function Login() {
               <input type="checkbox" className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300" />
               <span className="text-sm text-slate-600 font-medium">Ingat saya</span>
             </label>
-            {/* <button type="button" className="text-sm font-bold text-blue-600">
+            <Link to="/forgot-password" className="text-sm font-bold text-blue-600 hover:text-blue-700">
               Lupa kata sandi?
-            </button> */}
+            </Link>
           </div>
 
           <button
