@@ -54,6 +54,8 @@ DB_PASSWORD=
 DB_NAME=absensi_cti
 JWT_SECRET=ganti_dengan_string_acak_yang_panjang
 MAX_ACCURACY_METERS=75
+EMAIL_USER=emailbuatngirim
+EMAIL_PASS=sandi aplikasi akun email di generate dulu di setting (bukan sandi akun google)
 VITE_API_URL=http://localhost:4000/api
 ```
 
@@ -61,6 +63,7 @@ VITE_API_URL=http://localhost:4000/api
 
 ```bash
 npm install
+npm install nodemailer
 npm run server        # jalankan sekali
 # atau
 npm run server:dev    # auto-restart saat file berubah
