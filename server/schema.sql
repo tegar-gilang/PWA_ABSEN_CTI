@@ -320,6 +320,8 @@ CREATE TABLE IF NOT EXISTS users (
   id_position VARCHAR(36) DEFAULT NULL,
   jam_masuk TIME NOT NULL DEFAULT '08:00:00',
   jam_keluar TIME NOT NULL DEFAULT '17:00:00',
+  reset_otp VARCHAR(10) DEFAULT NULL,
+  reset_otp_expires DATETIME DEFAULT NULL,
   
   CONSTRAINT fk_office FOREIGN KEY (assigned_office_id) REFERENCES offices(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

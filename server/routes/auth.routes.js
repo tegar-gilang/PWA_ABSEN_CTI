@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 import { randomUUID } from "crypto";
 import { pool } from "../db.js";
 import { requireAuth, signToken } from "../middleware/auth.js";
+import nodemailer from "nodemailer";
 
 const router = Router();
 
@@ -374,6 +375,114 @@ router.get("/me", requireAuth, async (req, res) => {
   } catch (err) {
     console.error("Get me error:", err);
     res.status(500).json({ message: "Terjadi kesalahan pada server saat mengambil data pengguna." });
+  }
+});
+
+/**
+ * POST /api/auth/forgot-password
+ * Mengirim OTP ke email karyawan yang lupa kata sandi
+ */
+router.post("/forgot-password", async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ message: "Email wajib diisi." });
+    }
+
+    // Cek apakah email ada di database
+    const [users] = await pool.query("SELECT * FROM users WHERE email = ?", [email]);
+    if (users.length === 0) {
+      return res.status(404).json({ message: "Email tidak ditemukan di sistem." });
+    }
+
+    // Buat kode OTP 6 digit acak
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    
+    // Set waktu kedaluwarsa OTP (15 menit dari sekarang)
+    const expires = new Date(Date.now() + 15 * 60 * 1000);
+
+    // Simpan OTP ke database MySQL
+    await pool.query(
+      "UPDATE users SET reset_otp = ?, reset_otp_expires = ? WHERE email = ?", 
+      [otp, expires, email]
+    );
+
+    // Konfigurasi pengirim email (Nodemailer)
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
+      }
+    });
+
+    // Isi dan kirim email
+    await transporter.sendMail({
+      from: '"HRD SmartWork" <no-reply@smartwork.com>',
+      to: email,
+      subject: "Kode OTP Pemulihan Kata Sandi",
+      html: `
+        <h3>Halo,</h3>
+        <p>Anda telah meminta untuk mengatur ulang kata sandi akun SmartWork Anda.</p>
+        <p>Berikut adalah kode OTP Anda: <b><span style="font-size: 24px; color: #2563eb;">${otp}</span></b></p>
+        <p><i>Kode ini hanya berlaku selama 15 menit. JANGAN berikan kode ini kepada siapa pun.</i></p>
+      `
+    });
+
+    res.json({ message: "Kode OTP telah dikirim ke email Anda." });
+
+  } catch (err) {
+    console.error("Error Forgot Password:", err);
+    res.status(500).json({ message: "Terjadi kesalahan saat memproses permintaan." });
+  }
+});
+
+/**
+ * POST /api/auth/reset-password
+ * Memverifikasi OTP dan mengganti kata sandi
+ */
+router.post("/reset-password", async (req, res) => {
+  try {
+    const { email, otp, newPassword } = req.body;
+
+    if (!email || !otp || !newPassword) {
+      return res.status(400).json({ message: "Email, OTP, dan Kata Sandi Baru wajib diisi." });
+    }
+
+    // Cari user berdasarkan email
+    const [users] = await pool.query("SELECT * FROM users WHERE email = ?", [email]);
+    const user = users[0];
+
+    if (!user) {
+      return res.status(404).json({ message: "Pengguna tidak ditemukan." });
+    }
+
+    // Cek apakah OTP cocok
+    if (user.reset_otp !== otp) {
+      return res.status(400).json({ message: "Kode OTP salah." });
+    }
+
+    // Cek apakah OTP sudah kedaluwarsa
+    if (new Date() > new Date(user.reset_otp_expires)) {
+      return res.status(400).json({ message: "Kode OTP sudah kedaluwarsa. Silakan minta kode baru." });
+    }
+
+    // Enkripsi (Hash) password baru
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+    // Update password di database dan hapus data OTP agar tidak bisa dipakai ulang
+    await pool.query(
+      "UPDATE users SET password_hash = ?, reset_otp = NULL, reset_otp_expires = NULL WHERE email = ?",
+      [hashedPassword, email]
+    );
+
+    res.json({ message: "Kata sandi berhasil diubah! Silakan masuk dengan sandi baru Anda." });
+
+  } catch (err) {
+    console.error("Error Reset Password:", err);
+    res.status(500).json({ message: "Terjadi kesalahan saat mengganti kata sandi." });
   }
 });
 
