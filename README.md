@@ -63,6 +63,7 @@ VITE_API_URL=http://localhost:4000/api
 
 ```bash
 npm install
+npm install nodemailer
 npm run server        # jalankan sekali
 # atau
 npm run server:dev    # auto-restart saat file berubah
