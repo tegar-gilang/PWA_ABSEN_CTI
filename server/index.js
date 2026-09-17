@@ -29,6 +29,7 @@ app.use(cors());
 // Limit dinaikkan ke 20mb karena foto absen/profil dikirim sebagai base64,
 // yang ukurannya bisa membengkak ~33% dari ukuran file foto aslinya.
 app.use(express.json({ limit: "20mb" }));
+app.use(express.static('public'));
 
 app.get("/api/health", (req, res) => res.json({ status: "ok" }));
 

@@ -64,7 +64,7 @@ interface AppState {
   hydrateSession: () => Promise<void>; // memuat ulang sesi & data awal saat aplikasi dibuka
   checkIn: (payload: GeoPayload) => Promise<void>;
   checkOut: (payload: GeoPayload) => Promise<void>;
-  submitRequest: (request: { type: string; reason: string; date: string; endDate?: string }) => Promise<void>;
+  submitRequest: (request: { type: string; reason: string; date: string; endDate?: string; attachment?: File | null }) => Promise<void>;
   markNotificationRead: (id: string) => Promise<void>;
   updateProfile: (data: Partial<User>) => Promise<void>;
   addNotification: (notification: Notification) => void;
@@ -274,9 +274,40 @@ export const useAppStore = create<AppState>()(
       /**
        * Mengirimkan pengajuan (Cuti/Izin/Sakit/Lembur) ke backend.
        */
+      // submitRequest: async (request) => {
+      //   const { request: created } = await apiSubmitRequest(request);
+      //   set((state) => ({ requests: [created, ...state.requests] }));
+      // },
       submitRequest: async (request) => {
-        const { request: created } = await apiSubmitRequest(request);
-        set((state) => ({ requests: [created, ...state.requests] }));
+        const token = getToken();
+        const formData = new FormData();
+        
+        formData.append("type", request.type);
+        formData.append("date", request.date);
+        formData.append("reason", request.reason);
+        
+        if (request.endDate) {
+          formData.append("endDate", request.endDate);
+        }
+        
+        if (request.attachment) {
+          formData.append("attachment", request.attachment);
+        }
+
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/requests`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          body: formData,
+        });
+
+        if (!response.ok) {
+          throw new Error("Gagal mengirim permohonan");
+        }
+
+        const data = await response.json();
+        set((state) => ({ requests: [data.request, ...state.requests] }));
       },
 
       /**

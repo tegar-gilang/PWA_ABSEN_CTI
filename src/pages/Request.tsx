@@ -5,6 +5,7 @@ import { RequestType } from '../types';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'motion/react';
+import { Paperclip } from 'lucide-react';
 
 export default function Request() {
   const submitRequest = useAppStore(state => state.submitRequest);
@@ -18,6 +19,7 @@ export default function Request() {
   const [reason, setReason] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [attachment, setAttachment] = useState<File | null>(null);
 
   useEffect(() => {
     fetchAllUserData();
@@ -55,6 +57,7 @@ export default function Request() {
         date: startDate,
         endDate: finalEndDate !== startDate ? finalEndDate : undefined,
         reason,
+        attachment,
       });
       setSubmitted(true);
       setTimeout(() => {
@@ -62,6 +65,7 @@ export default function Request() {
         setStartDate('');
         setEndDate('');
         setReason('');
+        setAttachment(null);
         setActiveTab('HISTORY');
       }, 2000);
     } catch (error) {
@@ -186,6 +190,22 @@ export default function Request() {
                     ></textarea>
                   </div>
 
+                  <div>
+                      <label className="block text-[10px] font-bold text-slate-500 mb-2 uppercase tracking-wider">Lampiran Bukti (Opsional)</label>
+                      <input
+                        type="file"
+                        accept="image/*,application/pdf"
+                        onChange={(e) => setAttachment(e.target.files ? e.target.files[0] : null)}
+                        className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none text-slate-500 bg-slate-50 font-medium text-sm 
+                                  file:mr-4 file:py-2 file:px-4 
+                                  file:rounded-lg file:border-0 
+                                  file:text-xs file:font-bold 
+                                  file:bg-blue-50 file:text-blue-700 
+                                  hover:file:bg-blue-100"
+                    />
+                    <p className="text-[10px] text-slate-400 mt-2">*Format didukung: JPG, PNG, atau PDF.</p>
+                  </div>
+
                   <button
                     type="submit"
                     disabled={!startDate || !reason || isLoading}
@@ -241,6 +261,20 @@ export default function Request() {
                         </div>
                       </div>
                       <p className="text-sm text-slate-600 bg-slate-50 p-4 rounded-2xl border border-slate-100 font-medium leading-relaxed">{req.reason}</p>
+
+                      {req.attachmentUrl && (
+                        <div className="mt-3">
+                          <a 
+                            href={`${import.meta.env.VITE_API_URL.replace('/api', '')}${req.attachmentUrl}`} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-800 bg-blue-50 px-3 py-2 rounded-lg transition-colors"
+                          >
+                            <Paperclip className="w-3.5 h-3.5" /> Lihat Lampiran
+                          </a>
+                        </div>
+                      )}
+
                       {req.status === 'REJECTED' && req.rejectionReason && (
                         <div className="mt-3 p-4 bg-red-50 rounded-2xl border border-red-100">
                           <p className="text-[10px] font-bold uppercase tracking-wider text-red-600 mb-1">Alasan Penolakan:</p>
