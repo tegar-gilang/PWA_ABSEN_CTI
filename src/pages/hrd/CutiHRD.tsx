@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
+import { Paperclip } from 'lucide-react';
 import { apiHrdGetRequests, apiHrdUpdateRequestStatus } from '@/src/lib/api';
 // Import ikon-ikon dari lucide-react
 import { 
@@ -183,6 +184,7 @@ const CutiHRD: React.FC = () => {
                 <th className="px-6 py-4">Deskripsi</th>
                 <th className="px-6 py-4">Date</th>
                 <th className="px-6 py-4">Status</th>
+                <th className="px-6 py-4">Lampiran</th>
                 <th className="px-6 py-4 text-right">Actions</th>
               </tr>
             </thead>
@@ -260,6 +262,22 @@ const CutiHRD: React.FC = () => {
                           <span className={`w-2 h-2 rounded-full ${dotClass} mr-2`}></span> {req.status || 'PENDING'}
                         </span>
                       </td>
+                      
+                      <td className="px-6 py-4">
+                        {req.attachment_url ? (
+                          <a 
+                            href={`${import.meta.env.VITE_API_URL.replace('/api', '')}${req.attachment_url}`} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-800 bg-blue-50 px-3 py-1.5 rounded-lg transition-colors"
+                          >
+                            <Paperclip className="w-3.5 h-3.5" /> Lihat
+                          </a>
+                        ) : (
+                          <span className="text-gray-400 text-xs italic font-medium">Tidak ada</span>
+                        )}
+                      </td>
+
                       <td className="px-6 py-4 text-right">
                         {isPending ? (
                           <div className="flex justify-end space-x-2">

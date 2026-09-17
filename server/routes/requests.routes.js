@@ -2,6 +2,26 @@ import { Router } from "express";
 import { randomUUID } from "crypto";
 import { pool } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
+
+const uploadDir = "public/uploads/requests/";
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true }); 
+  console.log(`Folder ${uploadDir} berhasil dibuat otomatis!`);
+}
+
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, uploadDir);  
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(null, uniqueSuffix + path.extname(file.originalname));
+  }
+});
+const upload = multer({storage});
 
 const router = Router();
 router.use(requireAuth);
@@ -47,9 +67,9 @@ router.get("/", async (req, res) => {
  * POST /api/requests
  * Body: { type, reason, date, endDate?, startDate?, attachmentUrl? }
  */
-router.post("/", async (req, res) => {
+router.post("/", upload.single("attachment"), async (req, res) => {
   try {
-    const { type, reason, date, endDate, startDate, attachmentUrl } = req.body;
+    const { type, reason, date, endDate, startDate} = req.body;
     const reqStartDate = startDate || date;
     const reqEndDate = endDate || reqStartDate;
 
@@ -58,9 +78,12 @@ router.post("/", async (req, res) => {
     }
 
     const id = randomUUID();
+
+    const attachmentUrl = req.file ? `/uploads/requests/${req.file.filename}` : null;
+
     await pool.query(
       `INSERT INTO requests (id, user_id, type, reason, date, end_date, attachment_url) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [id, req.userId, type, reason, reqStartDate, reqEndDate !== reqStartDate ? reqEndDate : null, attachmentUrl || null],
+      [id, req.userId, type, reason, reqStartDate, reqEndDate !== reqStartDate ? reqEndDate : null, attachmentUrl],
     );
 
     const [rows] = await pool.query(
