@@ -64,6 +64,7 @@ VITE_API_URL=http://localhost:4000/api
 ```bash
 npm install
 npm install nodemailer
+npm install multer
 npm run server        # jalankan sekali
 # atau
 npm run server:dev    # auto-restart saat file berubah
@@ -1016,6 +1017,21 @@ set `ENABLE_GEOFENCING=true` di `.env` dan isi data pada tabel `offices` (lihat 
   {
       "status":"APPROVED"
   }
+
+#### 3. Mengajukan Izin  
+
+**`POST` /api/request**
+* **Akses:** Karyawan
+* **Keterangan:** Karyawan dapat mengajukan izin dengan/tanpa file pendukung.
+* **Request Body (JSON):**
+  ```json
+    {
+        "type": "Sakit",
+        "reason": "Sakit Demam Panas Tinggi Menn",
+        "startDate": "2023-11-01",
+        "endDate": "2023-11-03",
+        "attachment": "public/uploads/requests/"
+    }
 
 ---
 
