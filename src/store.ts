@@ -274,10 +274,6 @@ export const useAppStore = create<AppState>()(
       /**
        * Mengirimkan pengajuan (Cuti/Izin/Sakit/Lembur) ke backend.
        */
-      // submitRequest: async (request) => {
-      //   const { request: created } = await apiSubmitRequest(request);
-      //   set((state) => ({ requests: [created, ...state.requests] }));
-      // },
       submitRequest: async (request) => {
         const token = getToken();
         const formData = new FormData();
