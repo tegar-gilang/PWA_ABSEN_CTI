@@ -7,3 +7,4 @@ coverage/
 .env*
 !.env.example
 export_commit.py
+public/uploads/request
