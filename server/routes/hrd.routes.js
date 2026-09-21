@@ -481,11 +481,13 @@ router.get("/attendance-summary", async (req, res) => {
 
             const getCounts = (attList, reqList) => {
                 const telatCount = attList.filter(a => a.status === 'LATE').length;
+                const alpaCount = attList.filter(a => a.status === 'ABSENT').length;
                 const hadirCount = attList.filter(a => a.status === 'ON_TIME' || a.status === 'LATE').length;
-                const izinCount = reqList.filter(r => (r.type === 'PERMISSION' || r.type === 'SICK' || r.type === 'IZIN' || r.type === 'SAKIT') && r.status !== 'REJECTED').length;
+                const izinCount = reqList.filter(r => (r.type === 'PERMISSION' || r.type === 'IZIN') && r.status !== 'REJECTED').length;
+                const sakitCount = reqList.filter(r => (r.type === 'SICK' || r.type === 'SAKIT') && r.status !== 'REJECTED').length;
                 const cutiCount = reqList.filter(r => (r.type === 'LEAVE' || r.type === 'CUTI') && r.status !== 'REJECTED').length;
                 const lateMins = calcLateMins(attList);
-                return { telat: telatCount, hadir: hadirCount, izin: izinCount, cuti: cutiCount, lateMins };
+                return { telat: telatCount, alpa: alpaCount, hadir: hadirCount, izin: izinCount, sakit: sakitCount, cuti: cutiCount, lateMins };
             };
 
             const yearCounts = getCounts(yearAtt, yearReq);
@@ -527,7 +529,7 @@ router.get("/attendance-summary", async (req, res) => {
                     activePeriode = '08/07/2026 - Sekarang';
                     activeSubtext = 'Rekap Kumulatif';
                 } else {
-                    activeCounts = { telat: 0, hadir: 0, izin: 0, cuti: 0, lateMins: 0 };
+                    activeCounts = { telat: 0, alpa: 0, hadir: 0, izin: 0, sakit: 0, cuti: 0, lateMins: 0 };
                     activePeriode = '-';
                     activeSubtext = null;
                 }
@@ -542,8 +544,11 @@ router.get("/attendance-summary", async (req, res) => {
                 email: emp.email || '-',
                 phone: emp.phone || '-',
                 izin: activeCounts.izin,
+                sakit: activeCounts.sakit,
+                alpa: activeCounts.alpa,
                 cuti: activeCounts.cuti,
                 telat: activeCounts.telat,
+                telatMenit: activeCounts.lateMins,
                 hadir: activeCounts.hadir,
                 periode: activePeriode,
                 periodeSubtext: activeSubtext,
