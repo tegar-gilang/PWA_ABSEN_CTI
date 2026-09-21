@@ -297,8 +297,11 @@ export async function apiHrdGetAttendanceSummary(params?: {
     phone?: string;
     position?: string;
     izin: number | null;
+    sakit: number | null;
     cuti: number | null;
+    alpa: number | null;
     telat: number | null;
+    telatMenit?: number | null;
     hadir: number;
     periode: string;
     periodeSubtext?: string | null;

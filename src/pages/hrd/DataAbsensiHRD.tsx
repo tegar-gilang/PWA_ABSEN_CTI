@@ -21,8 +21,11 @@ interface EmployeeSummaryItem {
   phone?: string;
   position?: string;
   izin: number | null;
+  sakit: number | null;
   cuti: number | null;
+  alpa: number | null;
   telat: number | null;
+  telatMenit?: number | null;
   hadir: number;
   periode: string;
   periodeSubtext?: string | null;
@@ -216,18 +219,24 @@ const DataAbsensiHRD: React.FC = () => {
           <table className="w-full text-left border-collapse min-w-[760px]">
             <thead>
               <tr className="bg-gray-50/75 text-gray-600 text-xs uppercase tracking-wider border-b border-gray-200">
-                <th className="px-6 py-3.5 font-semibold">EMPLOYEE</th>
-                <th className="px-6 py-3.5 font-semibold">BAGIAN</th>
-                <th className="px-6 py-3.5 font-semibold">IZIN</th>
-                <th className="px-6 py-3.5 font-semibold">CUTI</th>
-                <th className="px-6 py-3.5 font-semibold">TELAT</th>
-                <th className="px-6 py-3.5 font-semibold">PERIODE</th>
+                <th rowSpan={2} className="px-6 py-3.5 font-semibold align-middle">EMPLOYEE</th>
+                <th rowSpan={2} className="px-6 py-3.5 font-semibold align-middle">BAGIAN</th>
+                <th rowSpan={2} className="px-6 py-3.5 font-semibold align-middle text-center">IZIN</th>
+                <th rowSpan={2} className="px-6 py-3.5 font-semibold align-middle text-center">SAKIT</th>
+                <th rowSpan={2} className="px-6 py-3.5 font-semibold align-middle text-center">CUTI</th>
+                <th rowSpan={2} className="px-6 py-3.5 font-semibold align-middle text-center">ALPA</th>
+                <th colSpan={2} className="px-6 py-2 font-semibold text-center border-b border-gray-200">TERLAMBAT</th>
+                <th rowSpan={2} className="px-6 py-3.5 font-semibold align-middle">PERIODE</th>
+              </tr>
+              <tr className="bg-gray-50/75 text-gray-600 text-xs uppercase tracking-wider border-b border-gray-200">
+                <th className="px-3 py-2 font-semibold text-center border-r border-gray-200">KALI</th>
+                <th className="px-3 py-2 font-semibold text-center">MNT</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 text-sm text-gray-700">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-gray-400 font-medium">
+                  <td colSpan={9} className="px-6 py-12 text-center text-gray-400 font-medium">
                     <div className="flex items-center justify-center space-x-2">
                       <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
                       <span>Mengambil data karyawan dari server...</span>
@@ -267,18 +276,33 @@ const DataAbsensiHRD: React.FC = () => {
                       </td>
 
                       {/* Izin */}
-                      <td className="px-6 py-4 text-gray-700 font-medium">
+                      <td className="px-6 py-4 text-gray-700 font-medium text-center">
                         {rec.izin !== null && rec.izin !== undefined ? rec.izin : (rec.hasData ? 0 : '-')}
                       </td>
 
+                      {/* Sakit */}
+                      <td className="px-6 py-4 text-gray-700 font-medium text-center">
+                        {rec.sakit !== null && rec.sakit !== undefined ? rec.sakit : (rec.hasData ? 0 : '-')}
+                      </td>
+
                       {/* Cuti */}
-                      <td className="px-6 py-4 text-gray-700 font-medium">
+                      <td className="px-6 py-4 text-gray-700 font-medium text-center">
                         {rec.cuti !== null && rec.cuti !== undefined ? rec.cuti : (rec.hasData ? 0 : '-')}
                       </td>
 
-                      {/* Telat */}
-                      <td className="px-6 py-4 text-gray-700 font-medium">
+                      {/* Alpa */}
+                      <td className="px-6 py-4 text-gray-700 font-medium text-center">
+                        {rec.alpa !== null && rec.alpa !== undefined ? rec.alpa : (rec.hasData ? 0 : '-')}
+                      </td>
+
+                      {/* Telat Kali */}
+                      <td className="px-3 py-4 text-gray-700 font-medium text-center border-r border-gray-50">
                         {rec.telat !== null && rec.telat !== undefined ? rec.telat : (rec.hasData ? 0 : '-')}
+                      </td>
+
+                      {/* Telat Mnt */}
+                      <td className="px-3 py-4 text-gray-700 font-medium text-center">
+                        {rec.telatMenit !== null && rec.telatMenit !== undefined ? rec.telatMenit : (rec.hasData ? 0 : '-')}
                       </td>
 
                       {/* Periode */}
@@ -299,7 +323,7 @@ const DataAbsensiHRD: React.FC = () => {
                 })
               ) : (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-gray-500 font-medium">
+                  <td colSpan={9} className="px-6 py-12 text-center text-gray-500 font-medium">
                     Tidak ada data karyawan yang ditemukan dari backend.
                   </td>
                 </tr>
