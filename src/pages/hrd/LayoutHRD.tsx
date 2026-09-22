@@ -132,6 +132,8 @@ import {
   X,
   FileSpreadsheet,
   Hospital,
+  Building2,
+  Building,
   ChevronDown,
   UserCheck
 } from 'lucide-react';
@@ -144,10 +146,17 @@ const LayoutHRD: React.FC = () => {
 
   const isKaryawanRoute = location.pathname.startsWith('/hrd/karyawan') || location.pathname.startsWith('/hrd/data-absensi');
   const [isKaryawanOpen, setIsKaryawanOpen] = useState(isKaryawanRoute);
+  
+  const isLokasiPenugasanRoute = location.pathname.startsWith('/hrd/data-rumah-sakit') || location.pathname.startsWith('/hrd/data-lokasi-kantor');
+  const [isLokasiPenugasanOpen, setIsLokasiPenugasanOpen] = useState(isLokasiPenugasanRoute);
+
 
   useEffect(() => {
     if (isKaryawanRoute) {
       setIsKaryawanOpen(true);
+    }
+    if (isLokasiPenugasanRoute) {
+      setIsLokasiPenugasanOpen(true);
     }
   }, [location.pathname]);
 
@@ -261,13 +270,55 @@ const LayoutHRD: React.FC = () => {
                 </div>
               )}
             </div>
-            <Link 
-              to="/hrd/data-rumah-sakit" 
-              onClick={() => setIsSidebarOpen(false)}
-              className={`flex items-center px-4 py-3 rounded-lg transition-colors ${isActive('/hrd/data-rumah-sakit') ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'}`}
-            >
-              <Hospital className="w-5 h-5 mr-3" /> Data Rumah Sakit
-            </Link>
+
+            {/* Lokasi Penugasan */}
+            <div className="space-y-1">
+              <button 
+                type="button"
+                onClick={() => setIsLokasiPenugasanOpen(!isLokasiPenugasanOpen)}
+                className={`w-full flex items-center justify-between px-4 py-3 rounded-lg transition-colors cursor-pointer ${
+                  isLokasiPenugasanRoute
+                    ? 'bg-blue-50 text-blue-700 font-semibold' 
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                <div className="flex items-center">
+                  <Building className={`w-5 h-5 mr-3 ${isLokasiPenugasanRoute ? 'text-blue-600' : 'text-gray-500'}`} />
+                  <span>Lokasi Penugasan</span>
+                </div>
+                <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${
+                  isLokasiPenugasanOpen ? 'rotate-180 text-blue-600' : 'text-gray-400'
+                }`} />
+              </button>
+
+              {isLokasiPenugasanOpen && (
+                <div className="ml-4 pl-3 border-l-2 border-slate-200 space-y-1 py-1">
+                  <Link 
+                    to="/hrd/data-rumah-sakit" 
+                    onClick={() => setIsSidebarOpen(false)}
+                    className={`flex items-center px-3 py-2 rounded-lg text-sm transition-colors ${
+                      isActive('/hrd/data-rumah-sakit') 
+                        ? 'bg-blue-600 text-white font-medium shadow-sm' 
+                        : 'text-gray-600 hover:bg-gray-100'
+                    }`}
+                  >
+                    <Hospital className="w-4 h-4 mr-2.5" /> Lokasi Rumah Sakit
+                  </Link>
+                  <Link 
+                    to="/hrd/data-lokasi-kantor" 
+                    onClick={() => setIsSidebarOpen(false)}
+                    className={`flex items-center px-3 py-2 rounded-lg text-sm transition-colors ${
+                      isActive('/hrd/data-lokasi-kantor') 
+                        ? 'bg-blue-600 text-white font-medium shadow-sm' 
+                        : 'text-gray-600 hover:bg-gray-100'
+                    }`}
+                  >
+                    <Building2 className="w-4 h-4 mr-2.5" /> Lokasi Kantor
+                  </Link>
+                </div>
+              )}
+            </div>
+
             <Link 
               to="/hrd/cuti" 
               onClick={() => setIsSidebarOpen(false)}

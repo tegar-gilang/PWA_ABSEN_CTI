@@ -27,6 +27,7 @@ import RekrutmenHRD from './pages/hrd/RekrutmenHRD';
 import DashboardHRD from './pages/hrd/DashboardHRD';
 import DataRumahSakitHRD from './pages/hrd/DataRumahSakitHRD';
 import { requestNotificationPermission, onMessageListener } from './lib/fcm';
+import DataKantorHRD from './pages/hrd/DataKantorHRD';
 
 
 
@@ -120,6 +121,7 @@ export default function App() {
           <Route path="/hrd/karyawan" element={<KaryawanHRD />} />
           <Route path="/hrd/data-absensi" element={<DataAbsensiHRD />} />
           <Route path="/hrd/data-rumah-sakit" element={<DataRumahSakitHRD />} />
+          <Route path="/hrd/data-lokasi-kantor" element={<DataKantorHRD />} />
           <Route path="/hrd/cuti" element={<CutiHRD />} />
           <Route path="/hrd/kpi" element={<KPIHRD />} />
           <Route path="/hrd/rekrutmen" element={<RekrutmenHRD />} />
