@@ -161,45 +161,6 @@ router.get("/history", async (req, res) => {
  * POST /api/attendance/checkin
  * Body: { lat, lng, accuracy, photoUrl }
  */
-// OLD CODE
-// router.post("/checkin", async (req, res) => {
-//   try {
-//     const { lat, lng, accuracy, photoUrl } = req.body;
-//     const { distance } = await validateGeoOrThrow({ lat, lng, accuracy });
-
-//     const today = getLocalDateString();
-//     const [existing] = await pool.query("SELECT id FROM attendance_records WHERE user_id = ? AND date = ?", [req.userId, today]);
-//     if (existing.length > 0) {
-//       return res.status(409).json({ message: "Anda sudah melakukan absen masuk hari ini." });
-//     }
-
-//     const now = new Date();
-//     // Bandingkan jam:menit di timezone aplikasi (bukan timezone OS server) agar status
-//     // ON_TIME/LATE selalu konsisten di mana pun server dijalankan.
-//     const nowMinutes = getMinutesSinceMidnight(now);
-//     const thresholdMinutes = WORK_START_HOUR * 60 + WORK_START_MINUTE + LATE_GRACE_MINUTES;
-//     const status = nowMinutes > thresholdMinutes ? "LATE" : "ON_TIME";
-
-//     const id = randomUUID();
-//     await pool.query(
-//       `INSERT INTO attendance_records
-//         (id, user_id, date, check_in_time, status, check_in_lat, check_in_lng, check_in_accuracy_m, check_in_distance_m, check_in_photo_url)
-//        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-//       [id, req.userId, today, now, status, lat, lng, accuracy, distance, photoUrl || null],
-//     );
-
-//     const [rows] = await pool.query("SELECT * FROM attendance_records WHERE id = ?", [id]);
-//     res.status(201).json({
-//       record: toRecordDTO(rows[0]),
-//       geo: { distanceMeters: distance, accuracyQuality: classifyAccuracy(accuracy) },
-//     });
-//   } catch (err) {
-//     if (err.status) return res.status(err.status).json({ message: err.message, code: err.code });
-//     console.error("Checkin error:", err);
-//     res.status(500).json({ message: "Terjadi kesalahan pada server saat absen masuk." });
-//   }
-// });
-// NEW CODE 
 router.post("/checkin", async (req, res)=> {
   try {
     const latitude = req.body.latitude !== undefined ? Number(req.body.latitude) : (req.body.lat !== undefined ? Number(req.body.lat) : null);
@@ -338,16 +299,27 @@ router.post("/checkout", async (req, res)=> {
   }
 });
 
-// Route Lokasi(Rumah Sakit) Penugasan
-// GET
-router.get("/locations",requireAuth, async (req, res)=> {
-  try {
-    const [rows] = await pool.query("SELECT id, nama_rs, latitude, longitude, radius_meters FROM hospitals ORDER BY nama_rs ASC");
-    res.json({ locations: rows });
-  } catch (err) {
-    console.error("Error saat mengambil daftar lokasi rumah sakit:", err);
-    res.status(500).json({ message: "Terjadi kesalahan pada server saat mengambil daftar lokasi pengugasan." });
-  }
-})
+// Lokasi kantor / rumah sakit untuk geofencing, dropdown, dsb.
+router.get("/locations", requireAuth, async (req, res) => {
+    try {
+        const { type } = req.query;
+        
+        let queryStr = "SELECT id, nama_rs as name, address, latitude, longitude, radius_meters, type FROM hospitals";
+        let queryParams = [];
+
+        if (type) {
+            queryStr += " WHERE type = ?";
+            queryParams.push(type);
+        }
+
+        queryStr += " ORDER BY nama_rs ASC";
+
+        const [rows] = await pool.query(queryStr, queryParams);
+        res.json({ locations: rows });
+    } catch (err) {
+        console.error("Error mengambil data lokasi:", err);
+        res.status(500).json({ message: "Gagal memuat daftar lokasi." });
+    }
+});
 
 export default router;
