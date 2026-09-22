@@ -65,7 +65,7 @@ router.post("/admins/register", async (req, res) => {
 // GET
 router.get("/hospitals", async (req, res)=> {
     try {
-        const [rows] = await pool.query("SELECT id, nama_rs, nama_rs as name, address, latitude, longitude, radius_meters FROM hospitals ORDER BY nama_rs ASC");
+        const [rows] = await pool.query("SELECT id, nama_rs, nama_rs as name, address, latitude, longitude, radius_meters FROM hospitals WHERE type = 'rumah_sakit' ORDER BY nama_rs ASC");
         res.json({hospitals: rows});
     } catch (err) {
         console.error("Error saat mengambil data rumah sakit:", err);
@@ -89,7 +89,7 @@ router.post("/hospitals", async (req,res)=> {
 
         const id = randomUUID();
         await pool.query(
-            "INSERT INTO hospitals (id, nama_rs, address, latitude, longitude, radius_meters) VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO hospitals (id, nama_rs, address, latitude, longitude, radius_meters, type) VALUES (?, ?, ?, ?, ?, ?, 'rumah_sakit')",
             [id, nama_rs, address, latitude, longitude, radius_meters]
         );
         res.status(201).json({
@@ -118,7 +118,7 @@ router.put("/hospitals/:id", async (req, res)=> {
         }
 
         const [result] = await pool.query(
-            "UPDATE hospitals SET nama_rs = ?, address = ?, latitude = ?, longitude = ?, radius_meters = ? WHERE id = ?",
+            "UPDATE hospitals SET nama_rs = ?, address = ?, latitude = ?, longitude = ?, radius_meters = ? WHERE id = ? AND type = 'rumah_sakit'",
             [nama_rs, address, latitude, longitude, radius_meters, id]
         );
         if (result.affectedRows === 0) {
@@ -139,7 +139,7 @@ router.put("/hospitals/:id", async (req, res)=> {
 router.delete("/hospitals/:id", async (req, res) => {
     try {
         const {id} = req.params;
-        const [result] = await pool.query("DELETE FROM hospitals WHERE id = ?", [id]);
+        const [result] = await pool.query("DELETE FROM hospitals WHERE id = ? AND type = 'rumah_sakit'", [id]);
         if (result.affectedRows === 0) {
             return res.status(404).json({ message: "Rumah sakit tidak ditemukan." });
         }
@@ -1039,9 +1039,104 @@ router.get("/reports/export", async (req, res) => {
 // ==================================================================================================================================>
 
 
+// API OFFICES =====================================================================================================================================================================>
 
+// GET
+router.get("/offices", async (req, res)=> {
+    try {
+        // Hanya ambil data yang bertipe 'kantor'
+        const [rows] = await pool.query(
+            "SELECT id, nama_rs as name, address, latitude, longitude, radius_meters FROM hospitals WHERE type = 'kantor' ORDER BY nama_rs ASC"
+        );
+        res.json({ offices: rows });
+    } catch (err) {
+        console.error("Error:", err);
+        res.status(500).json({ message: "Gagal memuat daftar kantor." });
+    }
+});
 
+// POST
+router.post("/offices", async (req, res)=> {
+    try {
+        const name = req.body.name;
+        const address = req.body.address;
+        const latitude = req.body.latitude;
+        const longitude = req.body.longitude;
+        const radius_meters = req.body.radius_meters || req.body.radiusMeters || 200;
+        
+        const type = 'kantor'; 
 
+        if (!name || !address || latitude === undefined || longitude === undefined) {
+            return res.status(400).json({ message: "Data tidak lengkap." });
+        }
+
+        const id = randomUUID();
+
+        await pool.query(
+            "INSERT INTO hospitals (id, nama_rs, address, latitude, longitude, radius_meters, type) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            [id, name, address, latitude, longitude, radius_meters, type]
+        );
+        
+        res.status(201).json({
+            message: "Kantor berhasil ditambahkan.",
+            office: { id, name, address, latitude, longitude, radius_meters }
+        });
+    } catch (err) {
+        console.error("Error:", err);
+        res.status(500).json({ message: "Gagal menambahkan kantor." });
+    }
+});
+
+// PUT
+router.put("/offices/:id", async (req, res)=> {
+    try {
+        const { id } = req.params;
+        const name = req.body.name;
+        const address = req.body.address;
+        const latitude = req.body.latitude;
+        const longitude = req.body.longitude;
+        const radius_meters = req.body.radius_meters || req.body.radiusMeters || 200;
+
+        if (!name || !address || latitude === undefined || longitude === undefined) {
+            return res.status(400).json({ message: "Data tidak lengkap." });
+        }
+
+        // Pastikan hanya bisa mengedit jika type-nya 'kantor'
+        const [result] = await pool.query(
+            "UPDATE hospitals SET nama_rs = ?, address = ?, latitude = ?, longitude = ?, radius_meters = ? WHERE id = ? AND type = 'kantor'",
+            [name, address, latitude, longitude, radius_meters, id]
+        );
+        
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: "Kantor tidak ditemukan." });
+        }
+        res.status(200).json({
+            message: "Kantor berhasil diperbarui.",
+            office: { id, name, address, latitude, longitude, radius_meters }
+        });
+    } catch (err) {
+        console.error("Error:", err);
+        res.status(500).json({ message: "Gagal memperbarui kantor." });
+    }
+});
+
+// DELETE
+router.delete("/offices/:id", async (req, res) => {
+    try {
+        const { id } = req.params;
+        // Pastikan hanya menghapus jika type-nya 'kantor'
+        const [result] = await pool.query("DELETE FROM hospitals WHERE id = ? AND type = 'kantor'", [id]);
+        
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: "Kantor tidak ditemukan." });
+        }
+        res.status(200).json({ message: "Kantor berhasil dihapus." });
+    } catch (err) {
+        console.error("Error:", err);
+        res.status(500).json({ message: "Gagal menghapus kantor." });
+    }
+});
+// ==========================================================================================================================================================================================>
 
 
 
