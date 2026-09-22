@@ -178,9 +178,9 @@ set `ENABLE_GEOFENCING=true` di `.env` dan isi data pada tabel `offices` (lihat 
 
 ---
 
-## Rumah Sakit
+## Lokasi Rumah Sakit
 
-#### 1. Add Rumah Sakit
+#### 1. Add Lokasi Rumah Sakit
 
 **`POST` /api/hrd/hospitals**
 * **Akses:** Admin
@@ -195,7 +195,7 @@ set `ENABLE_GEOFENCING=true` di `.env` dan isi data pada tabel `offices` (lihat 
     "radius_meters": 200
   }
 
-#### 2. Lihat List Rumah Sakit
+#### 2. Lihat List Lokasi Rumah Sakit
 
 **`GET` /api/hrd/hospitals**
 * **Akses:** Admin
@@ -216,7 +216,7 @@ set `ENABLE_GEOFENCING=true` di `.env` dan isi data pada tabel `offices` (lihat 
       ]
   }
 
-#### 3. Edit Data Rumah Sakit
+#### 3. Edit Data Lokasi Rumah Sakit
 
 **`PUT` /api/hrd/hospitals/:id**
 * **Akses:** Admin
@@ -231,7 +231,7 @@ set `ENABLE_GEOFENCING=true` di `.env` dan isi data pada tabel `offices` (lihat 
       "radius_meters": 200
   }
 
-#### 4. Delete Data Rumah Sakit
+#### 4. Delete Data Lokasi Rumah Sakit
 
 **`DELETE` /api/hrd/hospitals/:id**
 * **Akses:** Admin
@@ -242,7 +242,7 @@ set `ENABLE_GEOFENCING=true` di `.env` dan isi data pada tabel `offices` (lihat 
       "message": "Rumah sakit berhasil dihapus."
   }
 
-#### 5. Lokasi Tugas Rumah Sakit
+#### 5. Lokasi Tugas Rumah Sakit/Kantor
 
 **`GET` /api/attendance/locations**
 * **Akses:** Karyawan
@@ -262,6 +262,83 @@ set `ENABLE_GEOFENCING=true` di `.env` dan isi data pada tabel `offices` (lihat 
   }
 
 ---
+
+## Lokasi Kantor
+
+#### 1. Add Lokasi Kantor
+
+**`POST` /api/hrd/offices**
+* **Akses:** Admin
+* **Keterangan:** Tambah Lokasi Kantor/Cabang Baru.
+* **Request Body (JSON):**
+  ```json
+    {
+        "name": "Kantor Pusat CTI",
+        "address": "Jl. Contoh No.1, Jakarta",
+        "latitude": -6.2000,
+        "longitude": 106.8166,
+        "radius_meters": 100
+    }
+
+#### 2. Edit Lokasi Kantor
+
+**`PUT` /api/hrd/offices:id**
+* **Akses:** Admin
+* **Keterangan:** Edit Lokasi Kantor/Cabang.
+* **Request Body (JSON):**
+  ```json
+    {
+        "name": "GoTo",
+        "address": "Jl. Contoh No.1, Jakarta",
+        "latitude": -6.2000,
+        "longitude": 106.8166,
+        "radius_meters": 400
+    }
+
+#### 3. Delete Lokasi Kantor
+
+**`Delete` /api/hrd/offices:id**
+* **Akses:** Admin
+* **Keterangan:** Hapus Lokasi Kantor/Cabang.
+* **Response (JSON):**
+  ```json
+    {
+        "message": "Kantor berhasil dihapus."
+    }
+
+
+#### 4. Lihat Lokasi Kantor
+
+**`GET` /api/hrd/offices**
+* **Akses:** Admin
+* **Keterangan:** Lihat Lokasi Kantor/Cabang.
+* **Response (JSON):**
+  ```json
+    {
+        "offices": [
+            {
+                "id": "61bbbefb-231b-44ef-bfbf-4e833f34ac7a",
+                "name": "Kantor 1",
+                "address": "test",
+                "latitude": -6.1955837,
+                "longitude": 106.7728579,
+                "radius_meters": 200
+            },
+            {
+                "id": "e0ef9a87-fa96-4f4a-8713-0462dc843861",
+                "name": "Rumah Gesa Test",
+                "address": "Jl. Melon V",
+                "latitude": -6.2802373,
+                "longitude": 106.9582232,
+                "radius_meters": 200
+            }
+        ]
+    }
+
+
+---
+
+
 
 ## Departments
 
@@ -1047,14 +1124,24 @@ set `ENABLE_GEOFENCING=true` di `.env` dan isi data pada tabel `offices` (lihat 
 | - | GET    | `/api/auth/me`                | Data user dari token                 |
 ---
 
-### Rumah Sakit
+### Lokasi Rumah Sakit
 |Type | Method | Endpoint                     | Keterangan                           |
 |----|--------|------------------------------|--------------------------------------|
-|Admin| GET   | `/api/hrd/hospitals`| Menampilkan Data Rumah Sakit  |
-|Karyawan| GET   | `/api/attendance/locations`| Menampilkan Data Rumah Sakit Untuk Absensi  |
-|Admin| POST   | `/api/hrd/hospitals`| Menambahkan data Rumah Sakit  |
-|Admin| PUT   | `/api/hrd/hospitals/:id`| Mengedit data rumah Sakit  |
-|Admin| DELETE   | `/api/hrd/hospitals/:id`| Menghapus data rumah Sakit  |
+|Admin| GET   | `/api/hrd/hospitals`| Menampilkan Data Lokasi Rumah Sakit  |
+|Karyawan| GET   | `/api/attendance/locations`| Menampilkan Data Lokasi Rumah Sakit Untuk Absensi  |
+|Admin| POST   | `/api/hrd/hospitals`| Menambahkan data Lokasi Rumah Sakit  |
+|Admin| PUT   | `/api/hrd/hospitals/:id`| Mengedit data Lokasi rumah Sakit  |
+|Admin| DELETE   | `/api/hrd/hospitals/:id`| Menghapus data Lokasi rumah Sakit  |
+---
+
+### Lokasi Kantor
+|Type | Method | Endpoint                     | Keterangan                           |
+|----|--------|------------------------------|--------------------------------------|
+|Admin| GET   | `/api/hrd/offices`| Menampilkan Data Lokasi Kantor  |
+|Karyawan| GET   | `/api/attendance/locations`| Menampilkan Data Kantor Untuk Absensi  |
+|Admin| POST   | `/api/hrd/offices`| Menambahkan data Lokasi Kantor  |
+|Admin| PUT   | `/api/hrd/offices/:id`| Mengedit data Lokasi Kantor  |
+|Admin| DELETE   | `/api/hrd/offices/:id`| Menghapus data Lokasi Kantor  |
 ---
 
 ### Divisi/Departments
@@ -1064,6 +1151,7 @@ set `ENABLE_GEOFENCING=true` di `.env` dan isi data pada tabel `offices` (lihat 
 |Admin| POST   | `/api/hrd/departments`| Menambahkan Data Divisi/Department  |
 |Admin| PUT   | `/api/hrd/departments/:id`| Mengedit Divisi/Department  |
 |Admin| DELETE   | `/api/hrd/departments/:id`| Menghapus Divisi/Department  |
+---
 
 ### Posisi
 |Type | Method | Endpoint                     | Keterangan                           |
@@ -1072,6 +1160,7 @@ set `ENABLE_GEOFENCING=true` di `.env` dan isi data pada tabel `offices` (lihat 
 |Admin| POST   | `/api/hrd/positions`| Menambahkan Posisi   |
 |Admin| PUT   | `/api/hrd/positions/:id`| Mengedit Posisi Seperti nama dll   |
 |Admin| DELETE   | `/api/hrd/positions/:id`| Menghapus Posisi   |
+---
 
 ### Absen/Attendance
 |Type | Method | Endpoint                     | Keterangan                           |
@@ -1079,6 +1168,7 @@ set `ENABLE_GEOFENCING=true` di `.env` dan isi data pada tabel `offices` (lihat 
 |Admin| GET   | `/api/hrd/attendance`| Menampilkan Data Absen aktif Karyawan  |
 |Karyawan| POST   | `/api/hrd/attendance/checkin`| Digunakan Saat Check-in Absensi Masuk   |
 |Karyawan| POST   | `/api/hrd/attendance/checkout`| Digunakan Saat Check-out Absensi Keluar   |
+---
 
 ### Manajemen Data Karyawan
 |Type | Method | Endpoint                     | Keterangan                           |
@@ -1086,13 +1176,14 @@ set `ENABLE_GEOFENCING=true` di `.env` dan isi data pada tabel `offices` (lihat 
 |Admin| GET   | `/api/hrd/employees`| Menampilkan Data karyawan, dan dapat menggunakan params key: 'name' dan value: 'nama_kryawan' |
 |Admin| PUT   | `/api/hrd/employees/:id`| Mengedit Data Karyawan mulai dari jam_masuk, jam_keluar, id_departments, id_positions   |
 |Admin| DELETE   | `/api/hrd/employees/:id`| Menghapus karyawan berdasarkan Id   |
+---
 
 ### Profile
 |Type | Method | Endpoint                     | Keterangan                           |
 |----|--------|------------------------------|--------------------------------------|
 |Karyawan| GET   | `/api/profile`| Menampilkan data profile karyawan tersebut  |
 |Karyawan| PUT   | `/api/profile`| Mengedit data profile karyawan tersebut  |
-
+---
 
 ### Laporan
 |Type | Method | Endpoint                     | Keterangan                           |
@@ -1100,13 +1191,14 @@ set `ENABLE_GEOFENCING=true` di `.env` dan isi data pada tabel `offices` (lihat 
 |Admin| GET   | `/api/hrd/employee-report/:id`| Menampilkan data laporan seorang karyawan absen secara detail  |
 |Admin| GET   | `/api/hrd/attendance-summary`| Menampilkan data laporan seluruh/seorang karyawan absen secara singkat  |
 |Admin| GET   | `/api/hrd/reports/employee`| Menampilkan data laporan seluruh/seorang data karyawan  |
-
+---
 
 ### Perizinan
 |Type | Method | Endpoint                     | Keterangan                           |
 |----|--------|------------------------------|--------------------------------------|
 |Admin| GET   | `/api/hrd/leaves`| Menampilkan Data Permintaan Cuti/Izin  |
 |Admin| PATCH  | `/api/hrd/leaves/:id/approval`| Mengubah Status Permintaan Cuti/Izin|
+---
 
 ### Dashboard HRD
 |Type | Method | Endpoint                     | Keterangan                           |
@@ -1114,7 +1206,7 @@ set `ENABLE_GEOFENCING=true` di `.env` dan isi data pada tabel `offices` (lihat 
 |Admin|  GET  | `/api/hrd/dashboard/overview`| Menampilkan Data Dashboard Untuk HRD |
 ---
 
-### WIP(Work In Progress) API General
+### API General
 
 | Method | Endpoint                     | Keterangan                          |
 |--------|-------------------------------|--------------------------------------|
