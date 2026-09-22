@@ -13,7 +13,6 @@ import { motion } from 'motion/react';
 type Step = 'INITIAL' | 'LOCATING' | 'LOCATION_FOUND' | 'CAPTURING' | 'PREVIEW' | 'SUBMITTING' | 'SUCCESS';
 
 // Akurasi GPS (meter) yang ingin dicapai sebelum berhenti memantau lokasi lebih lanjut.
-// Jika sudah lebih baik dari ini, kita berhenti lebih awal daripada menunggu penuh.
 const TARGET_ACCURACY_METERS = 20;
 // Batas waktu maksimum (ms) untuk terus memperbaiki akurasi GPS via watchPosition sebelum lanjut dengan bacaan terbaik.
 const MAX_WATCH_DURATION_MS = 8000;
@@ -26,39 +25,45 @@ const MAX_WATCH_DURATION_MS = 8000;
 export default function Attendance() {
   const navigate = useNavigate();
   
-  // State (Status) untuk mengelola tahapan proses absensi yang memiliki beberapa langkah (multi-step)
+  // State (Status) untuk mengelola tahapan proses absensi
   const [step, setStep] = useState<Step>('INITIAL');
   const [location, setLocation] = useState<{lat: number, lng: number, accuracy: number | null} | null>(null);
   const [error, setError] = useState<string>('');
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   
-  // Lokasi penugasan (Rumah Sakit / Kantor / Custom)
-  const [hospitals, setHospitals] = useState<HospitalLocation[]>([]);
+  // Lokasi penugasan yang dipisah state-nya
+  const [officesList, setOfficesList] = useState<HospitalLocation[]>([]);
+  const [hospitalsList, setHospitalsList] = useState<HospitalLocation[]>([]);
+  
   const [locationMode, setLocationMode] = useState<'OFFICE' | 'HOSPITAL' | 'CUSTOM'>('OFFICE');
+  const [selectedOfficeId, setSelectedOfficeId] = useState<string>('');
   const [selectedHospitalId, setSelectedHospitalId] = useState<string>('');
   const [customLocationName, setCustomLocationName] = useState<string>('');
 
-  const selectedHospital = hospitals.find(h => h.id === selectedHospitalId);
-  const hospitalDistance = (location && selectedHospital) 
-    ? Math.round(haversineDistanceMeters(location.lat, location.lng, selectedHospital.latitude, selectedHospital.longitude))
+  // Pilihan aktif tergantung mode yang dipilih
+  const activeSelectedId = locationMode === 'OFFICE' ? selectedOfficeId : selectedHospitalId;
+  const activeList = locationMode === 'OFFICE' ? officesList : hospitalsList;
+  const selectedLocationItem = activeList.find(item => item.id === activeSelectedId);
+
+  const locationDistance = (location && selectedLocationItem) 
+    ? Math.round(haversineDistanceMeters(location.lat, location.lng, selectedLocationItem.latitude, selectedLocationItem.longitude))
     : null;
-  const isWithinHospitalRadius = (hospitalDistance != null && selectedHospital)
-    ? hospitalDistance <= selectedHospital.radius_meters
+  const isWithinRadius = (locationDistance != null && selectedLocationItem)
+    ? locationDistance <= selectedLocationItem.radius_meters
     : null;
 
   // Ref untuk mengumpulkan semua sampel lokasi (Jitter Analysis)
   const locationHistoryRef = useRef<{lat: number, lng: number}[]>([]);
   
-  // Refs untuk menyimpan referensi aliran media (kamera) dan input file (unggah foto)
+  // Refs untuk menyimpan referensi aliran media (kamera) dan input file
   const [stream, setStream] = useState<MediaStream | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Aksi-aksi untuk mengubah status global (Zustand Store)
   const checkIn = useAppStore(state => state.checkIn);
   const checkOut = useAppStore(state => state.checkOut);
   const history = useAppStore(state => state.attendanceHistory);
-  const office = useAppStore(state => state.office); // titik & radius geofencing kantor, untuk tampilan jarak
+  const office = useAppStore(state => state.office); 
   
   // Memeriksa status absensi pengguna untuk hari ini
   const today = format(new Date(), 'yyyy-MM-dd');
@@ -66,31 +71,44 @@ export default function Attendance() {
   const isCheckedIn = !!todaysRecord?.checkInTime && !todaysRecord?.checkOutTime;
   const isCheckedOut = !!todaysRecord?.checkOutTime;
 
-  // Memuat daftar rumah sakit penugasan
+  // Memuat daftar Kantor dan Rumah Sakit secara terpisah dari API dengan filter type
   useEffect(() => {
-    apiGetAttendanceLocations()
+    // Ambil data Kantor
+    apiGetAttendanceLocations('kantor' as any)
       .then(res => {
         if (res && res.locations) {
-          setHospitals(res.locations);
+          setOfficesList(res.locations);
+          if (res.locations.length > 0) {
+            setSelectedOfficeId(res.locations[0].id);
+          }
+        }
+      })
+      .catch(err => console.error("Gagal memuat lokasi kantor:", err));
+
+    // Ambil data Rumah Sakit
+    apiGetAttendanceLocations('rumah_sakit' as any)
+      .then(res => {
+        if (res && res.locations) {
+          setHospitalsList(res.locations);
           if (res.locations.length > 0) {
             setSelectedHospitalId(res.locations[0].id);
           }
         }
       })
-      .catch(err => console.error("Gagal memuat lokasi penugasan:", err));
+      .catch(err => console.error("Gagal memuat lokasi rumah sakit:", err));
   }, []);
 
   const watchIdRef = useRef<number | null>(null);
   const fallbackTimerRef = useRef<number | null>(null);
 
-  // Menghubungkan aliran gambar kamera (stream) ke elemen video pada saat pengambilan foto (capturing)
+  // Menghubungkan aliran gambar kamera (stream) ke elemen video
   useEffect(() => {
     if (videoRef.current && stream) {
       videoRef.current.srcObject = stream;
     }
   }, [stream, step]);
 
-  // Membersihkan memori dari stream kamera dan layanan GPS saat komponen ditutup/dilepas (unmount)
+  // Membersihkan memori dari stream kamera dan layanan GPS saat komponen ditutup
   useEffect(() => {
     return () => {
       if (stream) {
@@ -105,9 +123,7 @@ export default function Attendance() {
     };
   }, [stream]);
 
-
-
-  // Memulai inisialisasi kamera untuk pengambilan foto secara langsung (live)
+  // Memulai inisialisasi kamera
   const startCamera = async () => {
     try {
       setError('');
@@ -122,11 +138,10 @@ export default function Attendance() {
     }
   };
 
-  // Mengambil gambar dari bingkai video saat ini (current frame) dan menyimpannya sebagai file JPEG terkompresi
+  // Mengambil gambar dari bingkai video saat ini
   const capturePhoto = () => {
     if (videoRef.current) {
       const canvas = document.createElement('canvas');
-      // Melakukan kompresi ringan dengan membatasi ukuran resolusi maksimum
       let width = videoRef.current.videoWidth;
       let height = videoRef.current.videoHeight;
       const maxWidth = 800;
@@ -154,7 +169,7 @@ export default function Attendance() {
     }
   };
 
-  // Menutup akses kamera dan kembali ke tahapan sebelumnya (lokasi ditemukan)
+  // Menutup akses kamera
   const closeCamera = () => {
     if (stream) {
       stream.getTracks().forEach(track => track.stop());
@@ -163,14 +178,11 @@ export default function Attendance() {
     setStep('LOCATION_FOUND');
   };
 
-  // Memulai proses verifikasi dengan mencari titik koordinat lokasi GPS pengguna saat tombol ditekan.
-  // Menggunakan watchPosition (bukan hanya getCurrentPosition sekali) agar akurasi GPS terus
-  // membaik selama beberapa detik sebelum digunakan - perangkat mobile umumnya butuh waktu
-  // untuk beralih dari sinyal jaringan/wifi kasar ke sinyal satelit GPS yang lebih presisi.
+  // Memulai proses verifikasi dengan mencari titik koordinat GPS
   const startProcess = async () => {
     setError('');
     setStep('LOCATING');
-    locationHistoryRef.current = []; // Reset history
+    locationHistoryRef.current = [];
 
     if (!('geolocation' in navigator)) {
       const errorMsg = 'Gagal Absen! Browser Anda tidak mendukung fitur lokasi.';
@@ -197,28 +209,20 @@ export default function Attendance() {
       }
     };
 
-    // Callback tiap kali browser mengirimkan pembacaan lokasi baru (bisa terpanggil berkali-kali)
     const onPosition = (position: GeolocationPosition) => {
       const { latitude, longitude, accuracy } = position.coords;
-
-      // Simpan semua sampel ke dalam history untuk analisa Jitter (Anti-Fake GPS) di server
       locationHistoryRef.current.push({ lat: latitude, lng: longitude });
 
-      // Hanya perbarui state jika pembacaan ini lebih akurat (angka accuracy lebih kecil = lebih presisi)
       if (accuracy <= bestAccuracySoFar) {
         bestAccuracySoFar = accuracy;
         setLocation({ lat: latitude, lng: longitude, accuracy });
       }
-
-      // Jangan berhenti terlalu cepat meskipun akurasi sudah bagus, 
-      // kita perlu mengumpulkan beberapa sampel (minimal 2-3 detik) untuk mendeteksi Jitter Fake GPS.
-      // Jadi kita tidak memanggil stopWatching() secara otomatis di sini lagi.
     };
 
     const onError = (err: GeolocationPositionError) => {
       console.warn('Geolocation error:', err.message);
       stopWatching();
-      const errorMsg = 'Gagal Absen! Anda wajib mengaktifkan GPS dan mengizinkan akses lokasi pada browser ini untuk melakukan absensi.';
+      const errorMsg = 'Gagal Absen! Anda wajib mengaktifkan GPS dan mengizinkan akses lokasi pada browser ini.';
       window.alert(errorMsg);
       setError(errorMsg);
       setStep('INITIAL');
@@ -226,8 +230,6 @@ export default function Attendance() {
 
     watchIdRef.current = navigator.geolocation.watchPosition(onPosition, onError, geoOptions);
 
-    // Setel durasi perekaman (sampling) selama 4 detik.
-    // Selama 4 detik, watchPosition akan mengumpulkan sampel koordinat.
     const SAMPLING_DURATION_MS = 4000;
     
     fallbackTimerRef.current = window.setTimeout(() => {
@@ -245,13 +247,23 @@ export default function Attendance() {
     }, SAMPLING_DURATION_MS);
   };
 
-  // Mengirimkan catatan kehadiran akhir (check-in atau check-out) menuju backend.
-  // Backend akan memvalidasi ulang akurasi GPS dan radius kantor (geofencing) demi keamanan data.
+  // Mengirimkan catatan kehadiran akhir ke backend
   const handleSubmit = async () => {
     if (!location) {
       setError('Lokasi GPS belum tersedia. Silakan ulangi proses absen.');
       setStep('LOCATION_FOUND');
       return;
+    }
+
+    if (!isCheckedIn && locationMode !== 'CUSTOM' && selectedLocationItem) {
+      if (locationDistance !== null && locationDistance > selectedLocationItem.radius_meters) {
+        // Tampilkan pesan error persis seperti di screenshot
+        setError(`Jarak Anda terlalu jauh dari lokasi penugasan. Jarak saat ini: ${locationDistance} meter. (Maksimal: ${selectedLocationItem.radius_meters} meter).`);
+        
+        // Kembalikan ke halaman preview foto agar user bisa melihat pesan error-nya
+        setStep('PREVIEW'); 
+        return; // Hentikan proses, jangan panggil API backend
+      }
     }
 
     try {
@@ -263,9 +275,9 @@ export default function Attendance() {
         accuracy: location.accuracy ?? 9999,
         photoUrl: photoUrl || null,
         history: locationHistoryRef.current,
-        hospitalId: !isCheckedIn && locationMode === 'HOSPITAL' ? selectedHospitalId : null,
+        hospitalId: !isCheckedIn && locationMode === 'HOSPITAL' ? selectedHospitalId : (!isCheckedIn && locationMode === 'OFFICE' ? selectedOfficeId : null),
         customLocationName: !isCheckedIn 
-          ? (locationMode === 'CUSTOM' ? (customLocationName.trim() || 'Lokasi Khusus') : (locationMode === 'OFFICE' ? 'Kantor / Lapangan' : null)) 
+          ? (locationMode === 'CUSTOM' ? (customLocationName.trim() || 'Lokasi Khusus') : (locationMode === 'OFFICE' ? (selectedLocationItem?.nama_rs || selectedLocationItem?.name || 'Kantor') : (selectedLocationItem?.nama_rs || selectedLocationItem?.name || 'Rumah Sakit'))) 
           : null,
       };
 
@@ -285,8 +297,6 @@ export default function Attendance() {
             ? err.message
             : 'Gagal mengirim absensi. Silakan coba lagi.';
       setError(message);
-      // Untuk error terkait lokasi (akurasi rendah / di luar radius), kembalikan ke tahap lokasi
-      // agar pengguna bisa mencoba mendapatkan sinyal GPS yang lebih baik.
       if (err instanceof ApiError && (err.code === 'LOW_ACCURACY' || err.code === 'OUT_OF_RADIUS')) {
         setStep('LOCATION_FOUND');
       } else {
@@ -295,7 +305,6 @@ export default function Attendance() {
     }
   };
 
-  // Jika pengguna sudah selesai (check-out) untuk hari ini, tampilkan halaman status sukses/selesai
   if (isCheckedOut) {
     return (
       <div className="flex-1 bg-[#F8FAFC] flex flex-col items-center justify-center p-6 text-center">
@@ -314,7 +323,6 @@ export default function Attendance() {
     );
   }
 
-  // Antarmuka UI khusus untuk kamera saat mengambil foto langsung (live)
   if (step === 'CAPTURING') {
     return (
       <div className="flex-1 bg-black flex flex-col p-6 pt-6 text-white pb-safe relative">
@@ -329,18 +337,7 @@ export default function Attendance() {
             playsInline 
             className="w-full h-full object-cover scale-x-[-1]"
           />
-          {/* Grid overlay for better framing */}
-          <div className="absolute inset-0 border-2 border-white/10 pointer-events-none"></div>
-          <div className="absolute inset-0 flex flex-col justify-between opacity-30 pointer-events-none">
-            <div className="w-full h-[33%] border-b border-white"></div>
-            <div className="w-full h-[33%] border-b border-white"></div>
-          </div>
-          <div className="absolute inset-0 flex justify-between opacity-30 pointer-events-none">
-            <div className="h-full w-[33%] border-r border-white"></div>
-            <div className="h-full w-[33%] border-r border-white"></div>
-          </div>
         </div>
-        
         <div className="flex justify-center pb-8">
           <button
             onClick={capturePhoto}
@@ -353,7 +350,6 @@ export default function Attendance() {
     );
   }
 
-  // Antarmuka UI untuk tahap sukses/berhasil setelah data absensi terkirim
   if (step === 'SUCCESS') {
     return (
       <motion.div 
@@ -361,99 +357,25 @@ export default function Attendance() {
         animate={{ opacity: 1 }}
         className="flex-1 bg-blue-900 flex flex-col items-center justify-center p-8 text-center text-white relative overflow-hidden"
       >
-        <div className="absolute top-0 right-0 w-64 h-64 bg-blue-800 rounded-full blur-3xl opacity-50 -translate-y-1/2 translate-x-1/2"></div>
-        <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-800 rounded-full blur-3xl opacity-50 translate-y-1/2 -translate-x-1/2"></div>
-        
         <div className="relative z-10 w-full max-w-sm flex flex-col items-center">
-          <motion.div 
-            initial={{ scale: 0, rotate: -180 }}
-            animate={{ scale: 1, rotate: 0 }}
-            transition={{ type: "spring", stiffness: 200, damping: 20, delay: 0.1 }}
-            className="w-24 h-24 bg-blue-800/50 rounded-full border-2 border-blue-400 flex items-center justify-center mb-8 shadow-[0_0_40px_rgba(59,130,246,0.5)] backdrop-blur-sm"
-          >
+          <div className="w-24 h-24 bg-blue-800/50 rounded-full border-2 border-blue-400 flex items-center justify-center mb-8 shadow-[0_0_40px_rgba(59,130,246,0.5)] backdrop-blur-sm">
             <CheckCircle2 className="w-12 h-12 text-white" />
-          </motion.div>
-          <motion.h2 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="text-4xl font-bold mb-3 tracking-tight"
-          >
-            Sukses!
-          </motion.h2>
-          <motion.p 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="text-blue-200 text-lg mb-10 font-medium"
-          >
+          </div>
+          <h2 className="text-4xl font-bold mb-3 tracking-tight">Sukses!</h2>
+          <p className="text-blue-200 text-lg mb-10 font-medium">
             Anda telah berhasil absen {isCheckedIn ? 'pulang' : 'masuk'}.
-          </motion.p>
-          
-          <motion.div 
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-            className="bg-white/10 rounded-[2rem] p-6 w-full backdrop-blur-md border border-white/10 shadow-2xl mb-12 space-y-4"
-          >
-            <div className="flex justify-between items-center">
-              <span className="text-blue-300 text-xs font-bold uppercase tracking-wider">Waktu Server</span>
-              <span className="font-bold text-xl">{format(new Date(), 'HH:mm:ss')}</span>
-            </div>
-            <div className="w-full h-px bg-white/10"></div>
-            <div className="flex justify-between items-center">
-              <span className="text-blue-300 text-xs font-bold uppercase tracking-wider">Tanggal</span>
-              <span className="font-bold">{format(new Date(), 'dd MMM yyyy', { locale: id })}</span>
-            </div>
-            {!isCheckedIn && (
-              <>
-                <div className="w-full h-px bg-white/10"></div>
-                <div className="flex justify-between items-center text-left">
-                  <span className="text-blue-300 text-xs font-bold uppercase tracking-wider w-1/3">Penugasan</span>
-                  <span className="text-xs text-white font-semibold truncate w-2/3 text-right">
-                    {locationMode === 'HOSPITAL' 
-                      ? (selectedHospital?.nama_rs || selectedHospital?.name || 'Rumah Sakit') 
-                      : (locationMode === 'CUSTOM' ? (customLocationName || 'Lokasi Khusus') : 'Kantor / Lapangan')}
-                  </span>
-                </div>
-              </>
-            )}
-            {location && (
-              <>
-                <div className="w-full h-px bg-white/10"></div>
-                <div className="flex justify-between items-center text-left">
-                  <span className="text-blue-300 text-xs font-bold uppercase tracking-wider w-1/3">Lokasi GPS</span>
-                  <span className="font-mono text-xs text-blue-100 truncate w-2/3 text-right">
-                    {location.lat.toFixed(6)}, {location.lng.toFixed(6)}
-                  </span>
-                </div>
-                {location.accuracy != null && (
-                  <div className="flex justify-between items-center text-left">
-                    <span className="text-blue-300 text-xs font-bold uppercase tracking-wider w-1/3">Akurasi GPS</span>
-                    <span className="font-mono text-xs text-blue-100 text-right">
-                      ±{Math.round(location.accuracy)} m
-                    </span>
-                  </div>
-                )}
-              </>
-            )}
-          </motion.div>
-          
-          <motion.button 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5 }}
+          </p>
+          <button 
             onClick={() => navigate('/home')}
             className="w-full bg-white text-blue-900 py-4 rounded-2xl font-bold shadow-xl hover:bg-slate-50 active:scale-95 transition-all text-lg"
           >
             Kembali ke Beranda
-          </motion.button>
+          </button>
         </div>
       </motion.div>
     );
   }
 
-  // Antarmuka UI untuk tahap pratinjau (preview) foto sebelum dikonfirmasi pengirimannya
   if ((step === 'PREVIEW' || step === 'SUBMITTING') && photoUrl) {
     return (
       <div className="flex-1 bg-black flex flex-col p-6 pt-6 text-white pb-safe">
@@ -491,7 +413,6 @@ export default function Attendance() {
     );
   }
 
-  // Antarmuka UI default (Entry View) saat baru membuka halaman Absensi
   return (
     <div className="flex-1 bg-[#F8FAFC] p-6 flex flex-col pt-6 text-slate-800 pb-safe">
       <h1 className="text-3xl font-bold text-slate-900 mb-2">
@@ -502,7 +423,7 @@ export default function Attendance() {
       {/* Kartu Verifikasi Utama */}
       <div className="bg-white rounded-[2rem] p-6 sm:p-8 shadow-sm border border-slate-200 mb-8 flex-1 space-y-7">
         
-        {/* Pilihan Penugasan Lokasi (Khusus saat Absen Masuk) */}
+        {/* Pilihan Penugasan Lokasi */}
         {!isCheckedIn && (
           <div>
             <div className="flex items-center gap-2 mb-3">
@@ -516,9 +437,7 @@ export default function Attendance() {
                 type="button"
                 onClick={() => setLocationMode('OFFICE')}
                 className={`py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-                  locationMode === 'OFFICE'
-                    ? 'bg-white text-blue-600 shadow-sm'
-                    : 'text-slate-500 hover:text-slate-800'
+                  locationMode === 'OFFICE' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
                 <Building2 className="w-3.5 h-3.5" />
@@ -529,9 +448,7 @@ export default function Attendance() {
                 type="button"
                 onClick={() => setLocationMode('HOSPITAL')}
                 className={`py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-                  locationMode === 'HOSPITAL'
-                    ? 'bg-white text-blue-600 shadow-sm'
-                    : 'text-slate-500 hover:text-slate-800'
+                  locationMode === 'HOSPITAL' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
                 <Hospital className="w-3.5 h-3.5" />
@@ -542,9 +459,7 @@ export default function Attendance() {
                 type="button"
                 onClick={() => setLocationMode('CUSTOM')}
                 className={`py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-                  locationMode === 'CUSTOM'
-                    ? 'bg-white text-blue-600 shadow-sm'
-                    : 'text-slate-500 hover:text-slate-800'
+                  locationMode === 'CUSTOM' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
                 <MapPin className="w-3.5 h-3.5" />
@@ -552,33 +467,31 @@ export default function Attendance() {
               </button>
             </div>
 
-            {/* Detail Pemilihan Berdasarkan Opsi */}
-            {locationMode === 'HOSPITAL' && (
+            {/* Dropdown Khusus KANTOR */}
+            {locationMode === 'OFFICE' && (
               <div className="bg-blue-50/60 border border-blue-100 rounded-2xl p-4 space-y-3">
-                <label className="block text-xs font-bold text-blue-900">Pilih Rumah Sakit Tujuan:</label>
+                <label className="block text-xs font-bold text-blue-900">Pilih Kantor Tujuan:</label>
                 <select
-                  value={selectedHospitalId}
-                  onChange={(e) => setSelectedHospitalId(e.target.value)}
+                  value={selectedOfficeId}
+                  onChange={(e) => setSelectedOfficeId(e.target.value)}
                   className="w-full bg-white border border-blue-200 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  {hospitals.map((h) => (
-                    <option key={h.id} value={h.id}>
-                      {h.nama_rs || h.name}
+                  {officesList.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.nama_rs || o.name}
                     </option>
                   ))}
                 </select>
 
-                {selectedHospital && (
+                {selectedLocationItem && (
                   <div className="text-xs space-y-1 text-slate-600">
-                    <p className="text-slate-500">{selectedHospital.address || 'Alamat RS'}</p>
-                    {hospitalDistance !== null && (
+                    <p className="text-slate-500">{selectedLocationItem.address || 'Alamat Kantor'}</p>
+                    {locationDistance !== null && (
                       <div className="pt-1">
                         <span className={`inline-flex items-center px-2.5 py-1 rounded-lg font-bold text-[11px] ${
-                          isWithinHospitalRadius 
-                            ? 'bg-green-100 text-green-800 border border-green-200' 
-                            : 'bg-amber-100 text-amber-800 border border-amber-200'
+                          isWithinRadius ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-amber-100 text-amber-800 border border-amber-200'
                         }`}>
-                          {isWithinHospitalRadius ? '✓ Dalam Radius' : '⚠️ Di Luar Radius RS'} (Jarak: {hospitalDistance} m / Maks: {selectedHospital.radius_meters} m)
+                          {isWithinRadius ? '✓ Dalam Radius' : '⚠️ Di Luar Radius Kantor'} (Jarak: {locationDistance} m / Maks: {selectedLocationItem.radius_meters} m)
                         </span>
                       </div>
                     )}
@@ -587,6 +500,40 @@ export default function Attendance() {
               </div>
             )}
 
+            {/* Dropdown Khusus RUMAH SAKIT */}
+            {locationMode === 'HOSPITAL' && (
+              <div className="bg-blue-50/60 border border-blue-100 rounded-2xl p-4 space-y-3">
+                <label className="block text-xs font-bold text-blue-900">Pilih Rumah Sakit Tujuan:</label>
+                <select
+                  value={selectedHospitalId}
+                  onChange={(e) => setSelectedHospitalId(e.target.value)}
+                  className="w-full bg-white border border-blue-200 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {hospitalsList.map((h) => (
+                    <option key={h.id} value={h.id}>
+                      {h.nama_rs || h.name}
+                    </option>
+                  ))}
+                </select>
+
+                {selectedLocationItem && (
+                  <div className="text-xs space-y-1 text-slate-600">
+                    <p className="text-slate-500">{selectedLocationItem.address || 'Alamat RS'}</p>
+                    {locationDistance !== null && (
+                      <div className="pt-1">
+                        <span className={`inline-flex items-center px-2.5 py-1 rounded-lg font-bold text-[11px] ${
+                          isWithinRadius ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-amber-100 text-amber-800 border border-amber-200'
+                        }`}>
+                          {isWithinRadius ? '✓ Dalam Radius' : '⚠️ Di Luar Radius RS'} (Jarak: {locationDistance} m / Maks: {selectedLocationItem.radius_meters} m)
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Input Lokasi CUSTOM */}
             {locationMode === 'CUSTOM' && (
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2">
                 <label className="block text-xs font-bold text-slate-700">Nama Lokasi Penugasan Lapangan:</label>
@@ -597,12 +544,6 @@ export default function Attendance() {
                   placeholder="contoh: Puskesmas Gambir / Lab Medika"
                   className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
-              </div>
-            )}
-
-            {locationMode === 'OFFICE' && (
-              <div className="bg-slate-50 border border-slate-100 rounded-2xl p-3 text-xs text-slate-500">
-                Absen dengan penugasan standar Kantor / Lapangan.
               </div>
             )}
 
@@ -627,7 +568,6 @@ export default function Attendance() {
                     </span>
                   </div>
 
-                  {/* Indikator kualitas akurasi GPS - membantu pengguna tahu apakah perlu pindah ke area terbuka */}
                   {location.accuracy != null && (
                     <div className={`flex items-center justify-between rounded-xl p-3 border ${accuracyQualityColorClasses(classifyAccuracy(location.accuracy))}`}>
                       <span className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
@@ -640,25 +580,12 @@ export default function Attendance() {
                     </div>
                   )}
 
-                  {/* Peta lokasi teknisi saat ini - lingkaran putus-putus menunjukkan radius akurasi GPS di titik tersebut.
-                      Lokasi disimpan apa adanya (tidak dibatasi ke satu kantor), karena teknisi bekerja berpindah lokasi. */}
                   <MiniMap checkInLocation={location} office={office} />
-                  <p className="text-[11px] text-slate-400 font-medium px-1">
-                    Titik biru menandai lokasi Anda saat ini. Lingkaran putus-putus adalah radius akurasi GPS (±{location.accuracy ? Math.round(location.accuracy) : '-'} m) - lokasi ini yang akan tersimpan sebagai titik absen.
-                  </p>
                 </div>
               ) : step === 'LOCATING' ? (
                 <p className="text-xs text-slate-500 font-medium leading-relaxed">Menyempurnakan akurasi lokasi Anda, mohon tunggu sebentar...</p>
               ) : (
-                <p className="text-xs text-slate-500 font-medium leading-relaxed">Kami akan merekam koordinat lokasi Anda saat ini (latitude & longitude) sebagai titik absen, beserta radius akurasinya.</p>
-              )}
-              {error && (error.includes('lokasi') || error.includes('GPS') || error.includes('radius') || error.includes('akurasi')) && (
-                <div className="mt-3 text-xs text-red-700 bg-red-50 p-3 rounded-xl border border-red-100 flex flex-col gap-2 font-medium">
-                  <div className="flex gap-2 items-start">
-                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                    <span>{error}</span>
-                  </div>
-                </div>
+                <p className="text-xs text-slate-500 font-medium leading-relaxed">Kami akan merekam koordinat lokasi Anda saat ini sebagai titik absen.</p>
               )}
             </div>
           </div>
@@ -672,13 +599,7 @@ export default function Attendance() {
             </div>
             <div className="flex-1">
               <h3 className="font-bold text-slate-900 mb-1">Verifikasi Identitas</h3>
-              <p className="text-xs text-slate-500 font-medium leading-relaxed">Ambil foto langsung atau unggah foto untuk memvalidasi keberadaan pada lokasi</p>
-              {error && error.includes('kamera') && (
-                <div className="mt-3 text-xs text-red-700 bg-red-50 p-3 rounded-xl border border-red-100 flex gap-2 items-start font-medium">
-                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                  <span>{error}</span>
-                </div>
-              )}
+              <p className="text-xs text-slate-500 font-medium leading-relaxed">Ambil foto langsung untuk memvalidasi keberadaan pada lokasi</p>
             </div>
           </div>
         </div>
@@ -689,7 +610,7 @@ export default function Attendance() {
         <div className="flex gap-3">
           <button
             onClick={startCamera}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-2xl py-5 font-bold text-lg shadow-xl shadow-blue-100 flex items-center justify-center gap-3 transition-all active:scale-[0.98] disabled:opacity-70 disabled:shadow-none"
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-2xl py-5 font-bold text-lg shadow-xl shadow-blue-100 flex items-center justify-center gap-3 transition-all active:scale-[0.98]"
           >
             <Camera className="w-6 h-6" />
             Kamera

@@ -51,6 +51,7 @@ export type HospitalLocation = {
   latitude: number;
   longitude: number;
   radius_meters: number;
+  type?: 'rumah_sakit' | 'kantor';
 };
 
 export type MasterDepartment = {

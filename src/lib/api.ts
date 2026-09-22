@@ -117,8 +117,9 @@ export async function apiCheckOut(payload: GeoPayload): Promise<{ record: Attend
   return request("/attendance/checkout", { method: "POST", body: JSON.stringify(payload) });
 }
 
-export async function apiGetAttendanceLocations(): Promise<{ locations: HospitalLocation[] }> {
-  return request("/attendance/locations");
+export async function apiGetAttendanceLocations(type?: 'rumah_sakit' | 'kantor'): Promise<{ locations: HospitalLocation[] }> {
+  const query = type ? `?type=${type}` : '';
+  return request(`/attendance/locations${query}`);
 }
 
 // ---------------------------------------------------------------------------
