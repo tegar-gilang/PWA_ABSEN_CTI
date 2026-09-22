@@ -255,6 +255,17 @@ export default function Attendance() {
       return;
     }
 
+    if (!isCheckedIn && locationMode !== 'CUSTOM' && selectedLocationItem) {
+      if (locationDistance !== null && locationDistance > selectedLocationItem.radius_meters) {
+        // Tampilkan pesan error persis seperti di screenshot
+        setError(`Jarak Anda terlalu jauh dari lokasi penugasan. Jarak saat ini: ${locationDistance} meter. (Maksimal: ${selectedLocationItem.radius_meters} meter).`);
+        
+        // Kembalikan ke halaman preview foto agar user bisa melihat pesan error-nya
+        setStep('PREVIEW'); 
+        return; // Hentikan proses, jangan panggil API backend
+      }
+    }
+
     try {
       setStep('SUBMITTING');
 
@@ -264,7 +275,6 @@ export default function Attendance() {
         accuracy: location.accuracy ?? 9999,
         photoUrl: photoUrl || null,
         history: locationHistoryRef.current,
-        // Kirim ID Rumah Sakit jika mode HOSPITAL, atau ID Kantor jika mode OFFICE (jika BE mendukung, atau sesuaikan parameter)
         hospitalId: !isCheckedIn && locationMode === 'HOSPITAL' ? selectedHospitalId : (!isCheckedIn && locationMode === 'OFFICE' ? selectedOfficeId : null),
         customLocationName: !isCheckedIn 
           ? (locationMode === 'CUSTOM' ? (customLocationName.trim() || 'Lokasi Khusus') : (locationMode === 'OFFICE' ? (selectedLocationItem?.nama_rs || selectedLocationItem?.name || 'Kantor') : (selectedLocationItem?.nama_rs || selectedLocationItem?.name || 'Rumah Sakit'))) 
