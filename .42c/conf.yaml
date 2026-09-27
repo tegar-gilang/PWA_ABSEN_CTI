@@ -1,0 +1,3 @@
+apis:
+  api-contract_smartwork.yaml:
+    alias: smartwork-hrd-api

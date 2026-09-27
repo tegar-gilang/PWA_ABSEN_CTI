@@ -1,15 +1,12 @@
 /**
- * Menghitung jarak antara dua titik koordinat GPS menggunakan formula Haversine.
- * Hasil dikembalikan dalam satuan meter.
- *
- * @param {number} lat1 Latitude titik pertama
- * @param {number} lng1 Longitude titik pertama
- * @param {number} lat2 Latitude titik kedua
- * @param {number} lng2 Longitude titik kedua
- * @returns {number} jarak dalam meter
+ * @param {number} lat1 
+ * @param {number} lng1 
+ * @param {number} lat2
+ * @param {number} lng2 
+ * @returns {number} 
  */
 export function haversineDistanceMeters(lat1, lng1, lat2, lng2) {
-  const R = 6371000; // radius bumi dalam meter
+  const R = 6371000;
   const toRad = (deg) => (deg * Math.PI) / 180;
 
   const dLat = toRad(lat2 - lat1);

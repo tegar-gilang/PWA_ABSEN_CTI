@@ -1,0 +1,1269 @@
+openapi: 3.0.3
+info:
+  title: SmartWork HRD API
+  description: >
+    API backend Web HRD SmartWork (PT Cerdas Teknik Indonesia).
+    Dibangun dengan Express.js + MySQL. Mencakup modul Autentikasi,
+    Absensi Karyawan, Pengajuan Cuti/Izin, Notifikasi, Profil,
+    Data Kantor, dan modul HRD (khusus role ADMIN).
+  version: "1.0.0"
+servers:
+  - url: http://localhost:4000/api
+    description: Local development server
+
+tags:
+  - name: Auth
+    description: Registrasi, login, dan manajemen akun
+  - name: Attendance
+    description: Absensi karyawan (check-in/check-out)
+  - name: Requests
+    description: Pengajuan cuti / izin / sakit karyawan
+  - name: Notifications
+    description: Notifikasi pengguna
+  - name: Profile
+    description: Profil pengguna yang sedang login
+  - name: Office
+    description: Data lokasi kantor (geofencing)
+  - name: HRD - Master Data
+    description: CRUD data rumah sakit, kantor, divisi, posisi (khusus ADMIN)
+  - name: HRD - Dashboard & Laporan
+    description: Dashboard overview, rekap absensi, dan laporan (khusus ADMIN)
+  - name: HRD - Karyawan & Cuti
+    description: Manajemen data karyawan dan persetujuan cuti/izin (khusus ADMIN)
+  - name: HRD - KPI
+    description: Evaluasi KPI karyawan (khusus ADMIN)
+  - name: HRD - Rekrutmen
+    description: Lowongan pekerjaan dan kandidat (khusus ADMIN)
+
+security:
+  - bearerAuth: []
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "Terjadi kesalahan pada server."
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "uuid-user"
+        employeeId:
+          type: string
+          example: "EMP001"
+        nik:
+          type: string
+        name:
+          type: string
+          example: "Yoga Eka Pratama"
+        department:
+          type: string
+          example: "IT"
+        position:
+          type: string
+          example: "Teknisi"
+        phone:
+          type: string
+        email:
+          type: string
+        schedule:
+          type: string
+          example: "08:00 - 17:00"
+        photoUrl:
+          type: string
+        emergencyContact:
+          type: string
+        role:
+          type: string
+          enum: [EMPLOYEE, ADMIN]
+
+    AttendanceRecord:
+      type: object
+      properties:
+        id:
+          type: string
+        date:
+          type: string
+          format: date
+        checkInTime:
+          type: string
+          nullable: true
+        checkOutTime:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [ON_TIME, LATE, ABSENT, SICK, LEAVE, CUTI]
+        workingHours:
+          type: number
+          nullable: true
+        checkInLocation:
+          type: object
+          properties:
+            lat: { type: number }
+            lng: { type: number }
+            accuracy: { type: number }
+        checkOutLocation:
+          type: object
+          nullable: true
+          properties:
+            lat: { type: number }
+            lng: { type: number }
+            accuracy: { type: number }
+        checkInPhotoUrl:
+          type: string
+          nullable: true
+        checkOutPhotoUrl:
+          type: string
+          nullable: true
+
+    RequestItem:
+      type: object
+      properties:
+        id: { type: string }
+        type:
+          type: string
+          enum: [LEAVE, PERMISSION, SICK, CUTI, IZIN, SAKIT]
+        reason: { type: string }
+        date: { type: string, format: date }
+        endDate: { type: string, format: date, nullable: true }
+        status:
+          type: string
+          enum: [PENDING, APPROVED, REJECTED]
+        attachmentUrl: { type: string, nullable: true }
+        rejectionReason: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+
+    Notification:
+      type: object
+      properties:
+        id: { type: string }
+        title: { type: string }
+        description: { type: string }
+        isRead: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        type:
+          type: string
+          enum: [SUCCESS, WARNING, INFO]
+
+    Location:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        address: { type: string }
+        latitude: { type: number }
+        longitude: { type: number }
+        radius_meters: { type: number }
+
+paths:
+  # ============================= AUTH =============================
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Registrasi akun karyawan baru
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, employee_id, password, email]
+              properties:
+                name: { type: string }
+                nik: { type: string }
+                employee_id: { type: string }
+                email: { type: string }
+                password: { type: string, format: password }
+                phone: { type: string }
+                department: { type: string, description: "Nama divisi (opsional, dibuat otomatis jika belum ada)" }
+                position: { type: string, description: "Nama posisi (opsional, dibuat otomatis jika belum ada)" }
+      responses:
+        "201":
+          description: Registrasi berhasil
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  token: { type: string }
+                  user: { $ref: "#/components/schemas/User" }
+        "400": { description: Data tidak lengkap, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "409": { description: Email/NIK sudah terdaftar, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login karyawan (email & password)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string }
+                password: { type: string, format: password }
+      responses:
+        "200":
+          description: Login berhasil
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  token: { type: string }
+                  user: { $ref: "#/components/schemas/User" }
+        "401": { description: Email atau kata sandi salah, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  /auth/login-admin:
+    post:
+      tags: [Auth]
+      summary: Login khusus akun HRD/Admin
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string }
+                password: { type: string, format: password }
+      responses:
+        "200":
+          description: Login admin berhasil
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  token: { type: string }
+                  user: { $ref: "#/components/schemas/User" }
+        "401": { description: Kredensial salah, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "403": { description: Bukan akun admin, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  /auth/departments:
+    get:
+      tags: [Auth]
+      summary: Daftar divisi (untuk dropdown registrasi)
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  departments:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        name: { type: string }
+
+  /auth/positions:
+    get:
+      tags: [Auth]
+      summary: Daftar posisi/jabatan (untuk dropdown registrasi)
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  positions:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        name: { type: string }
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Ambil data akun yang sedang login (berdasarkan token)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user: { $ref: "#/components/schemas/User" }
+        "401": { description: Token tidak valid }
+
+  /auth/forgot-password:
+    post:
+      tags: [Auth]
+      summary: Meminta OTP reset kata sandi via email
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string }
+      responses:
+        "200": { description: OTP telah dikirim ke email }
+        "404": { description: Email tidak ditemukan, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  /auth/reset-password:
+    post:
+      tags: [Auth]
+      summary: Reset kata sandi menggunakan kode OTP
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, otp, newPassword]
+              properties:
+                email: { type: string }
+                otp: { type: string, example: "482913" }
+                newPassword: { type: string, format: password }
+      responses:
+        "200": { description: Kata sandi berhasil direset }
+        "400": { description: OTP tidak valid/kedaluwarsa, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  # ============================= ATTENDANCE =============================
+  /attendance/today:
+    get:
+      tags: [Attendance]
+      summary: Status absensi hari ini milik user yang login
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  record:
+                    allOf:
+                      - $ref: "#/components/schemas/AttendanceRecord"
+                    nullable: true
+
+  /attendance/history:
+    get:
+      tags: [Attendance]
+      summary: Riwayat absensi milik user yang login
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  records:
+                    type: array
+                    items: { $ref: "#/components/schemas/AttendanceRecord" }
+
+  /attendance/checkin:
+    post:
+      tags: [Attendance]
+      summary: Absen masuk (check-in)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [latitude, longitude, accuracy, photo_url]
+              properties:
+                latitude: { type: number, example: -7.4258 }
+                longitude: { type: number, example: 109.2338 }
+                accuracy: { type: number, example: 15 }
+                photo_url: { type: string, example: "/uploads/checkin_123.jpg" }
+                hospital_id: { type: string, nullable: true }
+                custom_location_name: { type: string, nullable: true }
+      responses:
+        "201":
+          description: Check-in berhasil
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  status: { type: string }
+                  record: { $ref: "#/components/schemas/AttendanceRecord" }
+                  geo:
+                    type: object
+                    properties:
+                      distanceMeters: { type: number, nullable: true }
+                      accuracyQuality: { type: string, enum: [GOOD, MEDIUM, POOR] }
+        "400": { description: "Sudah check-in / input tidak valid", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "403": { description: Di luar radius lokasi, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "422": { description: Akurasi GPS terlalu rendah, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  /attendance/checkout:
+    post:
+      tags: [Attendance]
+      summary: Absen pulang (check-out)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [latitude, longitude, accuracy, photo_url]
+              properties:
+                latitude: { type: number }
+                longitude: { type: number }
+                accuracy: { type: number }
+                photo_url: { type: string }
+      responses:
+        "200":
+          description: Check-out berhasil
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  working_hours: { type: string, example: "8.00" }
+                  record: { $ref: "#/components/schemas/AttendanceRecord" }
+        "400": { description: "Belum check-in / sudah check-out", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  /attendance/locations:
+    get:
+      tags: [Attendance]
+      summary: Daftar lokasi (kantor/rumah sakit) untuk pilihan absen
+      parameters:
+        - in: query
+          name: type
+          schema: { type: string, enum: [HOSPITAL, OFFICE] }
+          required: false
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  locations:
+                    type: array
+                    items: { $ref: "#/components/schemas/Location" }
+
+  # ============================= REQUESTS =============================
+  /requests:
+    get:
+      tags: [Requests]
+      summary: Daftar pengajuan cuti/izin/sakit milik user yang login
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  requests:
+                    type: array
+                    items: { $ref: "#/components/schemas/RequestItem" }
+    post:
+      tags: [Requests]
+      summary: Ajukan cuti/izin/sakit baru (dengan lampiran opsional)
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [type, reason, date]
+              properties:
+                type: { type: string, enum: [LEAVE, PERMISSION, SICK, CUTI, IZIN, SAKIT] }
+                reason: { type: string }
+                date: { type: string, format: date }
+                endDate: { type: string, format: date, nullable: true }
+                attachment: { type: string, format: binary, description: "File lampiran (foto surat dokter, dsb.)" }
+      responses:
+        "201":
+          description: Pengajuan berhasil dikirim
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  request: { $ref: "#/components/schemas/RequestItem" }
+        "400": { description: Data tidak lengkap, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  # ============================= NOTIFICATIONS =============================
+  /notifications:
+    get:
+      tags: [Notifications]
+      summary: Daftar notifikasi milik user yang login
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  notifications:
+                    type: array
+                    items: { $ref: "#/components/schemas/Notification" }
+
+  /notifications/{id}/read:
+    patch:
+      tags: [Notifications]
+      summary: Tandai satu notifikasi sebagai sudah dibaca
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+
+  # ============================= PROFILE =============================
+  /profile:
+    get:
+      tags: [Profile]
+      summary: Ambil data profil user yang login
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user: { $ref: "#/components/schemas/User" }
+        "404": { description: Pengguna tidak ditemukan, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+    put:
+      tags: [Profile]
+      summary: Perbarui data profil (nama, kontak, foto, dsb.)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                nik: { type: string }
+                email: { type: string }
+                address: { type: string }
+                phone: { type: string }
+                photo_url: { type: string }
+                emergency_contact: { type: string }
+                department: { type: string }
+                position: { type: string }
+      responses:
+        "200":
+          description: Profil berhasil diperbarui
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  user: { $ref: "#/components/schemas/User" }
+        "409": { description: Email/NIK sudah dipakai akun lain, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "413": { description: Data (foto) terlalu besar, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+    patch:
+      tags: [Profile]
+      summary: Perbarui sebagian data profil (sama seperti PUT)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "200": { description: Profil berhasil diperbarui }
+
+  # ============================= OFFICE =============================
+  /office:
+    get:
+      tags: [Office]
+      summary: Ambil titik lokasi kantor utama + radius geofence
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  office:
+                    type: object
+                    nullable: true
+                    properties:
+                      id: { type: string }
+                      name: { type: string }
+                      lat: { type: number }
+                      lng: { type: number }
+                      radiusMeters: { type: number }
+
+  # ============================= HRD: ADMIN REGISTER =============================
+  /hrd/admins/register:
+    post:
+      tags: [HRD - Master Data]
+      summary: "[ADMIN] Daftarkan akun admin/HRD baru"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, nik, password]
+              properties:
+                name: { type: string }
+                email: { type: string }
+                nik: { type: string }
+                password: { type: string, format: password }
+      responses:
+        "201": { description: Akun admin berhasil dibuat }
+        "400": { description: Data tidak lengkap, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "409": { description: Email/NIK sudah digunakan, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  # ============================= HRD: HOSPITALS =============================
+  /hrd/hospitals:
+    get:
+      tags: [HRD - Master Data]
+      summary: "[ADMIN] Daftar lokasi rumah sakit/klien"
+      responses:
+        "200": { description: OK }
+    post:
+      tags: [HRD - Master Data]
+      summary: "[ADMIN] Tambah lokasi rumah sakit/klien"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, address, latitude, longitude]
+              properties:
+                name: { type: string }
+                address: { type: string }
+                latitude: { type: number }
+                longitude: { type: number }
+                radius_meters: { type: number, default: 200 }
+      responses:
+        "201": { description: Berhasil ditambahkan }
+        "400": { description: Data tidak lengkap, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  /hrd/hospitals/{id}:
+    put:
+      tags: [HRD - Master Data]
+      summary: "[ADMIN] Perbarui data rumah sakit/klien"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, address, latitude, longitude]
+              properties:
+                name: { type: string }
+                address: { type: string }
+                latitude: { type: number }
+                longitude: { type: number }
+                radius_meters: { type: number }
+      responses:
+        "200": { description: Berhasil diperbarui }
+        "404": { description: Tidak ditemukan, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+    delete:
+      tags: [HRD - Master Data]
+      summary: "[ADMIN] Hapus data rumah sakit/klien"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Berhasil dihapus }
+        "404": { description: Tidak ditemukan, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  # ============================= HRD: OFFICES =============================
+  /hrd/offices:
+    get:
+      tags: [HRD - Master Data]
+      summary: "[ADMIN] Daftar lokasi kantor"
+      responses:
+        "200": { description: OK }
+    post:
+      tags: [HRD - Master Data]
+      summary: "[ADMIN] Tambah lokasi kantor"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, address, latitude, longitude]
+              properties:
+                name: { type: string }
+                address: { type: string }
+                latitude: { type: number }
+                longitude: { type: number }
+                radius_meters: { type: number, default: 200 }
+      responses:
+        "201": { description: Berhasil ditambahkan }
+        "400": { description: Data tidak lengkap, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  /hrd/offices/{id}:
+    put:
+      tags: [HRD - Master Data]
+      summary: "[ADMIN] Perbarui lokasi kantor"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, address, latitude, longitude]
+              properties:
+                name: { type: string }
+                address: { type: string }
+                latitude: { type: number }
+                longitude: { type: number }
+                radius_meters: { type: number }
+      responses:
+        "200": { description: Berhasil diperbarui }
+        "404": { description: Tidak ditemukan, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+    delete:
+      tags: [HRD - Master Data]
+      summary: "[ADMIN] Hapus lokasi kantor"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Berhasil dihapus }
+        "404": { description: Tidak ditemukan, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  # ============================= HRD: DEPARTMENTS =============================
+  /hrd/departments:
+    post:
+      tags: [HRD - Master Data]
+      summary: "[ADMIN] Tambah divisi baru"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+      responses:
+        "201": { description: Berhasil ditambahkan }
+        "409": { description: Nama divisi sudah ada, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  /hrd/departments/{id}:
+    put:
+      tags: [HRD - Master Data]
+      summary: "[ADMIN] Ubah nama divisi"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+      responses:
+        "200": { description: Berhasil diperbarui }
+        "404": { description: Tidak ditemukan, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+    delete:
+      tags: [HRD - Master Data]
+      summary: "[ADMIN] Hapus divisi"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Berhasil dihapus }
+        "404": { description: Tidak ditemukan, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  # ============================= HRD: POSITIONS =============================
+  /hrd/positions:
+    post:
+      tags: [HRD - Master Data]
+      summary: "[ADMIN] Tambah posisi/jabatan baru"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+      responses:
+        "201": { description: Berhasil ditambahkan }
+        "409": { description: Nama posisi sudah ada, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  /hrd/positions/{id}:
+    put:
+      tags: [HRD - Master Data]
+      summary: "[ADMIN] Ubah nama posisi/jabatan"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+      responses:
+        "200": { description: Berhasil diperbarui }
+        "404": { description: Tidak ditemukan, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+    delete:
+      tags: [HRD - Master Data]
+      summary: "[ADMIN] Hapus posisi/jabatan"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Berhasil dihapus }
+        "404": { description: Tidak ditemukan, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  # ============================= HRD: DASHBOARD & REPORTS =============================
+  /hrd/dashboard/overview:
+    get:
+      tags: [HRD - Dashboard & Laporan]
+      summary: "[ADMIN] Ringkasan dashboard (total karyawan, hadir, telat, cuti pending, tren 7 hari)"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  metrics:
+                    type: object
+                    properties:
+                      totalEmployees: { type: integer }
+                      presentToday: { type: integer }
+                      lateToday: { type: integer }
+                      pendingLeaves: { type: integer }
+                  recentActivities:
+                    type: array
+                    items: { type: object }
+                  attendanceTrends:
+                    type: array
+                    items: { type: object }
+
+  /hrd/attendance:
+    get:
+      tags: [HRD - Dashboard & Laporan]
+      summary: "[ADMIN] Data kehadiran seluruh karyawan (filter tanggal/rentang)"
+      parameters:
+        - in: query
+          name: date
+          schema: { type: string, format: date }
+        - in: query
+          name: startDate
+          schema: { type: string, format: date }
+        - in: query
+          name: endDate
+          schema: { type: string, format: date }
+      responses:
+        "200": { description: OK }
+
+  /hrd/attendance-summary:
+    get:
+      tags: [HRD - Dashboard & Laporan]
+      summary: "[ADMIN] Ringkasan rekap absensi per karyawan (harian/mingguan/bulanan/tahunan)"
+      parameters:
+        - in: query
+          name: date
+          schema: { type: string, format: date }
+        - in: query
+          name: startDate
+          schema: { type: string, format: date }
+        - in: query
+          name: endDate
+          schema: { type: string, format: date }
+        - in: query
+          name: search
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+
+  /hrd/employee-report/{userId}:
+    get:
+      tags: [HRD - Dashboard & Laporan]
+      summary: "[ADMIN] Detail laporan absensi & pengajuan satu karyawan"
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema: { type: string }
+        - in: query
+          name: date
+          schema: { type: string, format: date }
+        - in: query
+          name: startDate
+          schema: { type: string, format: date }
+        - in: query
+          name: endDate
+          schema: { type: string, format: date }
+      responses:
+        "200": { description: OK }
+        "404": { description: Karyawan tidak ditemukan, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  /hrd/reports/employees:
+    get:
+      tags: [HRD - Dashboard & Laporan]
+      summary: "[ADMIN] Laporan daftar data karyawan (filter nama/divisi)"
+      parameters:
+        - in: query
+          name: name
+          schema: { type: string }
+        - in: query
+          name: department
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+
+  /hrd/reports/export:
+    get:
+      tags: [HRD - Dashboard & Laporan]
+      summary: "[ADMIN] Export rekap absensi karyawan pada rentang tanggal"
+      parameters:
+        - in: query
+          name: startDate
+          required: true
+          schema: { type: string, format: date }
+        - in: query
+          name: endDate
+          required: true
+          schema: { type: string, format: date }
+        - in: query
+          name: name
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+        "400": { description: startDate/endDate wajib diisi, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "404": { description: Data karyawan tidak ditemukan, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  # ============================= HRD: EMPLOYEES & LEAVES =============================
+  /hrd/employees:
+    get:
+      tags: [HRD - Karyawan & Cuti]
+      summary: "[ADMIN] Daftar seluruh karyawan"
+      parameters:
+        - in: query
+          name: name
+          schema: { type: string }
+        - in: query
+          name: department
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+
+  /hrd/employees/{id}:
+    put:
+      tags: [HRD - Karyawan & Cuti]
+      summary: "[ADMIN] Perbarui data karyawan (jadwal, divisi, posisi, kontak, dsb.)"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                employeeId: { type: string }
+                nik: { type: string }
+                jam_masuk: { type: string, example: "08:00:00" }
+                jam_keluar: { type: string, example: "17:00:00" }
+                schedule: { type: string, example: "08:00 - 17:00" }
+                id_department: { type: string }
+                id_position: { type: string }
+                email: { type: string }
+                phone: { type: string }
+                address: { type: string }
+                hospital_id: { type: string, nullable: true }
+                emergency_contact: { type: string }
+                status_karyawan: { type: string, enum: [ACTIVE, INACTIVE] }
+                performance_status: { type: string }
+      responses:
+        "200": { description: Berhasil diperbarui }
+        "404": { description: Karyawan tidak ditemukan, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+    delete:
+      tags: [HRD - Karyawan & Cuti]
+      summary: "[ADMIN] Hapus data karyawan"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Berhasil dihapus }
+        "400": { description: Tidak dapat menghapus akun sendiri, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "404": { description: Karyawan tidak ditemukan, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  /hrd/leaves:
+    get:
+      tags: [HRD - Karyawan & Cuti]
+      summary: "[ADMIN] Daftar seluruh pengajuan cuti/izin/sakit karyawan"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  requests:
+                    type: array
+                    items: { $ref: "#/components/schemas/RequestItem" }
+
+  /hrd/leaves/{id}/approval:
+    patch:
+      tags: [HRD - Karyawan & Cuti]
+      summary: "[ADMIN] Setujui/tolak pengajuan cuti/izin (mengirim notifikasi otomatis)"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [APPROVED, REJECTED] }
+                rejection_reason: { type: string, nullable: true }
+      responses:
+        "200": { description: Status pengajuan berhasil diperbarui }
+        "400": { description: Nilai status tidak valid, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  # ============================= HRD: KPI =============================
+  /hrd/kpi:
+    get:
+      tags: [HRD - KPI]
+      summary: "[ADMIN] Rekap skor KPI seluruh karyawan per bulan"
+      parameters:
+        - in: query
+          name: month
+          schema: { type: string, example: "2026-09" }
+      responses:
+        "200": { description: OK }
+    post:
+      tags: [HRD - KPI]
+      summary: "[ADMIN] Input/update penilaian KPI manual karyawan"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id, month_year]
+              properties:
+                user_id: { type: string }
+                month_year: { type: string, example: "2026-09" }
+                terlambat_laporan: { type: integer, default: 0 }
+                laporan_tidak_sesuai: { type: integer, default: 0 }
+                komplain: { type: integer, default: 0 }
+                target_persen: { type: number, default: 0 }
+                pelanggaran_sop: { type: string, enum: [Y, T] }
+      responses:
+        "200": { description: Evaluasi KPI berhasil disimpan }
+
+  # ============================= HRD: RECRUITMENT =============================
+  /hrd/recruitment/jobs:
+    post:
+      tags: [HRD - Rekrutmen]
+      summary: "[ADMIN] Buat lowongan pekerjaan baru"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, role]
+              properties:
+                title: { type: string }
+                role: { type: string, description: "Bisa juga dikirim sebagai 'department'" }
+      responses:
+        "201": { description: Lowongan berhasil dibuat }
+        "400": { description: Data tidak lengkap, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  /hrd/recruitment/jobs/{id}:
+    put:
+      tags: [HRD - Rekrutmen]
+      summary: "[ADMIN] Perbarui lowongan pekerjaan"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, role, status]
+              properties:
+                title: { type: string }
+                role: { type: string }
+                status: { type: string, enum: [OPEN, ACTIVE, CLOSED] }
+      responses:
+        "200": { description: Berhasil diperbarui }
+        "400": { description: Data tidak lengkap / status tidak valid, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "404": { description: Lowongan tidak ditemukan, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+    delete:
+      tags: [HRD - Rekrutmen]
+      summary: "[ADMIN] Hapus lowongan pekerjaan"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Berhasil dihapus }
+        "404": { description: Lowongan tidak ditemukan, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  /hrd/recruitment/overview:
+    get:
+      tags: [HRD - Rekrutmen]
+      summary: "[ADMIN] Ringkasan seluruh lowongan beserta jumlah kandidat"
+      responses:
+        "200": { description: OK }
+
+  /hrd/recruitment/candidates:
+    get:
+      tags: [HRD - Rekrutmen]
+      summary: "[ADMIN] Daftar kandidat (filter berdasarkan lowongan)"
+      parameters:
+        - in: query
+          name: job_opening_id
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+    post:
+      tags: [HRD - Rekrutmen]
+      summary: "[ADMIN] Tambah kandidat baru pada suatu lowongan"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [job_opening_id, name]
+              properties:
+                job_opening_id: { type: string }
+                name: { type: string }
+                stage: { type: string, enum: [SCREENING, INTERVIEW, HIRED, REJECTED], default: SCREENING }
+      responses:
+        "201": { description: Kandidat berhasil ditambahkan }
+        "400": { description: Data tidak lengkap, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  /hrd/recruitment/candidates/{id}/stage:
+    patch:
+      tags: [HRD - Rekrutmen]
+      summary: "[ADMIN] Ubah tahapan (stage) seorang kandidat"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [stage]
+              properties:
+                stage: { type: string, enum: [SCREENING, INTERVIEW, HIRED, REJECTED] }
+      responses:
+        "200": { description: Tahapan kandidat berhasil diperbarui }
+        "400": { description: Nilai stage tidak valid, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  /hrd/recruitment/candidates/{id}:
+    delete:
+      tags: [HRD - Rekrutmen]
+      summary: "[ADMIN] Hapus kandidat"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Kandidat berhasil dihapus }
+        "404": { description: Kandidat tidak ditemukan, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
