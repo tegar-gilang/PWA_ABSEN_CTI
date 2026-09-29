@@ -163,6 +163,10 @@ export async function apiGetOffice(): Promise<{ office: OfficeLocation | null }>
   return request("/office");
 }
 
+export async function apiHrdGetOffices(): Promise<{ offices: OfficeLocation[] }> {
+  return request("/hrd/offices");
+}
+
 // ---------------------------------------------------------------------------
 // Hospital Management (HRD)
 // ---------------------------------------------------------------------------
@@ -201,6 +205,10 @@ export async function apiHrdDeleteHospital(id: string): Promise<{ message: strin
 // ---------------------------------------------------------------------------
 export async function apiHrdGetEmployees(): Promise<{employees: User[]}> {
   return request("/hrd/employees");
+}
+
+export async function apiHrdCreateEmployee(payload: any): Promise<{message: string; employee?: User}> {
+  return request("/hrd/employees", { method: "POST", body: JSON.stringify(payload) });
 }
 
 export async function apiHrdUpdateEmployee(id: string, payload: any): Promise<{message: string}> {
@@ -279,6 +287,49 @@ export async function apiHrdGetKpi(month?: string): Promise<{ kpi: any[] }> {
 export async function apiHrdUpdateKpi(payload: any): Promise<{ message: string }> {
   return request("/hrd/kpi", { method: "POST", body: JSON.stringify(payload) });
 }
+
+// ---------------------------------------------------------------------------
+// Dynamic KPI Templates & Evaluations
+// ---------------------------------------------------------------------------
+export async function apiHrdGetKpiTemplates(): Promise<{ templates: any[] }> {
+  return request("/hrd/kpi-templates");
+}
+
+export async function apiHrdCreateKpiTemplate(payload: {
+  nama_halaman: string;
+  target_bagian: string;
+  skema_kolom: string[];
+}): Promise<{ message: string; template: any }> {
+  return request("/hrd/kpi-templates", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export async function apiHrdUpdateKpiTemplate(id: string, payload: {
+  nama_halaman: string;
+  target_bagian: string;
+  skema_kolom: string[];
+}): Promise<{ message: string }> {
+  return request(`/hrd/kpi-templates/${id}`, { method: "PUT", body: JSON.stringify(payload) });
+}
+
+export async function apiHrdDeleteKpiTemplate(id: string): Promise<{ message: string }> {
+  return request(`/hrd/kpi-templates/${id}`, { method: "DELETE" });
+}
+
+export async function apiHrdGetKpiDynamic(templateId: string, periode: string): Promise<{
+  template: any;
+  periode: string;
+  evaluations: any[];
+}> {
+  return request(`/hrd/kpi-dynamic/${templateId}?periode=${encodeURIComponent(periode)}`);
+}
+
+export async function apiHrdSaveKpiDynamic(templateId: string, payload: {
+  periode: string;
+  evaluations: Array<{ id_karyawan: string; nilai_custom: Record<string, any> }>;
+}): Promise<{ message: string; saved: number }> {
+  return request(`/hrd/kpi-dynamic/${templateId}`, { method: "POST", body: JSON.stringify(payload) });
+}
+
 
 // ---------------------------------------------------------------------------
 // Mengambil data ringkasan absensi seluruh karyawan (Izin, Cuti, Telat)
