@@ -93,6 +93,14 @@ export type AttendanceRecord = {
   checkOutPhotoUrl?: string | null;
   checkInDistanceMeters?: number | null;
   checkOutDistanceMeters?: number | null;
+  
+  // API response fields
+  check_in_lat?: number | null;
+  check_in_lng?: number | null;
+  check_out_lat?: number | null;
+  check_out_lng?: number | null;
+  check_in_photo_url?: string | null;
+  check_out_photo_url?: string | null;
 };
 
 export type RequestType = 'LEAVE' | 'PERMISSION' | 'SICK' | 'OVERTIME';
