@@ -1,3 +1,4 @@
+import { exportToExcel, exportToPDF } from '@/src/utils/exportUtils';
 import React, { useState, useEffect } from 'react';
 import { Search, Plus, MapPin, Edit, Trash2, X, Compass } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, Popup, Circle, useMapEvents } from 'react-leaflet';
@@ -234,12 +235,50 @@ const DataRumahSakitHRD: React.FC = () => {
               />
             </div>
           </div>
-          <div className="self-end md:self-auto">
+          <div className="self-end md:self-auto flex flex-wrap gap-2 mt-4 md:mt-0">
+            <button 
+              onClick={() => {
+                exportToExcel({
+                    title: 'Data Lokasi Rumah Sakit',
+                    filename: 'Data_Lokasi_Rumah_Sakit',
+                    columns: [
+                      { header: 'Nama Rumah Sakit', dataKey: 'name' },
+                      { header: 'Alamat', dataKey: 'address' },
+                      { header: 'Radius (m)', dataKey: 'radius_meters' },
+                      { header: 'Latitude', dataKey: 'latitude' },
+                      { header: 'Longitude', dataKey: 'longitude' },
+                    ],
+                    data: hospitals
+                  });
+              }}
+              className="bg-green-50 hover:bg-green-100 text-green-700 border border-green-600 px-4 py-2 rounded-md flex items-center justify-center whitespace-nowrap transition-colors shadow-sm text-sm font-semibold"
+            >
+              Excel
+            </button>
+            <button 
+              onClick={() => {
+                exportToPDF({
+                    title: 'Data Lokasi Rumah Sakit',
+                    filename: 'Data_Lokasi_Rumah_Sakit',
+                    columns: [
+                      { header: 'Nama Rumah Sakit', dataKey: 'name' },
+                      { header: 'Alamat', dataKey: 'address' },
+                      { header: 'Radius (m)', dataKey: 'radius_meters' },
+                      { header: 'Latitude', dataKey: 'latitude' },
+                      { header: 'Longitude', dataKey: 'longitude' },
+                    ],
+                    data: hospitals
+                  });
+              }}
+              className="bg-red-50 hover:bg-red-100 text-red-700 border border-red-600 px-4 py-2 rounded-md flex items-center justify-center whitespace-nowrap transition-colors shadow-sm text-sm font-semibold"
+            >
+              PDF
+            </button>
             <button 
               onClick={handleOpenAdd}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 mt-4 md:mt-0 rounded-md flex items-center justify-center whitespace-nowrap transition-colors shadow-sm"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md flex items-center justify-center whitespace-nowrap transition-colors shadow-sm text-sm font-semibold"
             >
-              <Plus className="w-5 h-5 mr-2" />
+              <Plus className="w-4 h-4 mr-2" />
               Tambah Rumah Sakit
             </button>
           </div>

@@ -1,3 +1,4 @@
+import { exportToExcel, exportToPDF } from '@/src/utils/exportUtils';
 import React, { useEffect, useState, useMemo } from 'react';
 import { Paperclip } from 'lucide-react';
 import { apiHrdGetRequests, apiHrdUpdateRequestStatus } from '@/src/lib/api';
@@ -129,12 +130,48 @@ const CutiHRD: React.FC = () => {
           <h2 className="text-3xl font-bold text-gray-800 tracking-tight">Manajemen Cuti</h2>
           <p className="text-gray-500 mt-2 text-sm">Review and manage employee leave requests.</p>
         </div>
-        <button 
-          onClick={() => alert("Mengunduh laporan cuti...")}
-          className="border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center shadow-sm w-full sm:w-auto justify-center"
-        >
-          <Download className="w-4 h-4 mr-2" /> Export to Excel
-        </button>
+        <div className="flex gap-2 w-full sm:w-auto">
+            <button 
+            onClick={() => {
+                exportToExcel({
+                    title: 'Laporan Cuti & Izin',
+                    filename: 'Laporan_Cuti_Izin',
+                    columns: [
+                    { header: 'Nama Karyawan', dataKey: 'name' },
+                    { header: 'Tipe', dataKey: 'type' },
+                    { header: 'Alasan', dataKey: 'reason' },
+                    { header: 'Tanggal Mulai', dataKey: 'date' },
+                    { header: 'Tanggal Selesai', dataKey: 'end_date' },
+                    { header: 'Status', dataKey: 'status' },
+                    { header: 'Alasan Penolakan', dataKey: 'rejection_reason' },
+                    ],
+                    data: requests
+                });
+            }}
+            className="flex-1 sm:flex-none border border-green-600 bg-green-50 hover:bg-green-100 text-green-700 px-4 py-2 rounded-md text-sm font-semibold transition-colors flex items-center shadow-sm justify-center"
+            >
+            <Download className="w-4 h-4 mr-2" /> Excel
+            </button>
+            <button 
+            onClick={() => {
+                exportToPDF({
+                    title: 'Laporan Cuti & Izin',
+                    filename: 'Laporan_Cuti_Izin',
+                    columns: [
+                    { header: 'Nama Karyawan', dataKey: 'name' },
+                    { header: 'Tipe', dataKey: 'type' },
+                    { header: 'Alasan', dataKey: 'reason' },
+                    { header: 'Tanggal', dataKey: 'date' },
+                    { header: 'Status', dataKey: 'status' },
+                    ],
+                    data: requests
+                });
+            }}
+            className="flex-1 sm:flex-none border border-red-600 bg-red-50 hover:bg-red-100 text-red-700 px-4 py-2 rounded-md text-sm font-semibold transition-colors flex items-center shadow-sm justify-center"
+            >
+            <Download className="w-4 h-4 mr-2" /> PDF
+            </button>
+        </div>
       </div>
 
       {/* Tiga Kartu Ringkasan (Summary Cards) Dinamis */}
