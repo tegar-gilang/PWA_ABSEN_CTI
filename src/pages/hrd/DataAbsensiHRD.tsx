@@ -1,3 +1,4 @@
+import { exportToExcel, exportToPDF } from '@/src/utils/exportUtils';
 import React, { useEffect, useState, useMemo } from 'react';
 import { apiHrdGetAttendanceSummary, apiHrdGetEmployeeReport } from '../../lib/api';
 import {
@@ -107,6 +108,53 @@ const DataAbsensiHRD: React.FC = () => {
         <div>
           <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Data Absensi</h2>
           <p className="text-gray-500 mt-0.5 text-sm">Seluruh Data Absensi Karyawan PT CTI</p>
+        </div>
+        <div className="flex gap-2 w-full sm:w-auto">
+            <button 
+            onClick={() => {
+                exportToExcel({
+                    title: 'Laporan Rekap Absensi',
+                    filename: 'Laporan_Rekap_Absensi',
+                    columns: [
+                    { header: 'Nama Karyawan', dataKey: 'name' },
+                    { header: 'Bagian', dataKey: 'department' },
+                    { header: 'Izin', dataKey: 'izin' },
+                    { header: 'Sakit', dataKey: 'sakit' },
+                    { header: 'Cuti', dataKey: 'cuti' },
+                    { header: 'Alpa', dataKey: 'alpa' },
+                    { header: 'Telat (Kali)', dataKey: 'telat' },
+                    { header: 'Telat (Menit)', dataKey: 'telatMenit' },
+                    { header: 'Hadir', dataKey: 'hadir' },
+                    { header: 'Periode', dataKey: 'periode' },
+                    ],
+                    data: records
+                });
+            }}
+            className="flex-1 sm:flex-none border border-green-600 bg-green-50 hover:bg-green-100 text-green-700 px-4 py-2 rounded-md text-sm font-semibold transition-colors flex items-center shadow-sm justify-center"
+            >
+            <Download className="w-4 h-4 mr-2" /> Excel
+            </button>
+            <button 
+            onClick={() => {
+                exportToPDF({
+                    title: 'Laporan Rekap Absensi',
+                    filename: 'Laporan_Rekap_Absensi',
+                    columns: [
+                    { header: 'Nama Karyawan', dataKey: 'name' },
+                    { header: 'Bagian', dataKey: 'department' },
+                    { header: 'Izin', dataKey: 'izin' },
+                    { header: 'Sakit', dataKey: 'sakit' },
+                    { header: 'Cuti', dataKey: 'cuti' },
+                    { header: 'Alpa', dataKey: 'alpa' },
+                    { header: 'Hadir', dataKey: 'hadir' },
+                    ],
+                    data: records
+                });
+            }}
+            className="flex-1 sm:flex-none border border-red-600 bg-red-50 hover:bg-red-100 text-red-700 px-4 py-2 rounded-md text-sm font-semibold transition-colors flex items-center shadow-sm justify-center"
+            >
+            <Download className="w-4 h-4 mr-2" /> PDF
+            </button>
         </div>
       </div>
 

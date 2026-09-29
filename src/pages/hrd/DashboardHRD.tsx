@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { apiHrdGetDashboardOverview } from '../../lib/api';
 // Import ikon-ikon yang dibutuhkan dari lucide-react
@@ -26,11 +26,40 @@ const DashboardHRD: React.FC = () => {
       .finally(() => setLoading(false));
   }, []);
 
+  const attendanceTrends = data?.attendanceTrends || [];
+
+  // Isi data kosong (hari tanpa record) agar chart selalu menampilkan 7 batang berurutan
+  const filledTrends = useMemo(() => {
+    const trends = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
+      
+      const found = attendanceTrends.find(t => t.date && t.date.startsWith(dateStr));
+      
+      if (found) {
+        trends.push({ ...found, date: dateStr });
+      } else {
+        trends.push({
+          date: dateStr,
+          on_time: 0,
+          late: 0,
+          leaves: 0
+        });
+      }
+    }
+    return trends;
+  }, [attendanceTrends]);
+
   if (loading || !data) {
     return <div className="p-8 text-gray-500 font-medium animate-pulse">Memuat data snapshot HRD...</div>;
   }
 
-  const { metrics, recentActivities, attendanceTrends = [] } = data;
+  const { metrics, recentActivities } = data;
 
   // Hitung persentase kehadiran dari data backend
   const presentCount = metrics.presentToday + metrics.lateToday;
@@ -106,9 +135,9 @@ const DashboardHRD: React.FC = () => {
           </select>
         </div>
         <div className="w-full h-64 bg-gray-50 rounded-lg flex items-end justify-between px-4 sm:px-8 pb-4 pt-8 border border-dashed border-gray-300 gap-2 overflow-x-auto">
-          {attendanceTrends.length > 0 ? attendanceTrends.map((trend, i) => {
+          {filledTrends.length > 0 ? filledTrends.map((trend, i) => {
              // Find max to scale bars
-             const maxCount = Math.max(...attendanceTrends.map(t => Math.max(1, (t.on_time || 0) + (t.late || 0) + (t.leaves || 0))));
+             const maxCount = Math.max(...filledTrends.map(t => Math.max(1, (t.on_time || 0) + (t.late || 0) + (t.leaves || 0))));
              const onTimeHeight = `${((trend.on_time || 0) / maxCount) * 100}%`;
              const lateHeight = `${((trend.late || 0) / maxCount) * 100}%`;
              const leavesHeight = `${((trend.leaves || 0) / maxCount) * 100}%`;

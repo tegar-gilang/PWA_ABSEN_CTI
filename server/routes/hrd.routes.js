@@ -337,7 +337,11 @@ router.get("/attendance", async (req, res) => {
         const { date, startDate, endDate } = req.query;
 
         let query = `
-            SELECT a.id, u.name, COALESCE(p.name, u.position, 'Staff') as position, u.email as email, a.status, 
+            SELECT a.id, u.name, 
+                   COALESCE(u.employee_id, u.nik, '-') as employeeId,
+                   COALESCE(d.name, u.department, 'Staff') as department,
+                   COALESCE(p.name, u.position, 'Staff') as position, 
+                   u.email as email, a.status, 
                    DATE_FORMAT(a.check_in_time, '%H:%i') as checkInTime, 
                    DATE_FORMAT(a.check_out_time, '%H:%i') as checkOutTime,
                    a.check_in_lat, a.check_in_lng, a.check_in_photo_url,
@@ -345,6 +349,7 @@ router.get("/attendance", async (req, res) => {
                    DATE_FORMAT(a.date, '%Y-%m-%d') as date
             FROM attendance_records a
             JOIN users u ON a.user_id = u.id
+            LEFT JOIN master_departments d ON u.id_department = d.id
             LEFT JOIN master_positions p ON u.id_position = p.id
             WHERE 1=1
         `;
@@ -697,12 +702,12 @@ router.get("/employees", async (req, res) => {
                        '08:00 - 17:00'
                    ) as schedule,
                    u.hospital_id,
-                   COALESCE(h.nama_rs, h.name, '-') as hospital_name
+                   COALESCE(h.nama_rs, h.name, '-') as hospital_name,
+                   u.role
             FROM users u
             LEFT JOIN master_departments d ON u.id_department = d.id
             LEFT JOIN master_positions p ON u.id_position = p.id
             LEFT JOIN hospitals h ON u.hospital_id = h.id
-            WHERE u.role = 'EMPLOYEE'
         `;
         const params = [];
         if (name) { query += ` AND u.name LIKE ?`; params.push(`%${name}%`); }
@@ -714,6 +719,65 @@ router.get("/employees", async (req, res) => {
     } catch (err) {
         console.error("Error Laporan Karyawan:", err);
         res.status(500).json({ message: "Gagal memuat data karyawan." });
+    }
+});
+
+// Route Tambah Data Karyawan
+// POST
+router.post("/employees", async (req, res) => {
+    try {
+        let { name, email, nik, phone, password, address, hospital_id, id_department, id_position, jam_masuk, jam_keluar, schedule, role } = req.body;
+
+        if(!name || !nik || !password) {
+            return res.status(400).json({
+                message: "Data tidak lengkap. Nama, NIK, dan Password wajib diisi."
+            });
+        }
+
+        // Cek dan buat department baru jika belum ada dan berupa text
+        if (id_department && !id_department.match(/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/)) {
+            const [depts] = await pool.query("SELECT id FROM master_departments WHERE name = ?", [id_department]);
+            if (depts.length > 0) {
+                id_department = depts[0].id;
+            } else {
+                const newDeptId = randomUUID();
+                await pool.query("INSERT INTO master_departments (id, name) VALUES (?, ?)", [newDeptId, id_department]);
+                id_department = newDeptId;
+            }
+        }
+
+        // Cek dan buat hospital/office baru jika belum ada dan berupa text
+        if (hospital_id && !hospital_id.match(/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/)) {
+            const [hosps] = await pool.query("SELECT id FROM hospitals WHERE nama_rs = ? OR name = ?", [hospital_id, hospital_id]);
+            if (hosps.length > 0) {
+                hospital_id = hosps[0].id;
+            } else {
+                const newHospId = randomUUID();
+                await pool.query("INSERT INTO hospitals (id, nama_rs, address, latitude, longitude, radius_meters, type) VALUES (?, ?, ?, ?, ?, ?, 'kantor')", [newHospId, hospital_id, 'Alamat Belum Diatur', 0, 0, 200]);
+                hospital_id = newHospId;
+            }
+        }
+
+        const salt = await bcrypt.genSalt(10);
+        const password_hash = await bcrypt.hash(password, salt);
+        const userId = randomUUID();
+
+        await pool.query(
+            `INSERT INTO users (id, employee_id, nik, email, name, phone, password_hash, role, address, hospital_id, id_department, id_position, jam_masuk, jam_keluar, schedule) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [userId, nik, nik, email || null, name, phone || null, password_hash, role || 'EMPLOYEE', address || null, hospital_id || null, id_department || null, id_position || null, jam_masuk || null, jam_keluar || null, schedule || null]
+        );
+
+        res.status(201).json({
+            message: "Karyawan Berhasil Didaftarkan.",
+            employee: { id: userId, name, nik, email }
+        });
+    } catch (err) {
+        console.error("SQL Error pada POST /hrd/employees:", err);
+        if (err.code === 'ER_DUP_ENTRY') {
+            return res.status(409).json({ message: "Email atau NIK/Employee ID sudah digunakan." });
+        }
+        res.status(500).json({message: "Gagal membuat akun karyawan."});
     }
 });
 
@@ -738,7 +802,8 @@ router.put("/employees/:id", async (req, res) => {
             emergency_contact, 
             status_karyawan, 
             performance_status, 
-            schedule 
+            schedule,
+            role
         } = req.body;
 
         const targetEmployeeId = employeeId !== undefined ? employeeId : employee_id;
@@ -748,6 +813,30 @@ router.put("/employees/:id", async (req, res) => {
             const parts = schedule.split('-').map(s => s.trim());
             if (parts[0]) jam_masuk = parts[0].length === 5 ? `${parts[0]}:00` : parts[0];
             if (parts[1]) jam_keluar = parts[1].length === 5 ? `${parts[1]}:00` : parts[1];
+        }
+
+        // Cek dan buat department baru jika belum ada dan berupa text
+        if (id_department && !id_department.match(/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/)) {
+            const [depts] = await pool.query("SELECT id FROM master_departments WHERE name = ?", [id_department]);
+            if (depts.length > 0) {
+                id_department = depts[0].id;
+            } else {
+                const newDeptId = randomUUID();
+                await pool.query("INSERT INTO master_departments (id, name) VALUES (?, ?)", [newDeptId, id_department]);
+                id_department = newDeptId;
+            }
+        }
+
+        // Cek dan buat hospital/office baru jika belum ada dan berupa text
+        if (hospital_id && !hospital_id.match(/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/)) {
+            const [hosps] = await pool.query("SELECT id FROM hospitals WHERE nama_rs = ? OR name = ?", [hospital_id, hospital_id]);
+            if (hosps.length > 0) {
+                hospital_id = hosps[0].id;
+            } else {
+                const newHospId = randomUUID();
+                await pool.query("INSERT INTO hospitals (id, nama_rs, address, latitude, longitude, radius_meters, type) VALUES (?, ?, ?, ?, ?, ?, 'kantor')", [newHospId, hospital_id, 'Alamat Belum Diatur', 0, 0, 200]);
+                hospital_id = newHospId;
+            }
         }
 
         const [result] = await pool.query(
@@ -766,7 +855,8 @@ router.put("/employees/:id", async (req, res) => {
                  hospital_id = ?,
                  emergency_contact = COALESCE(?, emergency_contact), 
                  status_karyawan = COALESCE(?, status_karyawan), 
-                 performance_status = COALESCE(?, performance_status) 
+                 performance_status = COALESCE(?, performance_status),
+                 role = COALESCE(?, role)
              WHERE id = ?`,
             [
                 name, 
@@ -783,7 +873,8 @@ router.put("/employees/:id", async (req, res) => {
                 hospital_id || null, 
                 emergency_contact, 
                 status_karyawan, 
-                performance_status, 
+                performance_status,
+                role,
                 targetUserId
             ]
         );
@@ -803,7 +894,7 @@ router.delete("/employees/:id", async (req, res) => {
         const targetUserId = req.params.id;
         if(targetUserId === req.userId) return res.status(400).json({message: "Tidak dapat menghapus akun sendiri."});
 
-        const [result] = await pool.query("DELETE FROM users WHERE id = ? AND role = 'EMPLOYEE'", [targetUserId]);
+        const [result] = await pool.query("DELETE FROM users WHERE id = ?", [targetUserId]);
         if(result.affectedRows === 0) return res.status(404).json({message: "Karyawan tidak ditemukan."});
         res.status(200).json({message: "Karyawan berhasil dihapus."});
     } catch (err) {
@@ -1179,7 +1270,11 @@ router.get("/kpi", async (req, res) => {
                 laporan_tidak_sesuai: 0,
                 komplain: 0,
                 target_persen: 0,
-                pelanggaran_sop: 0
+                pelanggaran_sop: 0,
+                skor_disiplin: null,
+                skor_terlambat: null,
+                skor_kinerja: null,
+                skor_sop: null
             };
             
             const izin = userReq.filter(r => ['PERMISSION', 'LEAVE', 'SICK'].includes(r.type)).length;
@@ -1189,20 +1284,30 @@ router.get("/kpi", async (req, res) => {
             let alfa = workDays > 0 ? (workDays - (userAtt.length + izin)) : 0;
             if (alfa < 0) alfa = 0;
 
-            // Logika Skoring
-            const skor_disiplin = (izin + alfa) >= 5 ? 0 : 1;
-            const skor_terlambat = terlambat >= 3 ? 0 : 1;
+            // Logika Skoring — auto-calculate dulu, lalu override jika ada nilai manual
+            const auto_skor_disiplin = (izin + alfa) >= 5 ? 0 : 1;
+            const auto_skor_terlambat = terlambat >= 3 ? 0 : 1;
             
-            let skor_kinerja = 0;
-            if (userEval.target_persen >= 80) skor_kinerja = 2;
-            else if (userEval.target_persen >= 50) skor_kinerja = 1;
+            let auto_skor_kinerja = 0;
+            if (userEval.target_persen >= 80) auto_skor_kinerja = 2;
+            else if (userEval.target_persen >= 50) auto_skor_kinerja = 1;
             
-            let skor_sop = 4;
-            if (userEval.pelanggaran_sop) skor_sop -= 1;
-            if (userEval.komplain > 0) skor_sop -= 1;
-            if (userEval.laporan_tidak_sesuai > 0) skor_sop -= 1;
-            if (userEval.terlambat_laporan > 0) skor_sop -= 1;
-            if (skor_sop < 0) skor_sop = 0;
+            let auto_skor_sop = 4;
+            if (userEval.pelanggaran_sop) auto_skor_sop -= 1;
+            if (userEval.komplain > 0) auto_skor_sop -= 1;
+            if (userEval.laporan_tidak_sesuai > 0) auto_skor_sop -= 1;
+            if (userEval.terlambat_laporan > 0) auto_skor_sop -= 1;
+            if (auto_skor_sop < 0) auto_skor_sop = 0;
+
+            // Gunakan nilai manual jika ada (bukan null), kalau null pakai auto
+            const skor_disiplin = userEval.skor_disiplin !== null && userEval.skor_disiplin !== undefined
+                ? userEval.skor_disiplin : auto_skor_disiplin;
+            const skor_terlambat = userEval.skor_terlambat !== null && userEval.skor_terlambat !== undefined
+                ? userEval.skor_terlambat : auto_skor_terlambat;
+            const skor_kinerja = userEval.skor_kinerja !== null && userEval.skor_kinerja !== undefined
+                ? userEval.skor_kinerja : auto_skor_kinerja;
+            const skor_sop = userEval.skor_sop !== null && userEval.skor_sop !== undefined
+                ? userEval.skor_sop : auto_skor_sop;
             
             const total_skor = skor_disiplin + skor_terlambat + skor_kinerja + skor_sop;
             let kategori = 'KURANG';
@@ -1227,7 +1332,19 @@ router.get("/kpi", async (req, res) => {
                 skor_kinerja,
                 skor_sop,
                 total_skor,
-                kategori
+                kategori,
+                // Kirim juga auto values supaya frontend bisa tampilkan sebagai placeholder
+                auto_skor_disiplin,
+                auto_skor_terlambat,
+                auto_skor_kinerja,
+                auto_skor_sop,
+                // Flag apakah skor pakai manual override
+                skor_manual: {
+                    disiplin: userEval.skor_disiplin !== null && userEval.skor_disiplin !== undefined,
+                    terlambat: userEval.skor_terlambat !== null && userEval.skor_terlambat !== undefined,
+                    kinerja: userEval.skor_kinerja !== null && userEval.skor_kinerja !== undefined,
+                    sop: userEval.skor_sop !== null && userEval.skor_sop !== undefined
+                }
             };
         });
         
@@ -1241,22 +1358,36 @@ router.get("/kpi", async (req, res) => {
 // POST
 router.post("/kpi", async (req, res) => {
     try {
-        const { user_id, month_year, terlambat_laporan, laporan_tidak_sesuai, komplain, target_persen, pelanggaran_sop } = req.body;
+        const { user_id, month_year, terlambat_laporan, laporan_tidak_sesuai, komplain, target_persen, pelanggaran_sop,
+                skor_disiplin, skor_terlambat, skor_kinerja, skor_sop } = req.body;
         
         const id = randomUUID();
         const sopBool = pelanggaran_sop === 'Y' ? 1 : 0;
+
+        // Skor: jika kosong/undefined → null (pakai auto), jika ada angka → simpan manual override
+        const parseSkor = (val) => {
+            if (val === '' || val === null || val === undefined) return null;
+            const n = parseInt(val);
+            return isNaN(n) ? null : n;
+        };
         
         await pool.query(
             `INSERT INTO kpi_evaluations 
-            (id, user_id, month_year, terlambat_laporan, laporan_tidak_sesuai, komplain, target_persen, pelanggaran_sop) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            (id, user_id, month_year, terlambat_laporan, laporan_tidak_sesuai, komplain, target_persen, pelanggaran_sop,
+             skor_disiplin, skor_terlambat, skor_kinerja, skor_sop) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON DUPLICATE KEY UPDATE
             terlambat_laporan = VALUES(terlambat_laporan),
             laporan_tidak_sesuai = VALUES(laporan_tidak_sesuai),
             komplain = VALUES(komplain),
             target_persen = VALUES(target_persen),
-            pelanggaran_sop = VALUES(pelanggaran_sop)`,
-            [id, user_id, month_year, terlambat_laporan || 0, laporan_tidak_sesuai || 0, komplain || 0, target_persen || 0, sopBool]
+            pelanggaran_sop = VALUES(pelanggaran_sop),
+            skor_disiplin = VALUES(skor_disiplin),
+            skor_terlambat = VALUES(skor_terlambat),
+            skor_kinerja = VALUES(skor_kinerja),
+            skor_sop = VALUES(skor_sop)`,
+            [id, user_id, month_year, terlambat_laporan || 0, laporan_tidak_sesuai || 0, komplain || 0, target_persen || 0, sopBool,
+             parseSkor(skor_disiplin), parseSkor(skor_terlambat), parseSkor(skor_kinerja), parseSkor(skor_sop)]
         );
         
         res.json({ message: "KPI Evaluation saved successfully." });
@@ -1430,6 +1561,277 @@ router.delete("/recruitment/candidates/:id", async (req, res) => {
     } catch (err) {
         console.error(err);
         res.status(500).json({ message: "Failed to delete candidate." });
+    }
+});
+
+// ==========================================================================================================================================================================================>
+// API DYNAMIC KPI (MANAJEMEN KPI DINAMIS)
+// ==========================================================================================================================================================================================>
+
+// GET semua KPI Templates
+router.get("/kpi-templates", async (req, res) => {
+    try {
+        const [rows] = await pool.query(
+            "SELECT id, nama_halaman, target_bagian, skema_kolom, created_at, updated_at FROM kpi_templates ORDER BY created_at ASC"
+        );
+        // Parse skema_kolom dari string JSON ke array jika perlu
+        const templates = rows.map(r => ({
+            ...r,
+            skema_kolom: typeof r.skema_kolom === 'string' ? JSON.parse(r.skema_kolom) : r.skema_kolom
+        }));
+        res.json({ templates });
+    } catch (err) {
+        console.error("Error GET /kpi-templates:", err);
+        res.status(500).json({ message: "Gagal memuat daftar template KPI." });
+    }
+});
+
+// POST buat KPI Template baru
+router.post("/kpi-templates", async (req, res) => {
+    try {
+        const { nama_halaman, target_bagian, skema_kolom } = req.body;
+
+        if (!nama_halaman || !target_bagian || !skema_kolom || !Array.isArray(skema_kolom) || skema_kolom.length === 0) {
+            return res.status(400).json({ message: "Data tidak lengkap. Nama halaman, target bagian, dan minimal 1 kolom metrik wajib diisi." });
+        }
+
+        const id = randomUUID();
+        await pool.query(
+            "INSERT INTO kpi_templates (id, nama_halaman, target_bagian, skema_kolom) VALUES (?, ?, ?, ?)",
+            [id, nama_halaman, target_bagian, JSON.stringify(skema_kolom)]
+        );
+
+        res.status(201).json({
+            message: "Template KPI berhasil dibuat.",
+            template: { id, nama_halaman, target_bagian, skema_kolom }
+        });
+    } catch (err) {
+        console.error("Error POST /kpi-templates:", err);
+        res.status(500).json({ message: "Gagal membuat template KPI." });
+    }
+});
+
+// PUT update KPI Template
+router.put("/kpi-templates/:id", async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { nama_halaman, target_bagian, skema_kolom } = req.body;
+
+        if (!nama_halaman || !target_bagian || !skema_kolom || !Array.isArray(skema_kolom) || skema_kolom.length === 0) {
+            return res.status(400).json({ message: "Data tidak lengkap." });
+        }
+
+        const [result] = await pool.query(
+            "UPDATE kpi_templates SET nama_halaman = ?, target_bagian = ?, skema_kolom = ? WHERE id = ?",
+            [nama_halaman, target_bagian, JSON.stringify(skema_kolom), id]
+        );
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: "Template KPI tidak ditemukan." });
+        }
+
+        res.json({ message: "Template KPI berhasil diperbarui." });
+    } catch (err) {
+        console.error("Error PUT /kpi-templates/:id:", err);
+        res.status(500).json({ message: "Gagal memperbarui template KPI." });
+    }
+});
+
+// DELETE KPI Template
+router.delete("/kpi-templates/:id", async (req, res) => {
+    try {
+        const { id } = req.params;
+        const [result] = await pool.query("DELETE FROM kpi_templates WHERE id = ?", [id]);
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: "Template KPI tidak ditemukan." });
+        }
+
+        res.json({ message: "Template KPI berhasil dihapus." });
+    } catch (err) {
+        console.error("Error DELETE /kpi-templates/:id:", err);
+        res.status(500).json({ message: "Gagal menghapus template KPI." });
+    }
+});
+
+// GET evaluasi KPI Dinamis berdasarkan template + periode
+// Memfilter karyawan berdasarkan target_bagian dan JOIN dengan data absensi
+router.get("/kpi-dynamic/:templateId", async (req, res) => {
+    try {
+        const { templateId } = req.params;
+        const { periode } = req.query; // format: "September 2026"
+
+        if (!periode) {
+            return res.status(400).json({ message: "Parameter 'periode' wajib diisi." });
+        }
+
+        // 1. Ambil data template
+        const [templates] = await pool.query("SELECT * FROM kpi_templates WHERE id = ?", [templateId]);
+        if (templates.length === 0) {
+            return res.status(404).json({ message: "Template KPI tidak ditemukan." });
+        }
+        const template = templates[0];
+        const skemaKolom = typeof template.skema_kolom === 'string' ? JSON.parse(template.skema_kolom) : template.skema_kolom;
+
+        // 2. Ambil karyawan yang bagiannya sesuai target_bagian
+        // Filter berdasarkan nama divisi (dari master_departments) yang cocok dengan target_bagian template
+        const [employees] = await pool.query(
+            `SELECT u.id, u.name, COALESCE(d.name, u.department, '-') as department,
+                    COALESCE(p.name, u.position, '-') as position
+             FROM users u
+             LEFT JOIN master_departments d ON u.id_department = d.id
+             LEFT JOIN master_positions p ON u.id_position = p.id
+             WHERE u.role = 'EMPLOYEE'
+               AND COALESCE(d.name, u.department, '') = ?
+             ORDER BY u.name ASC`,
+            [template.target_bagian]
+        );
+
+        // 3. Parse periode ke month range untuk query absensi
+        // Format periode: "September 2026"
+        const bulanMap = {
+            'Januari': '01', 'Februari': '02', 'Maret': '03', 'April': '04',
+            'Mei': '05', 'Juni': '06', 'Juli': '07', 'Agustus': '08',
+            'September': '09', 'Oktober': '10', 'November': '11', 'Desember': '12'
+        };
+
+        let monthYear = null;
+        const periodeMatch = periode.match(/^(\w+)\s+(\d{4})$/);
+        if (periodeMatch) {
+            const monthNum = bulanMap[periodeMatch[1]];
+            if (monthNum) {
+                monthYear = `${periodeMatch[2]}-${monthNum}`;
+            }
+        }
+
+        // 4. Ambil data absensi otomatis per karyawan
+        const employeeIds = employees.map(e => e.id);
+        let absensiMap = {};
+
+        if (employeeIds.length > 0 && monthYear) {
+            const [attendances] = await pool.query(
+                `SELECT user_id, status FROM attendance_records
+                 WHERE user_id IN (?) AND DATE_FORMAT(date, '%Y-%m') = ?`,
+                [employeeIds, monthYear]
+            );
+
+            const [reqs] = await pool.query(
+                `SELECT user_id, type FROM requests
+                 WHERE user_id IN (?) AND status IN ('APPROVED', 'DISETUJUI') AND DATE_FORMAT(date, '%Y-%m') = ?`,
+                [employeeIds, monthYear]
+            );
+
+            for (const empId of employeeIds) {
+                const userAtt = attendances.filter(a => a.user_id === empId);
+                const userReq = reqs.filter(r => r.user_id === empId);
+
+                const izin = userReq.filter(r => ['PERMISSION', 'LEAVE', 'SICK'].includes(r.type)).length;
+                const alfa_count = userAtt.filter(a => a.status === 'ABSENT').length;
+                const terlambat = userAtt.filter(a => a.status === 'LATE').length;
+
+                absensiMap[empId] = {
+                    izin: izin,
+                    alfa: alfa_count,
+                    terlambat: terlambat
+                };
+            }
+        }
+
+        // 5. Ambil data evaluasi yang sudah tersimpan
+        let existingEvals = {};
+        if (employeeIds.length > 0) {
+            const [evals] = await pool.query(
+                `SELECT id_karyawan, nilai_custom FROM kpi_dynamic_evaluations
+                 WHERE id_template = ? AND periode = ? AND id_karyawan IN (?)`,
+                [templateId, periode, employeeIds]
+            );
+            for (const ev of evals) {
+                existingEvals[ev.id_karyawan] = typeof ev.nilai_custom === 'string' ? JSON.parse(ev.nilai_custom) : ev.nilai_custom;
+            }
+        }
+
+        // 6. Gabungkan data
+        const evaluations = employees.map(emp => {
+            const absensi = absensiMap[emp.id] || { izin: 0, alfa: 0, terlambat: 0 };
+            const nilaiCustom = existingEvals[emp.id] || {};
+
+            // Pastikan setiap kolom di skema ada di nilai_custom, default ke string kosong
+            const nilaiLengkap = {};
+            for (const kolomDef of skemaKolom) {
+                const isObj = typeof kolomDef === 'object' && kolomDef !== null;
+                const colKey = isObj ? kolomDef.id_kolom : kolomDef;
+                nilaiLengkap[colKey] = nilaiCustom[colKey] !== undefined ? nilaiCustom[colKey] : '';
+            }
+
+            return {
+                id_karyawan: emp.id,
+                nama: emp.name,
+                department: emp.department,
+                position: emp.position,
+                absensi: {
+                    izin: absensi.izin,
+                    alfa: absensi.alfa,
+                    terlambat: absensi.terlambat
+                },
+                nilai_custom: nilaiLengkap
+            };
+        });
+
+        res.json({
+            template: {
+                id: template.id,
+                nama_halaman: template.nama_halaman,
+                target_bagian: template.target_bagian,
+                skema_kolom: skemaKolom
+            },
+            periode,
+            evaluations
+        });
+
+    } catch (err) {
+        console.error("Error GET /kpi-dynamic/:templateId:", err);
+        res.status(500).json({ message: "Gagal memuat data evaluasi KPI." });
+    }
+});
+
+// POST/PUT batch save evaluasi KPI Dinamis
+router.post("/kpi-dynamic/:templateId", async (req, res) => {
+    try {
+        const { templateId } = req.params;
+        const { periode, evaluations } = req.body;
+        // evaluations = [{ id_karyawan: '...', nilai_custom: { "Efisiensi": 80, ... } }, ...]
+
+        if (!periode || !evaluations || !Array.isArray(evaluations)) {
+            return res.status(400).json({ message: "Parameter 'periode' dan 'evaluations' (array) wajib diisi." });
+        }
+
+        // Verifikasi template ada
+        const [templates] = await pool.query("SELECT id FROM kpi_templates WHERE id = ?", [templateId]);
+        if (templates.length === 0) {
+            return res.status(404).json({ message: "Template KPI tidak ditemukan." });
+        }
+
+        // Batch upsert
+        let savedCount = 0;
+        for (const evalItem of evaluations) {
+            if (!evalItem.id_karyawan || !evalItem.nilai_custom) continue;
+
+            const id = randomUUID();
+            await pool.query(
+                `INSERT INTO kpi_dynamic_evaluations (id, id_template, periode, id_karyawan, nilai_custom)
+                 VALUES (?, ?, ?, ?, ?)
+                 ON DUPLICATE KEY UPDATE
+                 nilai_custom = VALUES(nilai_custom),
+                 updated_at = CURRENT_TIMESTAMP`,
+                [id, templateId, periode, evalItem.id_karyawan, JSON.stringify(evalItem.nilai_custom)]
+            );
+            savedCount++;
+        }
+
+        res.json({ message: `Berhasil menyimpan ${savedCount} evaluasi KPI.`, saved: savedCount });
+    } catch (err) {
+        console.error("Error POST /kpi-dynamic/:templateId:", err);
+        res.status(500).json({ message: "Gagal menyimpan data evaluasi KPI." });
     }
 });
 

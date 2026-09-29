@@ -139,6 +139,7 @@ export default function Attendance() {
   };
 
   // Mengambil gambar dari bingkai video saat ini
+  const user = useAppStore(state => state.user);
   const capturePhoto = () => {
     if (videoRef.current) {
       const canvas = document.createElement('canvas');
@@ -156,7 +157,33 @@ export default function Attendance() {
       const ctx = canvas.getContext('2d');
       if (ctx) {
         ctx.drawImage(videoRef.current, 0, 0, width, height);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
+
+        // --- WATERMARK START ---
+        const padding = 15;
+        let startY = height - padding - 60; 
+        
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.fillRect(0, height - 90, width, 90);
+
+        ctx.fillStyle = 'white';
+        ctx.font = 'bold 16px sans-serif';
+        ctx.fillText(`Nama: ${user?.name || 'Karyawan'}`, padding, startY);
+
+        ctx.font = '14px sans-serif';
+        const coords = location ? `${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}` : 'Koordinat tidak ditemukan';
+        ctx.fillText(`Lokasi: ${coords}`, padding, startY + 20);
+
+        const locName = !isCheckedIn 
+          ? (locationMode === 'CUSTOM' ? (customLocationName.trim() || 'Lokasi Khusus') : (locationMode === 'OFFICE' ? (selectedLocationItem?.nama_rs || selectedLocationItem?.name || 'Kantor') : (selectedLocationItem?.nama_rs || selectedLocationItem?.name || 'Rumah Sakit'))) 
+          : 'Titik Pulang';
+        ctx.fillText(`Tempat: ${locName}`, padding, startY + 40);
+
+        const now = new Date();
+        const timeStr = format(now, 'dd MMM yyyy, HH:mm:ss');
+        ctx.fillText(`Waktu: ${timeStr}`, padding, startY + 60);
+        // --- WATERMARK END ---
+
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
         setPhotoUrl(dataUrl);
         
         if (stream) {

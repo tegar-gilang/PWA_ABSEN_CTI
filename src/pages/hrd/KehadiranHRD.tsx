@@ -1,3 +1,4 @@
+import { exportToExcel, exportToPDF } from '@/src/utils/exportUtils';
 import React, { useEffect, useState, useMemo } from 'react';
 import { apiHrdGetAttendance } from '@/src/lib/api';
 import { AttendanceRecord } from '@/src/types';
@@ -111,9 +112,63 @@ const KehadiranHRD: React.FC = () => {
           <h2 className="text-2xl font-bold text-gray-800">Manajemen Kehadiran</h2>
           <p className="text-gray-500 mt-1 text-sm">Monitor and manage daily employee attendance records.</p>
         </div>
-        <button onClick={() => alert("Mengunduh laporan .. (fitur segera siap)")} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center shadow-sm w-full sm:w-auto justify-center">
-          <Download className="w-4 h-4 mr-2" /> Export to Excel
-        </button>
+        <div className="flex gap-2 w-full sm:w-auto">
+            <button 
+            onClick={() => {
+                exportToExcel({
+                    title: 'Laporan Kehadiran',
+                    filename: 'Laporan_Kehadiran',
+                    columns: [
+                    { header: 'Nama Karyawan', dataKey: 'name' },
+                    { header: 'ID Karyawan', dataKey: 'employeeId' },
+                    { header: 'Bagian', dataKey: 'department' },
+                    { header: 'Tanggal', dataKey: 'date' },
+                    { header: 'Status', dataKey: 'status' },
+                    { header: 'Check In', dataKey: 'checkInTime' },
+                    { header: 'Check Out', dataKey: 'checkOutTime' },
+                    { header: 'Check In Location', dataKey: 'checkInLocStr' },
+                    { header: 'Check Out Location', dataKey: 'checkOutLocStr' },
+                    ],
+                    data: filteredRecords.map(r => ({
+                        ...r,
+                        status: r.status === 'ON_TIME' ? 'Hadir' : r.status === 'LATE' ? 'Terlambat' : (r.status || 'Hadir'),
+                        checkInLocStr: (r.check_in_lat && r.check_in_lng) ? `${Number(r.check_in_lat).toFixed(4)}, ${Number(r.check_in_lng).toFixed(4)}` : '-',
+                        checkOutLocStr: (r.check_out_lat && r.check_out_lng) ? `${Number(r.check_out_lat).toFixed(4)}, ${Number(r.check_out_lng).toFixed(4)}` : '-'
+                    }))
+                });
+            }}
+            className="flex-1 sm:flex-none border border-green-600 bg-green-50 hover:bg-green-100 text-green-700 px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center shadow-sm justify-center"
+            >
+            <Download className="w-4 h-4 mr-2" /> Excel
+            </button>
+            <button 
+            onClick={() => {
+                exportToPDF({
+                    title: 'Laporan Kehadiran',
+                    filename: 'Laporan_Kehadiran',
+                    columns: [
+                    { header: 'Nama Karyawan', dataKey: 'name' },
+                    { header: 'Bagian', dataKey: 'department' },
+                    { header: 'Tanggal', dataKey: 'date' },
+                    { header: 'Status', dataKey: 'status' },
+                    { header: 'Check In', dataKey: 'checkInTime' },
+                    { header: 'Check Out', dataKey: 'checkOutTime' },
+                    { header: 'Check In Location', dataKey: 'checkInLocStr' },
+                    { header: 'Check Out Location', dataKey: 'checkOutLocStr' },
+                    ],
+                    data: filteredRecords.map(r => ({
+                        ...r,
+                        status: r.status === 'ON_TIME' ? 'Hadir' : r.status === 'LATE' ? 'Terlambat' : (r.status || 'Hadir'),
+                        checkInLocStr: (r.check_in_lat && r.check_in_lng) ? `${Number(r.check_in_lat).toFixed(4)}, ${Number(r.check_in_lng).toFixed(4)}` : '-',
+                        checkOutLocStr: (r.check_out_lat && r.check_out_lng) ? `${Number(r.check_out_lat).toFixed(4)}, ${Number(r.check_out_lng).toFixed(4)}` : '-'
+                    }))
+                });
+            }}
+            className="flex-1 sm:flex-none border border-red-600 bg-red-50 hover:bg-red-100 text-red-700 px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center shadow-sm justify-center"
+            >
+            <Download className="w-4 h-4 mr-2" /> PDF
+            </button>
+        </div>
       </div>
 
       {/* Filter Bar */}

@@ -241,6 +241,8 @@ SET FOREIGN_KEY_CHECKS = 0;
 
 DROP TABLE IF EXISTS candidates;
 DROP TABLE IF EXISTS job_openings;
+DROP TABLE IF EXISTS kpi_dynamic_evaluations;
+DROP TABLE IF EXISTS kpi_templates;
 DROP TABLE IF EXISTS kpi_evaluations;
 DROP TABLE IF EXISTS kpi_records;
 DROP TABLE IF EXISTS notifications;
@@ -432,6 +434,32 @@ CREATE TABLE IF NOT EXISTS kpi_evaluations (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =========================================================
+-- 6B. TABEL KPI DINAMIS (Dynamic KPI)
+-- =========================================================
+CREATE TABLE IF NOT EXISTS kpi_templates (
+  id VARCHAR(36) NOT NULL PRIMARY KEY,
+  nama_halaman VARCHAR(150) NOT NULL,
+  target_bagian VARCHAR(100) NOT NULL COMMENT 'Nama divisi/bagian yang akan difilter',
+  skema_kolom JSON NOT NULL COMMENT 'Array nama kolom metrik, misal: ["Efisiensi","Keakuratan"]',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS kpi_dynamic_evaluations (
+  id VARCHAR(36) NOT NULL PRIMARY KEY,
+  id_template VARCHAR(36) NOT NULL,
+  periode VARCHAR(50) NOT NULL COMMENT 'Misal: September 2026',
+  id_karyawan VARCHAR(36) NOT NULL,
+  nilai_custom JSON NOT NULL COMMENT 'Objek nilai, misal: {"Efisiensi": 80, "Keakuratan": 90}',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+  UNIQUE KEY uniq_template_periode_karyawan (id_template, periode, id_karyawan),
+  CONSTRAINT fk_kpi_dyn_template FOREIGN KEY (id_template) REFERENCES kpi_templates(id) ON DELETE CASCADE,
+  CONSTRAINT fk_kpi_dyn_karyawan FOREIGN KEY (id_karyawan) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- =========================================================
 -- 7. TABEL REKRUTMEN (LOWONGAN & KANDIDAT)
 -- =========================================================
 CREATE TABLE IF NOT EXISTS job_openings (
@@ -462,6 +490,9 @@ CREATE INDEX idx_notifications_user ON notifications(user_id);
 CREATE INDEX idx_kpi_user ON kpi_records(user_id);
 CREATE INDEX idx_kpi_eval_user ON kpi_evaluations(user_id);
 CREATE INDEX idx_candidates_job ON candidates(job_opening_id);
+CREATE INDEX idx_kpi_templates_bagian ON kpi_templates(target_bagian);
+CREATE INDEX idx_kpi_dyn_eval_template ON kpi_dynamic_evaluations(id_template);
+CREATE INDEX idx_kpi_dyn_eval_karyawan ON kpi_dynamic_evaluations(id_karyawan);
 
 -- ---------------------------------------------------------
 -- NYALAKAN KEMBALI FOREIGN KEY

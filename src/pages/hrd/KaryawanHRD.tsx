@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { apiHrdGetEmployees, apiHrdUpdateEmployee, apiHrdDeleteEmployee, apiGetDepartments, apiGetPositions, apiHrdGetHospitals } from '@/src/lib/api';
+import { apiHrdGetEmployees, apiHrdUpdateEmployee, apiHrdDeleteEmployee, apiGetDepartments, apiGetPositions, apiHrdGetHospitals, apiHrdGetOffices, apiHrdCreateEmployee } from '@/src/lib/api';
 import { MasterDepartment, MasterPosition, HospitalLocation } from '@/src/types';
 import { 
   Download, 
@@ -11,6 +11,26 @@ import {
   Edit, 
   Trash2 
 } from 'lucide-react';
+import { exportToExcel, exportToPDF } from '@/src/utils/exportUtils';
+
+// Daftar 15 Bagian resmi perusahaan CTI
+const BAGIAN_LIST = [
+  'Teknisi',
+  'Helper',
+  'Freelance',
+  'Manager Marketing',
+  'Marketing',
+  'Admin Marketing',
+  'Manager Teknik',
+  'Admin Penjualan',
+  'Admin Pembelian',
+  'Admin Teknik',
+  'Admin Piutang',
+  'Manager HRD',
+  'Admin HRD',
+  'Admin Keuangan',
+  'Admin Gudang'
+];
 
 const KaryawanHRD: React.FC = () => {
   const [employees, setEmployees] = useState<any[]>([]);
@@ -33,26 +53,29 @@ const KaryawanHRD: React.FC = () => {
     nik: '',
     email: '',
     phone: '',
+    password: '',
     schedule: '',
     address: '',
     hospital_id: '',
     id_department: '',
-    id_position: ''
+    id_position: '',
+    role: 'EMPLOYEE'
   });
   const [isSaving, setIsSaving] = useState(false);
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [empRes, hRes, deptRes, posRes] = await Promise.all([
+      const [empRes, hRes, oRes, deptRes, posRes] = await Promise.all([
         apiHrdGetEmployees().catch(() => ({ employees: [] })),
         apiHrdGetHospitals().catch(() => ({ hospitals: [] })),
+        apiHrdGetOffices().catch(() => ({ offices: [] })),
         apiGetDepartments().catch(() => ({ departments: [] })),
         apiGetPositions().catch(() => ({ positions: [] }))
       ]);
 
       setEmployees(empRes.employees || []);
-      setHospitals(hRes.hospitals || []);
+      setHospitals([...(oRes.offices || []), ...(hRes.hospitals || [])]);
       setMasterDepartments(deptRes.departments || []);
       setMasterPositions(posRes.positions || []);
     } catch (err) {
@@ -97,18 +120,30 @@ const KaryawanHRD: React.FC = () => {
       nik: emp.nik || '',
       email: emp.email || '',
       phone: emp.phone || '',
+      password: '',
       schedule: scheduleStr,
       address: emp.address || '',
-      hospital_id: emp.hospital_id || '',
-      id_department: emp.id_department || '',
-      id_position: emp.id_position || ''
+      hospital_id: emp.hospital_name !== '-' ? (emp.hospital_name || '') : '',
+      id_department: (emp.department !== '-' ? emp.department : '') || (emp.department_name !== '-' ? emp.department_name : '') || '',
+      id_position: emp.id_position || '',
+      role: emp.role || 'EMPLOYEE'
     });
     setIsModalOpen(true);
   };
 
+  // Susun daftar pilihan bagian berdasarkan BAGIAN_LIST
+  const bagianOptions = useMemo(() => {
+    return BAGIAN_LIST.map(bName => {
+      const match = masterDepartments.find(d => d.name.toLowerCase() === bName.toLowerCase());
+      return {
+        id: match ? match.id : bName,
+        name: bName
+      };
+    });
+  }, [masterDepartments]);
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedEmployee) return;
     
     setIsSaving(true);
     try {
@@ -125,16 +160,22 @@ const KaryawanHRD: React.FC = () => {
         nik: formData.nik,
         email: formData.email,
         phone: formData.phone,
+        password: formData.password,
         address: formData.address,
         id_department: formData.id_department || undefined,
         id_position: formData.id_position || undefined,
         jam_masuk,
         jam_keluar,
         schedule: formData.schedule,
-        hospital_id: formData.hospital_id || null
+        hospital_id: formData.hospital_id || null,
+        role: formData.role
       };
 
-      await apiHrdUpdateEmployee(selectedEmployee.id, payload);
+      if (selectedEmployee) {
+          await apiHrdUpdateEmployee(selectedEmployee.id, payload);
+      } else {
+          await apiHrdCreateEmployee(payload);
+      }
       setIsModalOpen(false);
       fetchData(); // Refresh data
     } catch (err: any) {
@@ -156,6 +197,48 @@ const KaryawanHRD: React.FC = () => {
     }
   };
 
+  const handleExportExcel = () => {
+    exportToExcel({
+      title: 'Data Karyawan',
+      filename: 'Data_Karyawan',
+      columns: [
+        { header: 'Nama Karyawan', dataKey: 'name' },
+        { header: 'NIK', dataKey: 'nik' },
+        { header: 'Email', dataKey: 'email' },
+        { header: 'Bagian', dataKey: 'department_name' },
+        { header: 'No. Telepon', dataKey: 'phone' },
+        { header: 'Alamat', dataKey: 'address' },
+        { header: 'Penempatan', dataKey: 'hospital_name' },
+        { header: 'Waktu Shift', dataKey: 'schedule' },
+      ],
+      data: filteredEmployees.map(emp => ({
+          ...emp,
+          department_name: emp.department || emp.department_name || '-',
+          hospital_name: emp.hospital_name || '-',
+          schedule: emp.schedule || (emp.jam_masuk && emp.jam_keluar ? `${emp.jam_masuk.slice(0, 5)} - ${emp.jam_keluar.slice(0, 5)}` : '08:00 - 17:00')
+      }))
+    });
+  };
+
+  const handleExportPDF = () => {
+    exportToPDF({
+      title: 'Data Karyawan',
+      filename: 'Data_Karyawan',
+      columns: [
+        { header: 'Nama Karyawan', dataKey: 'name' },
+        { header: 'NIK', dataKey: 'nik' },
+        { header: 'Bagian', dataKey: 'department_name' },
+        { header: 'No. Telepon', dataKey: 'phone' },
+        { header: 'Penempatan', dataKey: 'hospital_name' },
+      ],
+      data: filteredEmployees.map(emp => ({
+          ...emp,
+          department_name: emp.department || emp.department_name || '-',
+          hospital_name: emp.hospital_name || '-'
+      }))
+    });
+  };
+
   return (
     <div className="p-4 md:p-8 relative w-full">
       
@@ -163,6 +246,42 @@ const KaryawanHRD: React.FC = () => {
         <div>
           <h2 className="text-3xl font-bold text-gray-800 tracking-tight">Manajemen Karyawan</h2>
           <p className="text-gray-500 mt-2 text-sm">Kelola data Karyawan</p>
+        </div>
+        <div className="flex gap-2">
+            <button
+            onClick={handleExportExcel}
+            className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg text-sm font-semibold transition-colors shadow-sm"
+            >
+            <Download className="w-4 h-4" /> Excel
+            </button>
+            <button
+            onClick={handleExportPDF}
+            className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-lg text-sm font-semibold transition-colors shadow-sm"
+            >
+            <Download className="w-4 h-4" /> PDF
+            </button>
+            <button
+            onClick={() => {
+                setSelectedEmployee(null);
+                setFormData({
+                name: '',
+                nik: '',
+                email: '',
+                phone: '',
+                password: '',
+                schedule: '',
+                address: '',
+                hospital_id: '',
+                id_department: '',
+                id_position: '',
+                role: 'EMPLOYEE'
+                });
+                setIsModalOpen(true);
+            }}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors shadow-sm"
+            >
+            + Tambah Karyawan
+            </button>
         </div>
       </div>
       
@@ -331,13 +450,13 @@ const KaryawanHRD: React.FC = () => {
 
       </div>
 
-      {/* Modal Lihat/Edit */}
-      {isModalOpen && selectedEmployee && (
+      {/* Modal Lihat/Edit/Tambah */}
+      {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
             <div className="flex justify-between items-center p-5 border-b border-gray-200">
               <h2 className="text-lg font-bold text-gray-800">
-                Detail & Edit Karyawan
+                {selectedEmployee ? 'Detail & Edit Karyawan' : 'Tambah Karyawan Baru'}
               </h2>
               <button onClick={() => setIsModalOpen(false)} className="text-gray-500 hover:bg-gray-100 p-2 rounded-full transition-colors">
                 <X className="w-5 h-5" />
@@ -378,25 +497,29 @@ const KaryawanHRD: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Bagian</label>
-                  {masterDepartments.length > 0 ? (
-                    <select
-                      className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800"
-                      value={formData.id_department}
-                      onChange={(e) => setFormData({...formData, id_department: e.target.value})}
-                    >
-                      <option value="">-- Pilih Bagian --</option>
-                      {masterDepartments.map((d) => (
-                        <option key={d.id} value={d.id}>{d.name}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input 
-                      type="text" 
-                      readOnly
-                      className="w-full border border-gray-200 bg-gray-50 rounded-md p-2 text-gray-500"
-                      value={selectedEmployee.department || '-'}
-                    />
-                  )}
+                  <input
+                    list="bagian-list"
+                    className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800"
+                    placeholder="Pilih atau ketik bagian baru..."
+                    value={formData.id_department}
+                    onChange={(e) => setFormData({...formData, id_department: e.target.value})}
+                  />
+                  <datalist id="bagian-list">
+                    {bagianOptions.map((b) => (
+                      <option key={b.id || b.name} value={b.name}>{b.name}</option>
+                    ))}
+                  </datalist>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Role (Hak Akses)</label>
+                  <select
+                    className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800"
+                    value={formData.role}
+                    onChange={(e) => setFormData({...formData, role: e.target.value})}
+                  >
+                    <option value="EMPLOYEE">Karyawan (Employee)</option>
+                    <option value="ADMIN">Admin / HRD</option>
+                  </select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
@@ -407,6 +530,20 @@ const KaryawanHRD: React.FC = () => {
                     onChange={(e) => setFormData({...formData, email: e.target.value})}
                   />
                 </div>
+                {!selectedEmployee && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Password <span className="text-red-500">*</span>
+                    </label>
+                    <input 
+                      type="password" 
+                      required
+                      className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800"
+                      value={formData.password}
+                      onChange={(e) => setFormData({...formData, password: e.target.value})}
+                    />
+                  </div>
+                )}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">No. Telepon</label>
                   <input 
@@ -427,17 +564,19 @@ const KaryawanHRD: React.FC = () => {
                   />
                 </div>
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Penugasan Rumah Sakit</label>
-                  <select 
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Penugasan (Kantor / Rumah Sakit)</label>
+                  <input
+                    list="penugasan-list"
                     className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800"
+                    placeholder="Pilih atau ketik penugasan baru..."
                     value={formData.hospital_id}
                     onChange={(e) => setFormData({...formData, hospital_id: e.target.value})}
-                  >
-                    <option value="">-- Bebas (Kantor / Lapangan) --</option>
+                  />
+                  <datalist id="penugasan-list">
                     {hospitals.map((h) => (
-                      <option key={h.id} value={h.id}>{h.nama_rs || h.name}</option>
+                      <option key={h.id} value={h.nama_rs || h.name}>{h.nama_rs || h.name}</option>
                     ))}
-                  </select>
+                  </datalist>
                 </div>
               </div>
               <div>

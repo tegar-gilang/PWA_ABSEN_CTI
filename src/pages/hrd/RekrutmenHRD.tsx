@@ -1,3 +1,4 @@
+import { exportToExcel, exportToPDF } from '@/src/utils/exportUtils';
 import React, { useState, useEffect } from 'react';
 import { 
   Download, 
@@ -196,33 +197,53 @@ const RekrutmenHRD: React.FC = () => {
     }
   };
 
-  // Export to CSV
-  const handleExportCSV = () => {
+  // Export to Excel
+  const handleExportExcel = () => {
     if (jobs.length === 0) {
       alert('Tidak ada data lowongan untuk diekspor.');
       return;
     }
+    exportToExcel({
+        title: 'Data Rekrutmen',
+        filename: 'Data_Rekrutmen',
+        columns: [
+          { header: 'ID Lowongan', dataKey: 'id' },
+          { header: 'Judul Lowongan', dataKey: 'title' },
+          { header: 'Divisi / Role', dataKey: 'role' },
+          { header: 'Status', dataKey: 'status' },
+          { header: 'Total Pelamar', dataKey: 'total_candidates' },
+          { header: 'Pelamar Interview', dataKey: 'interview_count' },
+        ],
+        data: jobs.map(j => ({
+            ...j,
+            total_candidates: j.total_candidates || 0,
+            interview_count: j.interview_count || 0
+        }))
+      });
+  };
 
-    const headers = ['ID', 'Judul Lowongan', 'Divisi / Role', 'Status', 'Total Pelamar', 'Pelamar Interview', 'Tanggal Dibuat'];
-    const rows = jobs.map(j => [
-      j.id,
-      `"${j.title.replace(/"/g, '""')}"`,
-      `"${j.role.replace(/"/g, '""')}"`,
-      j.status,
-      j.total_candidates || 0,
-      j.interview_count || 0,
-      j.created_at ? new Date(j.created_at).toLocaleDateString('id-ID') : '-'
-    ]);
-
-    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `rekrutmen-cti-${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  // Export to PDF
+  const handleExportPDF = () => {
+    if (jobs.length === 0) {
+      alert('Tidak ada data lowongan untuk diekspor.');
+      return;
+    }
+    exportToPDF({
+        title: 'Data Rekrutmen',
+        filename: 'Data_Rekrutmen',
+        columns: [
+          { header: 'Judul Lowongan', dataKey: 'title' },
+          { header: 'Divisi', dataKey: 'role' },
+          { header: 'Status', dataKey: 'status' },
+          { header: 'Pelamar', dataKey: 'total_candidates' },
+          { header: 'Interview', dataKey: 'interview_count' },
+        ],
+        data: jobs.map(j => ({
+            ...j,
+            total_candidates: j.total_candidates || 0,
+            interview_count: j.interview_count || 0
+        }))
+      });
   };
 
   // Filtered jobs
@@ -259,10 +280,16 @@ const RekrutmenHRD: React.FC = () => {
         </div>
         <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
           <button 
-            onClick={handleExportCSV}
-            className="border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center shadow-sm w-full sm:w-auto justify-center"
+            onClick={handleExportExcel}
+            className="border border-green-600 bg-green-50 hover:bg-green-100 text-green-700 px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center shadow-sm w-full sm:w-auto justify-center"
           >
-            <Download className="w-4 h-4 mr-2" /> Export ke CSV
+            <Download className="w-4 h-4 mr-2" /> Excel
+          </button>
+          <button 
+            onClick={handleExportPDF}
+            className="border border-red-600 bg-red-50 hover:bg-red-100 text-red-700 px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center shadow-sm w-full sm:w-auto justify-center"
+          >
+            <Download className="w-4 h-4 mr-2" /> PDF
           </button>
           <button 
             onClick={handleOpenAddJob}
