@@ -125,6 +125,7 @@ export default function App() {
           <Route path="/hrd/cuti" element={<CutiHRD />} />
           <Route path="/hrd/kpi" element={<KPIHRD />} />
           <Route path="/hrd/rekrutmen" element={<RekrutmenHRD />} />
+          <Route path="/hrd/profile" element={<Profile />} />
         </Route>
         {/* Rute Privat tanpa Navigasi Bawah: Digunakan untuk halaman spesifik seperti daftar notifikasi */}
         <Route path="/notifications" element={<PrivateRoute><Notifications /></PrivateRoute>} />

@@ -20,6 +20,7 @@ export default function Home() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isLoading, setIsLoading] = useState(true);
   const [currentLocation, setCurrentLocation] = useState<{lat: number, lng: number} | null>(null);
+  const [locationName, setLocationName] = useState<string>('');
   const [locationStatus, setLocationStatus] = useState<'loading' | 'success' | 'error'>('loading');
 
   // Mensimulasikan jeda (delay) saat memuat data di awal
@@ -70,6 +71,22 @@ export default function Home() {
     };
   }, []);
 
+  // Fetch location name when currentLocation changes to success
+  useEffect(() => {
+    if (locationStatus === 'success' && currentLocation && !locationName) {
+      fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${currentLocation.lat}&lon=${currentLocation.lng}&zoom=18&addressdetails=1`)
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.display_name) {
+            // Mengambil 3 bagian pertama dari alamat agar tidak terlalu panjang
+            const parts = data.display_name.split(', ');
+            setLocationName(parts.slice(0, 3).join(', '));
+          }
+        })
+        .catch(err => console.warn("Reverse geocoding error:", err));
+    }
+  }, [locationStatus, currentLocation, locationName]);
+
   // Memperbarui waktu saat ini setiap detik untuk tampilan jam digital
   useInterval(() => {
     setCurrentTime(new Date());
@@ -111,7 +128,7 @@ export default function Home() {
         </div>
         
         <div className="flex items-center gap-4">
-          <button 
+          {/* <button 
             onClick={() => navigate('/notifications')}
             className="w-10 h-10 rounded-full flex items-center justify-center relative hover:bg-slate-50 transition-colors"
           >
@@ -119,7 +136,7 @@ export default function Home() {
             {unreadCount > 0 && (
               <span className="absolute top-2 right-2 w-2 h-2 bg-blue-600 border-2 border-white rounded-full"></span>
             )}
-          </button>
+          </button> */}
           <div className="relative cursor-pointer" onClick={() => navigate('/profile')}>
             <div className="w-10 h-10 bg-slate-100 rounded-full border-2 border-white shadow-sm overflow-hidden">
               {user?.photoUrl ? (
@@ -205,15 +222,26 @@ export default function Home() {
         <div className="bg-blue-900 rounded-3xl p-6 text-white relative overflow-hidden shadow-sm">
           <div className="relative z-10">
             <p className="text-blue-300 text-xs font-bold mb-1 uppercase tracking-widest">Shift Hari Ini</p>
-            <h3 className="text-xl font-bold mb-1">{user?.schedule}</h3>
-            <p className="text-sm text-blue-100 opacity-80 flex items-center gap-1.5 mt-2">
-              <MapPin className="w-4 h-4" />
-              {locationStatus === 'success' && currentLocation
-                ? `${currentLocation.lat.toFixed(6)}, ${currentLocation.lng.toFixed(6)}`
-                : locationStatus === 'error'
-                  ? 'Lokasi tidak tersedia - aktifkan GPS & izin lokasi'
-                  : 'Mencari lokasi...'}
-            </p>
+            <h3 className="text-xl font-bold mb-1">
+              {(user?.jamMasuk && user?.jamKeluar) 
+                ? `${user.jamMasuk} - ${user.jamKeluar}` 
+                : user?.schedule || "08:00 - 17:00"}
+            </h3>
+            <div className="text-sm text-blue-100 opacity-80 mt-2 space-y-1">
+              <p className="flex items-center gap-1.5">
+                <MapPin className="w-4 h-4 shrink-0" />
+                {locationStatus === 'success' && currentLocation
+                  ? `${currentLocation.lat.toFixed(6)}, ${currentLocation.lng.toFixed(6)}`
+                  : locationStatus === 'error'
+                    ? 'Lokasi tidak tersedia - aktifkan GPS & izin lokasi'
+                    : 'Mencari lokasi...'}
+              </p>
+              {locationStatus === 'success' && locationName && (
+                <p className="text-xs pl-5.5 opacity-90 line-clamp-2 leading-snug">
+                  {locationName}
+                </p>
+              )}
+            </div>
           </div>
           <div className="absolute -right-8 -bottom-8 w-32 h-32 bg-blue-800 rounded-full blur-2xl opacity-50"></div>
         </div>
@@ -237,7 +265,7 @@ export default function Home() {
         </div>
 
         {/* Bagian Pengumuman (Banner Info) */}
-        <div className="bg-white rounded-3xl p-2 shadow-sm border border-slate-200 flex items-center">
+        {/* <div className="bg-white rounded-3xl p-2 shadow-sm border border-slate-200 flex items-center">
           <div className="bg-blue-50 text-blue-600 px-4 py-3 rounded-2xl font-bold text-xs uppercase tracking-wider flex-shrink-0">
             Info
           </div>
@@ -247,7 +275,7 @@ export default function Home() {
           <button className="pr-4 text-slate-400 hover:text-slate-600" onClick={() => navigate('/notifications')}>
             <ChevronRight className="w-5 h-5" />
           </button>
-        </div>
+        </div> */}
       </div>
     </div>
   );

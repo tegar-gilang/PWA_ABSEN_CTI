@@ -69,7 +69,13 @@ const KPIHRD: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedMonth, setSelectedMonth] = useState(() => new Date().toISOString().substring(0, 7));
+  
+  const todayStr = new Date().toISOString().split('T')[0];
+  const today = new Date();
+  const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
+  const [startDate, setStartDate] = useState(firstDayOfMonth);
+  const [endDate, setEndDate] = useState(todayStr);
+
   const [modalData, setModalData] = useState<any | null>(null);
 
   // ---- Dynamic KPI state ----
@@ -89,9 +95,10 @@ const KPIHRD: React.FC = () => {
   // ---- Dynamic Evaluation state ----
   const [dynamicEvals, setDynamicEvals] = useState<DynamicEvaluation[]>([]);
   const [dynamicTemplate, setDynamicTemplate] = useState<KpiTemplate | null>(null);
-  const [dynamicPeriode, setDynamicPeriode] = useState(getCurrentPeriode());
-  const [dynamicPeriodeBulan, setDynamicPeriodeBulan] = useState(BULAN_LIST[new Date().getMonth()]);
-  const [dynamicPeriodeTahun, setDynamicPeriodeTahun] = useState(new Date().getFullYear());
+  const [dynamicStartDate, setDynamicStartDate] = useState(firstDayOfMonth);
+  const [dynamicEndDate, setDynamicEndDate] = useState(todayStr);
+  const dynamicPeriode = `${dynamicStartDate} s/d ${dynamicEndDate}`;
+  
   const [loadingDynamic, setLoadingDynamic] = useState(false);
   const [savingDynamic, setSavingDynamic] = useState(false);
   const [dynamicSearch, setDynamicSearch] = useState('');
@@ -109,7 +116,7 @@ const KPIHRD: React.FC = () => {
   const fetchKpi = async () => {
     setLoading(true);
     try {
-      const res = await apiHrdGetKpi(selectedMonth);
+      const res = await apiHrdGetKpi(`${startDate} s/d ${endDate}`);
       setRecords(res.kpi || []);
     } catch (err) {
       console.error("Gagal memuat KPI:", err);
@@ -188,18 +195,16 @@ const KPIHRD: React.FC = () => {
     if (activeTabIndex === 0) {
       fetchKpi();
     }
-  }, [selectedMonth, activeTabIndex]);
+  }, [startDate, endDate, activeTabIndex]);
 
   useEffect(() => {
     if (activeTabIndex > 0 && templates.length > 0) {
       const template = templates[activeTabIndex - 1];
       if (template) {
-        const periode = `${dynamicPeriodeBulan} ${dynamicPeriodeTahun}`;
-        setDynamicPeriode(periode);
-        fetchDynamicEvals(template.id, periode);
+        fetchDynamicEvals(template.id, dynamicPeriode);
       }
     }
-  }, [activeTabIndex, templates, dynamicPeriodeBulan, dynamicPeriodeTahun, fetchDynamicEvals]);
+  }, [activeTabIndex, templates, dynamicPeriode, fetchDynamicEvals]);
 
   // Toast auto-dismiss
   useEffect(() => {
@@ -233,7 +238,7 @@ const KPIHRD: React.FC = () => {
     try {
       await apiHrdUpdateKpi({
         user_id: modalData.user_id,
-        month_year: selectedMonth,
+        month_year: `${startDate} s/d ${endDate}`,
         terlambat_laporan: parseInt(modalData.terlambat_laporan) || 0,
         laporan_tidak_sesuai: parseInt(modalData.laporan_tidak_sesuai) || 0,
         komplain: parseInt(modalData.komplain) || 0,
@@ -260,13 +265,14 @@ const KPIHRD: React.FC = () => {
       return;
     }
     exportToExcel({
-        title: `KPI Karyawan - ${selectedMonth}`,
-        filename: `KPI_Karyawan_${selectedMonth}`,
+        title: `KPI Karyawan`,
+        filename: `KPI_Karyawan_${startDate}_${endDate}`,
         columns: [
           { header: 'Nama', dataKey: 'name' },
           { header: 'Bagian', dataKey: 'department' },
           { header: 'Izin (x)', dataKey: 'izin' },
-          { header: 'Izin Mendadak', dataKey: 'izin_mendadak' },
+          { header: 'Sakit (x)', dataKey: 'sakit' },
+          { header: 'Cuti (x)', dataKey: 'cuti' },
           { header: 'Alfa (x)', dataKey: 'alfa' },
           { header: 'Terlambat (x)', dataKey: 'terlambat' },
           { header: 'Skor Disiplin', dataKey: 'skor_disiplin' },
@@ -286,15 +292,16 @@ const KPIHRD: React.FC = () => {
       return;
     }
     exportToPDF({
-        title: `KPI Karyawan - ${selectedMonth}`,
-        filename: `KPI_Karyawan_${selectedMonth}`,
+        title: `KPI Karyawan`,
+        filename: `KPI_Karyawan_${startDate}_${endDate}`,
         columns: [
           { header: 'Nama', dataKey: 'name' },
           { header: 'Bagian', dataKey: 'department' },
           { header: 'Total Skor', dataKey: 'total_skor' },
           { header: 'Kategori', dataKey: 'kategori' },
         ],
-        data: filteredRecords
+        data: filteredRecords,
+        dateRange: `${startDate} s/d ${endDate}`
       });
   };
 
@@ -500,7 +507,8 @@ const KPIHRD: React.FC = () => {
       title: `${dynamicTemplate.nama_halaman} - ${dynamicPeriode}`,
       filename: `${dynamicTemplate.nama_halaman.replace(/\s+/g, '_')}_${dynamicPeriode.replace(/\s+/g, '_')}`,
       columns,
-      data
+      data,
+      dateRange: dynamicPeriode
     });
   };
 
@@ -606,12 +614,21 @@ const KPIHRD: React.FC = () => {
           {/* Controls */}
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
             <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3 w-full sm:w-auto">
-              <input
-                type="month"
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(e.target.value)}
-                className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 w-full sm:w-auto bg-white"
-              />
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 text-gray-600 bg-white"
+                />
+                <span className="text-gray-500 text-sm">-</span>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 text-gray-600 bg-white"
+                />
+              </div>
               <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto mt-3 sm:mt-0">
                 <button
                   onClick={handleExportExcel}
@@ -652,7 +669,7 @@ const KPIHRD: React.FC = () => {
                     <th className="px-3 py-3" rowSpan={2}>No</th>
                     <th className="px-4 py-3 text-left" rowSpan={2}>Nama</th>
                     <th className="px-4 py-3" rowSpan={2}>Bagian</th>
-                    <th className="px-2 py-3" colSpan={4}>Data Kehadiran (Otomatis)</th>
+                    <th className="px-2 py-3" colSpan={5}>Data Kehadiran (Otomatis)</th>
                     <th className="px-2 py-3" colSpan={5}>Data Evaluasi (Manual)</th>
                     <th className="px-2 py-3" colSpan={5}>Skoring</th>
                     <th className="px-4 py-3" rowSpan={2}>Kategori</th>
@@ -660,10 +677,11 @@ const KPIHRD: React.FC = () => {
                   </tr>
                   <tr className="bg-[#d9ead3] text-gray-800 border-b border-gray-300 text-center text-xs divide-x divide-gray-300">
                     {/* Kehadiran */}
-                    <th className="px-2 py-2 font-medium">Izin (x)</th>
-                    <th className="px-2 py-2 font-medium">Izin<br />mendadak</th>
-                    <th className="px-2 py-2 font-medium">Alfa (x)</th>
-                    <th className="px-2 py-2 font-medium">Terlambat (x)</th>
+                    <th className="px-2 py-2 font-medium">Izin</th>
+                    <th className="px-2 py-2 font-medium">Sakit</th>
+                    <th className="px-2 py-2 font-medium">Cuti</th>
+                    <th className="px-2 py-2 font-medium">Alfa</th>
+                    <th className="px-2 py-2 font-medium">Telat</th>
                     {/* Evaluasi */}
                     <th className="px-2 py-2 font-medium">Terlambat<br />Laporan</th>
                     <th className="px-2 py-2 font-medium">Laporan<br />Tidak Sesuai</th>
@@ -694,7 +712,8 @@ const KPIHRD: React.FC = () => {
                         <td className="px-4 py-2">{item.department || '-'}</td>
                         {/* Kehadiran */}
                         <td className="px-2 py-2 bg-gray-50">{item.izin || ''}</td>
-                        <td className="px-2 py-2 bg-gray-50">{item.izin_mendadak || ''}</td>
+                        <td className="px-2 py-2 bg-gray-50">{item.sakit || ''}</td>
+                        <td className="px-2 py-2 bg-gray-50">{item.cuti || ''}</td>
                         <td className="px-2 py-2 bg-gray-50">{item.alfa || ''}</td>
                         <td className="px-2 py-2 bg-gray-50">{item.terlambat || ''}</td>
                         {/* Manual Inputs */}
@@ -772,12 +791,12 @@ const KPIHRD: React.FC = () => {
           evaluations={filteredDynamicEvals}
           loading={loadingDynamic}
           saving={savingDynamic}
-          periodeB={dynamicPeriodeBulan}
-          periodeT={dynamicPeriodeTahun}
+          startDate={dynamicStartDate}
+          endDate={dynamicEndDate}
           searchQuery={dynamicSearch}
           onSearchChange={setDynamicSearch}
-          onPeriodeBulanChange={(b) => setDynamicPeriodeBulan(b)}
-          onPeriodeTahunChange={(t) => setDynamicPeriodeTahun(t)}
+          onStartDateChange={(d) => setDynamicStartDate(d)}
+          onEndDateChange={(d) => setDynamicEndDate(d)}
           onValueChange={handleDynamicValueChange}
           onSave={handleSaveDynamic}
           onExportExcel={handleExportDynamicExcel}
@@ -831,6 +850,7 @@ const KPIHRD: React.FC = () => {
                   className="w-full border border-gray-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 outline-none text-sm bg-white"
                 >
                   <option value="">-- Pilih Divisi --</option>
+                  <option value="Seluruh Karyawan">Seluruh Karyawan</option>
                   {departments.map(d => (
                     <option key={d.id} value={d.name}>{d.name}</option>
                   ))}
@@ -1185,12 +1205,12 @@ interface DynamicKpiTabProps {
   evaluations: DynamicEvaluation[];
   loading: boolean;
   saving: boolean;
-  periodeB: string;
-  periodeT: number;
+  startDate: string;
+  endDate: string;
   searchQuery: string;
   onSearchChange: (v: string) => void;
-  onPeriodeBulanChange: (b: string) => void;
-  onPeriodeTahunChange: (t: number) => void;
+  onStartDateChange: (d: string) => void;
+  onEndDateChange: (d: string) => void;
   onValueChange: (karyawanId: string, kolom: string, value: string) => void;
   onSave: () => void;
   onExportExcel: () => void;
@@ -1200,8 +1220,8 @@ interface DynamicKpiTabProps {
 
 const DynamicKpiTab: React.FC<DynamicKpiTabProps> = ({
   template, evaluations, loading, saving,
-  periodeB, periodeT, searchQuery,
-  onSearchChange, onPeriodeBulanChange, onPeriodeTahunChange,
+  startDate, endDate, searchQuery,
+  onSearchChange, onStartDateChange, onEndDateChange,
   onValueChange, onSave, onExportExcel, onExportPDF, onEditTemplate
 }) => {
   const skema = template.skema_kolom || [];
@@ -1229,20 +1249,21 @@ const DynamicKpiTab: React.FC<DynamicKpiTabProps> = ({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {/* Periode Selector */}
-          <select
-            value={periodeB}
-            onChange={(e) => onPeriodeBulanChange(e.target.value)}
-            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 bg-white"
-          >
-            {BULAN_LIST.map(b => <option key={b} value={b}>{b}</option>)}
-          </select>
-          <select
-            value={periodeT}
-            onChange={(e) => onPeriodeTahunChange(Number(e.target.value))}
-            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 bg-white"
-          >
-            {getYearOptions().map(y => <option key={y} value={y}>{y}</option>)}
-          </select>
+          <div className="flex items-center gap-2">
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => onStartDateChange(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 text-gray-600 bg-white"
+            />
+            <span className="text-gray-500 text-sm">-</span>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => onEndDateChange(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 text-gray-600 bg-white"
+            />
+          </div>
           <button
             onClick={onExportExcel}
             className="bg-green-50 border border-green-600 hover:bg-green-100 text-green-700 px-3 py-1.5 rounded-lg text-sm font-semibold transition-all flex items-center shadow-sm"
@@ -1279,7 +1300,7 @@ const DynamicKpiTab: React.FC<DynamicKpiTabProps> = ({
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="p-4 border-b border-gray-200 flex flex-col sm:flex-row justify-between items-center bg-gray-50/50 gap-4">
           <h3 className="font-bold text-gray-800 text-sm uppercase tracking-wider">
-            {template.nama_halaman} — <span className="text-blue-600">{periodeB} {periodeT}</span>
+            {template.nama_halaman} — <span className="text-blue-600">{startDate} s/d {endDate}</span>
           </h3>
           <div className="relative w-full sm:w-auto">
             <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />

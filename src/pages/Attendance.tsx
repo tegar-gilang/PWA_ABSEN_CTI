@@ -58,7 +58,9 @@ export default function Attendance() {
   // Refs untuk menyimpan referensi aliran media (kamera) dan input file
   const [stream, setStream] = useState<MediaStream | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  
+  const [reverseLocationName, setReverseLocationName] = useState<string>('');
+
+
   // Aksi-aksi untuk mengubah status global (Zustand Store)
   const checkIn = useAppStore(state => state.checkIn);
   const checkOut = useAppStore(state => state.checkOut);
@@ -70,6 +72,43 @@ export default function Attendance() {
   const todaysRecord = history.find(r => r.date === today);
   const isCheckedIn = !!todaysRecord?.checkInTime && !todaysRecord?.checkOutTime;
   const isCheckedOut = !!todaysRecord?.checkOutTime;
+
+  // Mendapatkan nama lokasi reverse geocoding
+  useEffect(() => {
+    if (location) {
+      fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${location.lat}&lon=${location.lng}&zoom=18&addressdetails=1`)
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.display_name) {
+            const parts = data.display_name.split(', ');
+            setReverseLocationName(parts.slice(0, 3).join(', '));
+          }
+        })
+        .catch(err => console.warn("Reverse geocoding error:", err));
+    }
+  }, [location]);
+
+  const user = useAppStore(state => state.user);
+  
+  // Hitung status Check-In berdasarkan user.jamMasuk
+  const now = new Date();
+  let isCheckInOpen = true;
+  let checkInOpenTimeMsg = "";
+  
+  if (!isCheckedIn && user && user.jamMasuk) {
+    const [hours, minutes] = user.jamMasuk.split(':');
+    const shiftTime = new Date();
+    shiftTime.setHours(parseInt(hours, 10), parseInt(minutes, 10), 0, 0);
+    
+    const checkinStart = new Date(shiftTime.getTime() - 10 * 60000);
+    
+    if (now < checkinStart) {
+      isCheckInOpen = false;
+      const hh = checkinStart.getHours().toString().padStart(2, '0');
+      const mm = checkinStart.getMinutes().toString().padStart(2, '0');
+      checkInOpenTimeMsg = `Check-In belum dibuka.\nCheck-In dapat dilakukan mulai pukul ${hh}:${mm}.`;
+    }
+  }
 
   // Memuat daftar Kantor dan Rumah Sakit secara terpisah dari API dengan filter type
   useEffect(() => {
@@ -139,7 +178,6 @@ export default function Attendance() {
   };
 
   // Mengambil gambar dari bingkai video saat ini
-  const user = useAppStore(state => state.user);
   const capturePhoto = () => {
     if (videoRef.current) {
       const canvas = document.createElement('canvas');
@@ -174,8 +212,8 @@ export default function Attendance() {
         ctx.fillText(`Lokasi: ${coords}`, padding, startY + 20);
 
         const locName = !isCheckedIn 
-          ? (locationMode === 'CUSTOM' ? (customLocationName.trim() || 'Lokasi Khusus') : (locationMode === 'OFFICE' ? (selectedLocationItem?.nama_rs || selectedLocationItem?.name || 'Kantor') : (selectedLocationItem?.nama_rs || selectedLocationItem?.name || 'Rumah Sakit'))) 
-          : 'Titik Pulang';
+          ? (locationMode === 'CUSTOM' ? (reverseLocationName || 'Lokasi Khusus') : (locationMode === 'OFFICE' ? (selectedLocationItem?.nama_rs || selectedLocationItem?.name || 'Kantor') : (selectedLocationItem?.nama_rs || selectedLocationItem?.name || 'Rumah Sakit'))) 
+          : (reverseLocationName || 'Titik Pulang');
         ctx.fillText(`Tempat: ${locName}`, padding, startY + 40);
 
         const now = new Date();
@@ -304,7 +342,7 @@ export default function Attendance() {
         history: locationHistoryRef.current,
         hospitalId: !isCheckedIn && locationMode === 'HOSPITAL' ? selectedHospitalId : (!isCheckedIn && locationMode === 'OFFICE' ? selectedOfficeId : null),
         customLocationName: !isCheckedIn 
-          ? (locationMode === 'CUSTOM' ? (customLocationName.trim() || 'Lokasi Khusus') : (locationMode === 'OFFICE' ? (selectedLocationItem?.nama_rs || selectedLocationItem?.name || 'Kantor') : (selectedLocationItem?.nama_rs || selectedLocationItem?.name || 'Rumah Sakit'))) 
+          ? (locationMode === 'CUSTOM' ? (reverseLocationName || 'Lokasi Khusus') : (locationMode === 'OFFICE' ? (selectedLocationItem?.nama_rs || selectedLocationItem?.name || 'Kantor') : (selectedLocationItem?.nama_rs || selectedLocationItem?.name || 'Rumah Sakit'))) 
           : null,
       };
 
@@ -560,19 +598,7 @@ export default function Attendance() {
               </div>
             )}
 
-            {/* Input Lokasi CUSTOM */}
-            {locationMode === 'CUSTOM' && (
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2">
-                <label className="block text-xs font-bold text-slate-700">Nama Lokasi Penugasan Lapangan:</label>
-                <input
-                  type="text"
-                  value={customLocationName}
-                  onChange={(e) => setCustomLocationName(e.target.value)}
-                  placeholder="contoh: Puskesmas Gambir / Lab Medika"
-                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            )}
+
 
             <div className="w-full h-px bg-slate-100 mt-6"></div>
           </div>
@@ -644,14 +670,21 @@ export default function Attendance() {
           </button>
         </div>
       ) : (
-        <button
-          onClick={startProcess}
-          disabled={step === 'LOCATING'}
-          className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-2xl py-5 font-bold text-lg shadow-xl shadow-blue-100 flex items-center justify-center gap-3 transition-all active:scale-[0.98] disabled:opacity-70 disabled:shadow-none"
-        >
-          {step === 'LOCATING' && <Loader2 className="w-5 h-5 animate-spin" />}
-          {step === 'LOCATING' ? 'Memproses Lokasi...' : `Mulai Absen ${isCheckedIn ? 'Pulang' : 'Masuk'}`}
-        </button>
+        <div className="space-y-3 w-full">
+          {!isCheckInOpen && (
+            <div className="bg-amber-50 text-amber-800 text-sm font-medium p-4 rounded-xl border border-amber-200 text-center whitespace-pre-line">
+              {checkInOpenTimeMsg}
+            </div>
+          )}
+          <button
+            onClick={startProcess}
+            disabled={step === 'LOCATING' || !isCheckInOpen}
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-2xl py-5 font-bold text-lg shadow-xl shadow-blue-100 flex items-center justify-center gap-3 transition-all active:scale-[0.98] disabled:opacity-50 disabled:shadow-none disabled:cursor-not-allowed"
+          >
+            {step === 'LOCATING' && <Loader2 className="w-5 h-5 animate-spin" />}
+            {step === 'LOCATING' ? 'Memproses Lokasi...' : `Mulai Absen ${isCheckedIn ? 'Pulang' : 'Masuk'}`}
+          </button>
+        </div>
       )}
     </div>
   );

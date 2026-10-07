@@ -208,10 +208,17 @@ router.post("/checkin", async (req, res)=> {
     const checkInTime = new Date();
     const [hours, minutes, seconds] = (user.jam_masuk || '08:00:00').split(':');
 
-    const limitWaktu = new Date();
-    limitWaktu.setHours(parseInt(hours, 10), parseInt(minutes, 10) + 5, parseInt(seconds || 0, 10), 0);
+    const shiftTime = new Date();
+    shiftTime.setHours(parseInt(hours, 10), parseInt(minutes, 10), parseInt(seconds || 0, 10), 0);
 
-    const attendanceStatus = checkInTime > limitWaktu ? 'LATE' : 'ON_TIME';
+    const checkinStart = new Date(shiftTime.getTime() - 10 * 60000);
+    const lateThreshold = new Date(shiftTime.getTime() + 10 * 60000);
+
+    if (checkInTime < checkinStart) {
+      return res.status(403).json({ message: `Check-In belum dibuka. Check-In dapat dilakukan mulai pukul ${checkinStart.toTimeString().slice(0, 5)}.` });
+    }
+
+    const attendanceStatus = checkInTime > lateThreshold ? 'LATE' : 'ON_TIME';
 
     const recordId = randomUUID();
     await pool.query(

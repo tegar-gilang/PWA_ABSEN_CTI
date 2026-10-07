@@ -75,12 +75,7 @@ const DashboardHRD: React.FC = () => {
           <h2 className="text-2xl font-bold text-gray-800">Dashboard Overview</h2>
           <p className="text-gray-500 mt-1">Today's HR snapshot.</p>
         </div>
-        <button 
-          onClick={() => alert("Mengunduh laporan... (Fitur ekspor segera siap)")}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center shadow-sm"
-        >
-          <Download className="w-4 h-4 mr-2" /> Export Report
-        </button>
+
       </div>
 
       {/* Deretan Kartu Statistik (Stats Cards) */}

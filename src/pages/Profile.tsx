@@ -3,7 +3,7 @@ import { useAppStore } from '../store';
 import { useNavigate } from 'react-router-dom';
 import { ApiError } from '../lib/api';
 import { compressImageFile } from '../lib/image';
-import { LogOut, User as UserIcon, Phone, Mail, Building, Briefcase, Clock, ChevronRight, Save, X, Loader2, Camera, AlertCircle } from 'lucide-react';
+import { LogOut, User as UserIcon, Phone, Mail, Building, Briefcase, Clock, ChevronRight, Save, X, Loader2, Camera, AlertCircle, MapPin } from 'lucide-react';
 
 /**
  * Komponen Halaman Profil (Profile Component)
@@ -19,9 +19,7 @@ export default function Profile() {
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     phone: user?.phone || '',
-    emergencyContact: user?.emergencyContact || '',
-    email: user?.email || '',
-    position: user?.position || '',
+    address: user?.address || '',
   });
 
   // Menyinkronkan form dengan data pengguna terbaru dari server (mis. setelah hydrateSession selesai),
@@ -30,9 +28,7 @@ export default function Profile() {
     if (!isEditing && user) {
       setFormData({
         phone: user.phone || '',
-        emergencyContact: user.emergencyContact || '',
-        email: user.email || '',
-        position: user.position || '',
+        address: user.address || '',
       });
     }
   }, [user, isEditing]);
@@ -41,8 +37,10 @@ export default function Profile() {
 
   // Mengeluarkan (Sign Out) pengguna saat ini dan menavigasikan kembali ke halaman login
   const handleLogout = async () => {
-    await logout();
-    navigate('/login');
+    if (window.confirm('Apakah Anda yakin ingin keluar?')) {
+      await logout();
+      navigate('/login');
+    }
   };
 
   // Menyimpan informasi kontak yang baru saja diperbarui
@@ -87,8 +85,15 @@ export default function Profile() {
 
   if (!user) return null;
 
+  const formatEmployeeId = () => {
+    if (user.employeeId && /^[A-Z]{3}-\d+$/.test(user.employeeId)) return user.employeeId;
+    const prefix = user.department ? user.department.substring(0, 3).toUpperCase() : 'EMP';
+    const suffix = user.nik ? user.nik.slice(-3) : user.id.slice(0, 3).replace(/\D/g, '0').padEnd(3, '0');
+    return `${prefix}-${suffix}`;
+  };
+
   return (
-    <div className="min-h-full bg-[#F8FAFC] text-slate-800">
+    <div className="min-h-full bg-[#F8FAFC] text-slate-800 pb-20">
       {/* Bagian Header yang berisi Avatar pengguna dan tombol/fitur unggah foto */}
       <div className="bg-white px-6 pt-6 pb-8 border-b border-slate-200">
         <h1 className="text-2xl font-bold text-slate-900 mb-3">Profil</h1>
@@ -120,7 +125,7 @@ export default function Profile() {
           </div>
           <div>
             <h2 className="text-[22px] font-bold text-slate-900 tracking-tight">{user.name}</h2>
-            <p className="text-[13px] text-slate-400 font-bold tracking-wider mt-px">ID: {user.employeeId}</p>
+            <p className="text-[13px] text-slate-400 font-bold tracking-wider mt-px">ID: {formatEmployeeId()}</p>
           </div>
         </div>
 
@@ -141,31 +146,6 @@ export default function Profile() {
               <span className="w-1 h-3 bg-blue-600 rounded-full"></span>
               Informasi Pekerjaan
             </h3>
-            {!isEditing ? (
-              <button
-                onClick={() => setIsEditing(true)}
-                className="text-blue-600 text-[10px] font-bold uppercase tracking-wider hover:text-blue-700"
-              >
-                Ubah
-              </button>
-            ) : (
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setIsEditing(false)}
-                  className="text-slate-500 hover:text-slate-700"
-                  disabled={isLoading}
-                >
-                  <X className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={handleSave}
-                  className="text-blue-600 hover:text-blue-700 flex items-center"
-                  disabled={isLoading}
-                >
-                  {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                </button>
-              </div>
-            )}
           </div>
           
           <div className="space-y-4">
@@ -174,28 +154,8 @@ export default function Profile() {
                 <Building className="w-5 h-5" />
               </div>
               <div className="flex-1 border-b border-slate-100 pb-4">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Divisi</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Bagian</p>
                 <p className="font-bold text-slate-900">{user.department}</p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-4">
-              <div className="w-10 h-10 bg-slate-50 text-slate-500 rounded-xl flex items-center justify-center shrink-0 border border-slate-100">
-                <Briefcase className="w-5 h-5" />
-              </div>
-              <div className="flex-1 border-b border-slate-100 pb-4">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Posisi</p>
-                {isEditing ? (
-                  <input
-                    type="text"
-                    value={formData.position}
-                    placeholder="Mis. Teknisi Lapangan"
-                    onChange={(e) => setFormData({...formData, position: e.target.value})}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                ) : (
-                  <p className="font-bold text-slate-900">{user.position || <span className="text-slate-300 font-medium">Belum diisi</span>}</p>
-                )}
               </div>
             </div>
 
@@ -252,17 +212,7 @@ export default function Profile() {
               </div>
               <div className="flex-1 border-b border-slate-100 pb-4">
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Email</p>
-                {isEditing ? (
-                  <input
-                    type="email"
-                    value={formData.email}
-                    placeholder="nama@email.com"
-                    onChange={(e) => setFormData({...formData, email: e.target.value})}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                ) : (
-                  <p className="font-bold text-slate-900">{user.email || <span className="text-slate-300 font-medium">Belum diisi</span>}</p>
-                )}
+                <p className="font-bold text-slate-900">{user.email || <span className="text-slate-300 font-medium">Belum diisi</span>}</p>
               </div>
             </div>
 
@@ -286,20 +236,20 @@ export default function Profile() {
             </div>
 
             <div className="flex items-center gap-4">
-              <div className="w-10 h-10 bg-red-50 text-red-500 rounded-xl flex items-center justify-center shrink-0 border border-red-100">
-                <UserIcon className="w-5 h-5" />
+              <div className="w-10 h-10 bg-slate-50 text-slate-500 rounded-xl flex items-center justify-center shrink-0 border border-slate-100">
+                <MapPin className="w-5 h-5" />
               </div>
               <div className="flex-1">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Kontak Darurat</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Alamat</p>
                 {isEditing ? (
-                  <input 
-                    type="tel"
-                    value={formData.emergencyContact}
-                    onChange={(e) => setFormData({...formData, emergencyContact: e.target.value})}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  <textarea 
+                    value={formData.address}
+                    onChange={(e) => setFormData({...formData, address: e.target.value})}
+                    rows={2}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                   />
                 ) : (
-                  <p className="font-bold text-slate-900">{user.emergencyContact || <span className="text-slate-300 font-medium">Belum diisi</span>}</p>
+                  <p className="font-bold text-slate-900">{user.address || <span className="text-slate-300 font-medium">Belum diisi</span>}</p>
                 )}
               </div>
             </div>

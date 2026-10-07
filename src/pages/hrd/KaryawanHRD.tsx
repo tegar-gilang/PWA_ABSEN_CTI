@@ -9,7 +9,9 @@ import {
   ChevronRight,
   X, 
   Edit, 
-  Trash2 
+  Trash2,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { exportToExcel, exportToPDF } from '@/src/utils/exportUtils';
 
@@ -27,7 +29,6 @@ const BAGIAN_LIST = [
   'Admin Teknik',
   'Admin Piutang',
   'Manager HRD',
-  'Admin HRD',
   'Admin Keuangan',
   'Admin Gudang'
 ];
@@ -50,6 +51,7 @@ const KaryawanHRD: React.FC = () => {
   const [selectedEmployee, setSelectedEmployee] = useState<any>(null);
   const [formData, setFormData] = useState({
     name: '',
+    employee_id: '',
     nik: '',
     email: '',
     phone: '',
@@ -62,6 +64,7 @@ const KaryawanHRD: React.FC = () => {
     role: 'EMPLOYEE'
   });
   const [isSaving, setIsSaving] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const fetchData = async () => {
     setLoading(true);
@@ -117,6 +120,7 @@ const KaryawanHRD: React.FC = () => {
     const scheduleStr = emp.schedule || (emp.jam_masuk && emp.jam_keluar ? `${emp.jam_masuk.slice(0, 5)} - ${emp.jam_keluar.slice(0, 5)}` : '08:00 - 17:00');
     setFormData({
       name: emp.name || '',
+      employee_id: emp.employeeId || emp.employee_id || '',
       nik: emp.nik || '',
       email: emp.email || '',
       phone: emp.phone || '',
@@ -128,6 +132,7 @@ const KaryawanHRD: React.FC = () => {
       id_position: emp.id_position || '',
       role: emp.role || 'EMPLOYEE'
     });
+    setShowPassword(false); // Reset show password when modal opens
     setIsModalOpen(true);
   };
 
@@ -157,6 +162,7 @@ const KaryawanHRD: React.FC = () => {
 
       const payload = {
         name: formData.name,
+        employee_id: formData.employee_id,
         nik: formData.nik,
         email: formData.email,
         phone: formData.phone,
@@ -250,13 +256,13 @@ const KaryawanHRD: React.FC = () => {
         <div className="flex gap-2">
             <button
             onClick={handleExportExcel}
-            className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg text-sm font-semibold transition-colors shadow-sm"
+            className="flex items-center gap-2 border border-green-600 bg-white hover:bg-green-50 text-green-700 px-3 py-2 rounded-lg text-sm font-semibold transition-colors shadow-sm"
             >
             <Download className="w-4 h-4" /> Excel
             </button>
             <button
             onClick={handleExportPDF}
-            className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-lg text-sm font-semibold transition-colors shadow-sm"
+            className="flex items-center gap-2 border border-red-600 bg-white hover:bg-red-50 text-red-700 px-3 py-2 rounded-lg text-sm font-semibold transition-colors shadow-sm"
             >
             <Download className="w-4 h-4" /> PDF
             </button>
@@ -265,6 +271,7 @@ const KaryawanHRD: React.FC = () => {
                 setSelectedEmployee(null);
                 setFormData({
                 name: '',
+                employee_id: '',
                 nik: '',
                 email: '',
                 phone: '',
@@ -276,6 +283,7 @@ const KaryawanHRD: React.FC = () => {
                 id_position: '',
                 role: 'EMPLOYEE'
                 });
+                setShowPassword(false);
                 setIsModalOpen(true);
             }}
             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors shadow-sm"
@@ -316,6 +324,7 @@ const KaryawanHRD: React.FC = () => {
             <thead>
               <tr className="bg-gray-50 text-gray-500 text-xs font-semibold tracking-wide border-b border-gray-200">
                 <th className="px-6 py-4">Nama Karyawan</th>
+                <th className="px-6 py-4">ID Karyawan</th>
                 <th className="px-6 py-4">NIK</th>
                 <th className="px-6 py-4">Email</th>
                 <th className="px-6 py-4">Bagian</th>
@@ -355,6 +364,15 @@ const KaryawanHRD: React.FC = () => {
                         <div>
                           <span className="font-semibold text-gray-800 block">{emp.name || 'Tanpa Nama'}</span>
                         </div>
+                      </td>
+                      <td className="px-6 py-4 text-gray-600 font-mono text-xs">
+                        {emp.employee_id || emp.employeeId ? (
+                          <span className="bg-gray-100 text-gray-800 px-2 py-0.5 rounded border border-gray-200 font-semibold">
+                            {emp.employee_id || emp.employeeId}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400 italic">Belum diisi</span>
+                        )}
                       </td>
                       <td className="px-6 py-4 text-gray-600 font-mono text-xs">
                         {emp.nik ? (
@@ -478,6 +496,19 @@ const KaryawanHRD: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
+                    ID Karyawan <span className="text-xs text-blue-600 font-semibold">(Otomatis Terisi)</span>
+                  </label>
+                  <input 
+                    type="text" 
+                    disabled
+                    placeholder="Dibuat otomatis oleh sistem (CTI-XXX)"
+                    className="w-full border border-gray-200 bg-gray-50 rounded-md p-2 text-gray-500 font-mono cursor-not-allowed"
+                    value={formData.employee_id || ''}
+                    readOnly
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
                     NIK <span className="text-xs text-blue-600 font-semibold">(Nomor Induk Kependudukan - Angka)</span>
                   </label>
                   <input 
@@ -535,13 +566,22 @@ const KaryawanHRD: React.FC = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Password <span className="text-red-500">*</span>
                     </label>
-                    <input 
-                      type="password" 
-                      required
-                      className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800"
-                      value={formData.password}
-                      onChange={(e) => setFormData({...formData, password: e.target.value})}
-                    />
+                    <div className="relative">
+                      <input 
+                        type={showPassword ? "text" : "password"} 
+                        required
+                        className="w-full border border-gray-300 rounded-md p-2 pr-10 focus:ring-blue-500 focus:border-blue-500 text-gray-800"
+                        value={formData.password}
+                        onChange={(e) => setFormData({...formData, password: e.target.value})}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-2 top-2.5 text-gray-400 hover:text-gray-600 focus:outline-none"
+                      >
+                        {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                      </button>
+                    </div>
                   </div>
                 )}
                 <div>
@@ -580,7 +620,7 @@ const KaryawanHRD: React.FC = () => {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Alamat Lengkap</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Alamat Lengkap Karyawan</label>
                 <textarea 
                   rows={3}
                   className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500"

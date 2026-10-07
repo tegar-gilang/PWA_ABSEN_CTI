@@ -7,6 +7,7 @@ import { motion } from 'motion/react';
 export default function Splash() {
   const navigate = useNavigate();
   const isAuthenticated = useAppStore(state => state.isAuthenticated);
+  const user = useAppStore(state => state.user);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -15,10 +16,14 @@ export default function Splash() {
     }
 
     const timer = setTimeout(() => {
-      navigate('/home', { replace: true });
+      if (user?.role === 'ADMIN') {
+        navigate('/hrd', { replace: true });
+      } else {
+        navigate('/home', { replace: true });
+      }
     }, 2000);
     return () => clearTimeout(timer);
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, navigate, user]);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[100dvh] w-full max-w-md md:max-w-2xl lg:max-w-4xl mx-auto bg-white relative">

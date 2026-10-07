@@ -27,11 +27,34 @@ import {
 } from '../../lib/api';
 import { JobOpening, Candidate } from '../../types';
 
+import { apiHrdUpdateCandidate } from '../../lib/api';
+import DataPelamarTab from './DataPelamarTab';
+
+
 const RekrutmenHRD: React.FC = () => {
   const [jobs, setJobs] = useState<JobOpening[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'OPEN' | 'CLOSED'>('ALL');
+
+  const [activeTab, setActiveTab] = useState<'LOWONGAN' | 'PELAMAR'>('LOWONGAN');
+  const [allCandidates, setAllCandidates] = useState<any[]>([]);
+  
+  const fetchAllCandidates = async () => {
+    try {
+      const res = await apiHrdGetCandidates();
+      setAllCandidates(res.candidates || []);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'PELAMAR') {
+      fetchAllCandidates();
+    }
+  }, [activeTab]);
+
 
   // Job Modal State (Add / Edit)
   const [isJobModalOpen, setIsJobModalOpen] = useState<boolean>(false);
@@ -300,7 +323,27 @@ const RekrutmenHRD: React.FC = () => {
         </div>
       </div>
 
-      {/* Tiga Kartu Ringkasan */}
+      
+      {/* Tabs */}
+      <div className="flex space-x-4 border-b border-gray-200 mb-6 px-1">
+        <button 
+          onClick={() => setActiveTab('LOWONGAN')}
+          className={`py-3 px-6 font-semibold text-sm border-b-2 outline-none transition-colors ${activeTab === 'LOWONGAN' ? 'border-blue-600 text-blue-600 bg-blue-50/50 rounded-t-xl' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-t-xl'}`}
+        >
+          Lowongan Kerja
+        </button>
+        <button 
+          onClick={() => setActiveTab('PELAMAR')}
+          className={`py-3 px-6 font-semibold text-sm border-b-2 outline-none transition-colors ${activeTab === 'PELAMAR' ? 'border-blue-600 text-blue-600 bg-blue-50/50 rounded-t-xl' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-t-xl'}`}
+        >
+          Data Pelamar
+        </button>
+      </div>
+
+      {activeTab === 'LOWONGAN' && (
+        <>
+          {/* Tiga Kartu Ringkasan */}
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         {/* Card 1: Total Openings */}
         <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex flex-col justify-between">
@@ -577,7 +620,20 @@ const RekrutmenHRD: React.FC = () => {
         </div>
       )}
 
+
+        </>
+      )}
+
+      {activeTab === 'PELAMAR' && (
+        <DataPelamarTab 
+          candidates={allCandidates} 
+          jobs={jobs}
+          onRefresh={fetchAllCandidates} 
+        />
+      )}
+
       {/* Modal: Kelola Pelamar / Kandidat */}
+
       {isCandidatesModalOpen && selectedJob && (
         <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center bg-black/50 p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]">

@@ -126,7 +126,7 @@ export default function Request() {
                   <div>
                     <label className="block text-[10px] font-bold text-slate-500 mb-2 uppercase tracking-wider">Jenis Permohonan</label>
                     <div className="grid grid-cols-2 gap-3">
-                      {(['LEAVE', 'SICK', 'PERMISSION', 'OVERTIME'] as RequestType[]).map(t => (
+                      {(['LEAVE', 'SICK', 'PERMISSION'] as RequestType[]).map(t => (
                         <div 
                           key={t}
                           onClick={() => setType(t)}

@@ -1,4 +1,5 @@
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
+import { saveAs } from 'file-saver';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -13,30 +14,93 @@ interface ExportConfig {
   filename: string;
   columns: ColumnDef[];
   data: any[];
+  dateRange?: string; // Menambahkan rentang tanggal opsional
 }
 
-export function exportToExcel(config: ExportConfig) {
-  const { title, filename, columns, data } = config;
+export async function exportToExcel(config: ExportConfig) {
+  const { title, filename, columns, data, dateRange } = config;
 
-  // Format data according to columns
-  const formattedData = data.map(item => {
-    const row: any = {};
-    columns.forEach(col => {
-      row[col.header] = item[col.dataKey] !== undefined && item[col.dataKey] !== null ? item[col.dataKey] : '-';
-    });
-    return row;
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet('Data');
+
+  // Title
+  const titleRow = worksheet.addRow([title]);
+  titleRow.font = { size: 14, bold: true };
+  worksheet.mergeCells(1, 1, 1, columns.length);
+  titleRow.getCell(1).alignment = { horizontal: 'center' };
+
+  let headerRowIndex = 3;
+  if (dateRange) {
+    const dateRow = worksheet.addRow([`Periode: ${dateRange}`]);
+    dateRow.font = { size: 11, italic: true };
+    worksheet.mergeCells(2, 1, 2, columns.length);
+    dateRow.getCell(1).alignment = { horizontal: 'center' };
+    headerRowIndex = 4;
+  } else {
+    // Empty row if no dateRange
+    worksheet.addRow([]);
+  }
+
+  // If dateRange was present, we add one empty row before table
+  if (dateRange) {
+    worksheet.addRow([]);
+  }
+
+  // Header Row
+  const headerKeys = columns.map(c => c.header);
+  const headerRow = worksheet.addRow(headerKeys);
+  
+  // Style Header
+  headerRow.eachCell((cell) => {
+    cell.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF2563EB' } // Tailwind blue-600
+    };
+    cell.font = { color: { argb: 'FFFFFFFF' }, bold: true };
+    cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+    cell.border = {
+      top: { style: 'thin' },
+      left: { style: 'thin' },
+      bottom: { style: 'thin' },
+      right: { style: 'thin' }
+    };
   });
 
-  const worksheet = XLSX.utils.json_to_sheet(formattedData);
-  
-  // Set column widths
-  const colWidths = columns.map(c => ({ wch: Math.max(c.header.length, 15) }));
-  worksheet['!cols'] = colWidths;
+  // Add Data
+  data.forEach((item, index) => {
+    const rowValues = columns.map(c => item[c.dataKey] !== undefined && item[c.dataKey] !== null ? item[c.dataKey] : '-');
+    const row = worksheet.addRow(rowValues);
+    
+    // Style Data
+    row.eachCell({ includeEmpty: true }, (cell) => {
+      // Alternate row colors for better readability
+      if (index % 2 === 1) {
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFF8FAFC' } // Tailwind slate-50
+        };
+      }
+      
+      cell.alignment = { vertical: 'top', wrapText: true };
+      cell.border = {
+        top: { style: 'thin' },
+        left: { style: 'thin' },
+        bottom: { style: 'thin' },
+        right: { style: 'thin' }
+      };
+    });
+  });
 
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'Data');
+  // Adjust Column Widths
+  columns.forEach((col, i) => {
+    worksheet.getColumn(i + 1).width = Math.max(col.header.length + 5, 18);
+  });
 
-  XLSX.writeFile(workbook, `${filename}_${new Date().getTime()}.xlsx`);
+  // Save File
+  const buffer = await workbook.xlsx.writeBuffer();
+  saveAs(new Blob([buffer]), `${filename}_${new Date().getTime()}.xlsx`);
 }
 
 export function exportToPDF(config: ExportConfig) {
@@ -54,6 +118,12 @@ export function exportToPDF(config: ExportConfig) {
   const dateStr = new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' });
   doc.text(`Tanggal Cetak: ${dateStr}`, 40, 60);
 
+  let currentY = 80;
+  if (config.dateRange) {
+    doc.text(`Rentang Tanggal: ${config.dateRange}`, 40, 75);
+    currentY = 95;
+  }
+
   // Prepare table data
   const head = [columns.map(c => c.header)];
   const body = data.map(item => 
@@ -63,7 +133,7 @@ export function exportToPDF(config: ExportConfig) {
   autoTable(doc, {
     head: head,
     body: body,
-    startY: 80,
+    startY: currentY,
     theme: 'grid',
     styles: {
       fontSize: 9,

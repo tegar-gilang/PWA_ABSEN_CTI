@@ -26,11 +26,17 @@ const CutiHRD: React.FC = () => {
   const [isSubmittingReject, setIsSubmittingReject] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  const todayStr = new Date().toISOString().split('T')[0];
+  const today = new Date();
+  const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
+  const [startDate, setStartDate] = useState<string>(firstDayOfMonth);
+  const [endDate, setEndDate] = useState<string>(todayStr);
+
   // Ambil data dari BE
   const fetchRequests = async () => {
     setLoading(true);
     try {
-      const res = await apiHrdGetRequests();
+      const res = await apiHrdGetRequests({ startDate, endDate });
       setRequests(res.requests || []);
     } catch (err) {
       console.error("Gagal memuat data cuti:", err);
@@ -41,7 +47,7 @@ const CutiHRD: React.FC = () => {
 
   useEffect(() => {
     fetchRequests();
-  }, []);
+  }, [startDate, endDate]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -113,6 +119,12 @@ const CutiHRD: React.FC = () => {
     }
   };
 
+  const formatDate = (dateString: string) => {
+    if (!dateString) return '-';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+  };
+
   return (
     <div className="p-4 md:p-8 relative w-full font-sans">
       
@@ -130,6 +142,22 @@ const CutiHRD: React.FC = () => {
           <h2 className="text-3xl font-bold text-gray-800 tracking-tight">Manajemen Cuti</h2>
           <p className="text-gray-500 mt-2 text-sm">Review and manage employee leave requests.</p>
         </div>
+        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 text-gray-600 bg-white"
+              />
+              <span className="text-gray-500 text-sm">-</span>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 text-gray-600 bg-white"
+              />
+            </div>
         <div className="flex gap-2 w-full sm:w-auto">
             <button 
             onClick={() => {
@@ -164,13 +192,15 @@ const CutiHRD: React.FC = () => {
                     { header: 'Tanggal', dataKey: 'date' },
                     { header: 'Status', dataKey: 'status' },
                     ],
-                    data: requests
+                    data: requests,
+                    dateRange: `${startDate || 'Awal'} - ${endDate || 'Sekarang'}`
                 });
             }}
             className="flex-1 sm:flex-none border border-red-600 bg-red-50 hover:bg-red-100 text-red-700 px-4 py-2 rounded-md text-sm font-semibold transition-colors flex items-center shadow-sm justify-center"
             >
             <Download className="w-4 h-4 mr-2" /> PDF
             </button>
+        </div>
         </div>
       </div>
 
@@ -285,13 +315,13 @@ const CutiHRD: React.FC = () => {
                         )}
                       </td>
                       <td className="px-6 py-4">
-                        <p className="text-gray-800 font-medium">
-                          {req.end_date && req.end_date !== req.date ? `${req.date} s/d ${req.end_date}` : req.date}
+                        <p className="text-gray-800 font-medium whitespace-nowrap">
+                          {req.end_date && req.end_date !== req.date ? `${formatDate(req.date)} sampai ${formatDate(req.end_date)}` : formatDate(req.date)}
                         </p>
                         <p className="text-xs text-gray-500 mt-1">
                           {req.end_date && req.end_date !== req.date 
-                            ? `${Math.max(1, Math.round((new Date(req.end_date).getTime() - new Date(req.date).getTime()) / (1000 * 60 * 60 * 24)) + 1)} Days`
-                            : '1 Day'}
+                            ? `${Math.max(1, Math.round((new Date(req.end_date).getTime() - new Date(req.date).getTime()) / (1000 * 60 * 60 * 24)) + 1)} Hari`
+                            : '1 Hari'}
                         </p>
                       </td>
                       <td className="px-6 py-4">
@@ -388,7 +418,7 @@ const CutiHRD: React.FC = () => {
                 <div className="flex justify-between">
                   <span className="text-gray-500">Jenis & Tanggal:</span>
                   <span className="font-medium text-gray-800">
-                    {rejectModalItem.type || 'Cuti'} • {rejectModalItem.end_date && rejectModalItem.end_date !== rejectModalItem.date ? `${rejectModalItem.date} s/d ${rejectModalItem.end_date}` : rejectModalItem.date}
+                    {rejectModalItem.type || 'Cuti'} • {rejectModalItem.end_date && rejectModalItem.end_date !== rejectModalItem.date ? `${formatDate(rejectModalItem.date)} sampai ${formatDate(rejectModalItem.end_date)}` : formatDate(rejectModalItem.date)}
                   </span>
                 </div>
                 {rejectModalItem.reason && (
