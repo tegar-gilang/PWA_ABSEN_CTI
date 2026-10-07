@@ -420,7 +420,7 @@ CREATE TABLE IF NOT EXISTS kpi_records (
 CREATE TABLE IF NOT EXISTS kpi_evaluations (
   id VARCHAR(36) NOT NULL PRIMARY KEY,
   user_id VARCHAR(36) NOT NULL,
-  month_year VARCHAR(7) NOT NULL,
+  month_year VARCHAR(255) NOT NULL,
   terlambat_laporan INT(11) NOT NULL DEFAULT 0,
   laporan_tidak_sesuai INT(11) NOT NULL DEFAULT 0,
   komplain INT(11) NOT NULL DEFAULT 0,
@@ -448,7 +448,7 @@ CREATE TABLE IF NOT EXISTS kpi_templates (
 CREATE TABLE IF NOT EXISTS kpi_dynamic_evaluations (
   id VARCHAR(36) NOT NULL PRIMARY KEY,
   id_template VARCHAR(36) NOT NULL,
-  periode VARCHAR(50) NOT NULL COMMENT 'Misal: September 2026',
+  periode VARCHAR(255) NOT NULL COMMENT 'Misal: September 2026',
   id_karyawan VARCHAR(36) NOT NULL,
   nilai_custom JSON NOT NULL COMMENT 'Objek nilai, misal: {"Efisiensi": 80, "Keakuratan": 90}',
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -476,6 +476,20 @@ CREATE TABLE IF NOT EXISTS candidates (
   job_opening_id VARCHAR(36) NOT NULL,
   name VARCHAR(150) NOT NULL,
   stage VARCHAR(50) NOT NULL DEFAULT 'Applied',
+  tempat_tanggal_lahir VARCHAR(255) DEFAULT NULL,
+  umur INT DEFAULT NULL,
+  no_ktp VARCHAR(50) DEFAULT NULL,
+  jenis_kelamin ENUM('Laki-laki', 'Perempuan') DEFAULT NULL,
+  no_telepon VARCHAR(50) DEFAULT NULL,
+  status_pernikahan ENUM('Belum Menikah', 'Menikah', 'Cerai') DEFAULT NULL,
+  email VARCHAR(150) DEFAULT NULL,
+  alamat TEXT DEFAULT NULL,
+  pendidikan VARCHAR(100) DEFAULT NULL,
+  jurusan VARCHAR(100) DEFAULT NULL,
+  pengalaman TEXT DEFAULT NULL,
+  cv_lamaran VARCHAR(255) DEFAULT NULL,
+  tgl_dipanggil DATE DEFAULT NULL,
+  hasil_interview TEXT DEFAULT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   
   CONSTRAINT fk_candidate_job FOREIGN KEY (job_opening_id) REFERENCES job_openings(id) ON DELETE CASCADE

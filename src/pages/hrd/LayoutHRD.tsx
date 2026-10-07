@@ -142,6 +142,7 @@ const LayoutHRD: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const location = useLocation();
   const logout = useAppStore(state => state.logout);
+  const user = useAppStore(state => state.user);
   const navigate = useNavigate();
 
   const isKaryawanRoute = location.pathname.startsWith('/hrd/karyawan') || location.pathname.startsWith('/hrd/data-absensi');
@@ -161,8 +162,10 @@ const LayoutHRD: React.FC = () => {
   }, [location.pathname]);
 
   const handleLogout = async () => {
-    await logout();
-    navigate('/login');
+    if (window.confirm('Apakah Anda yakin ingin keluar?')) {
+      await logout();
+      navigate('/login');
+    }
   }
 
   // Fungsi kecil untuk mengecek apakah menu sedang aktif
@@ -376,12 +379,12 @@ const LayoutHRD: React.FC = () => {
             </button>
             <div className="flex items-center border-l border-gray-300 pl-4 md:pl-6">
               <div className="text-right mr-3 hidden sm:block">
-                <p className="text-sm font-bold text-gray-800">Admin User</p>
-                <p className="text-xs text-gray-500">Admin</p>
+                <p className="text-sm font-bold text-gray-800">{user?.name || 'Admin User'}</p>
+                <p className="text-xs text-gray-500">{user?.role === 'ADMIN' ? 'Admin' : (user?.role || 'Admin')}</p>
               </div>
-              <div className="w-9 h-9 md:w-10 md:h-10 bg-gray-300 rounded-full overflow-hidden border border-gray-200 shrink-0">
-                <img src="https://ui-avatars.com/api/?name=Admin+User&background=random" alt="Profile" />
-              </div>
+              <Link to="/hrd/profile" className="w-9 h-9 md:w-10 md:h-10 bg-gray-300 rounded-full overflow-hidden border border-gray-200 shrink-0 hover:ring-2 hover:ring-blue-500 transition-all">
+                <img src={user?.photoUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'Admin')}&background=random`} alt="Profile" className="w-full h-full object-cover" />
+              </Link>
             </div>
           </div>
         </header>

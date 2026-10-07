@@ -18,11 +18,12 @@ function toUserDTO(row) {
     position: row.position || (row.position_name ? row.position_name : null),
     phone: row.phone,
     email: row.email,
-    schedule: row.schedule || (row.jam_masuk && row.jam_keluar ? `${row.jam_masuk.slice(0, 5)} - ${row.jam_keluar.slice(0, 5)}` : null),
+    schedule: (row.jam_masuk && row.jam_keluar) ? `${row.jam_masuk.slice(0, 5)} - ${row.jam_keluar.slice(0, 5)}` : (row.schedule || '08:00 - 17:00'),
     jamMasuk: row.jam_masuk ? row.jam_masuk.slice(0, 5) : null,
     jamKeluar: row.jam_keluar ? row.jam_keluar.slice(0, 5) : null,
     photoUrl: row.photo_url,
     emergencyContact: row.emergency_contact,
+    address: row.address,
     role: row.role,
   };
 }

@@ -338,7 +338,7 @@ router.get("/attendance", async (req, res) => {
 
         let query = `
             SELECT a.id, u.name, 
-                   COALESCE(u.employee_id, u.nik, '-') as employeeId,
+                   COALESCE(u.employee_id, '-') as employeeId,
                    COALESCE(d.name, u.department, 'Staff') as department,
                    COALESCE(p.name, u.position, 'Staff') as position, 
                    u.email as email, a.status, 
@@ -413,7 +413,7 @@ router.get("/attendance-summary", async (req, res) => {
             FROM users u
             LEFT JOIN master_departments d ON u.id_department = d.id
             LEFT JOIN master_positions p ON u.id_position = p.id
-            WHERE u.role = 'EMPLOYEE'
+            WHERE 1=1
         `;
         const empParams = [];
         if (search) {
@@ -726,7 +726,7 @@ router.get("/employees", async (req, res) => {
 // POST
 router.post("/employees", async (req, res) => {
     try {
-        let { name, email, nik, phone, password, address, hospital_id, id_department, id_position, jam_masuk, jam_keluar, schedule, role } = req.body;
+        let { name, email, nik, employee_id, phone, password, address, hospital_id, id_department, id_position, jam_masuk, jam_keluar, schedule, role } = req.body;
 
         if(!name || !nik || !password) {
             return res.status(400).json({
@@ -761,11 +761,25 @@ router.post("/employees", async (req, res) => {
         const salt = await bcrypt.genSalt(10);
         const password_hash = await bcrypt.hash(password, salt);
         const userId = randomUUID();
+        
+        let finalEmployeeId = employee_id;
+        if (!finalEmployeeId) {
+            const [rows] = await pool.query("SELECT employee_id FROM users WHERE employee_id LIKE 'CTI-%'");
+            let maxId = 0;
+            rows.forEach(row => {
+                const numStr = row.employee_id.replace('CTI-', '');
+                const num = parseInt(numStr, 10);
+                if (!isNaN(num) && num > maxId) {
+                    maxId = num;
+                }
+            });
+            finalEmployeeId = `CTI-${String(maxId + 1).padStart(3, '0')}`;
+        }
 
         await pool.query(
             `INSERT INTO users (id, employee_id, nik, email, name, phone, password_hash, role, address, hospital_id, id_department, id_position, jam_masuk, jam_keluar, schedule) 
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [userId, nik, nik, email || null, name, phone || null, password_hash, role || 'EMPLOYEE', address || null, hospital_id || null, id_department || null, id_position || null, jam_masuk || null, jam_keluar || null, schedule || null]
+            [userId, finalEmployeeId, nik, email || null, name, phone || null, password_hash, role || 'EMPLOYEE', address || null, hospital_id || null, id_department || null, id_position || null, jam_masuk || null, jam_keluar || null, schedule || null]
         );
 
         res.status(201).json({
@@ -907,8 +921,8 @@ router.delete("/employees/:id", async (req, res) => {
 // GET 
 router.get("/leaves", async (req, res) => {
     try {
-        const [rows] = await pool.query(
-            `SELECT 
+        const { startDate, endDate } = req.query;
+        let query = `SELECT 
                 r.id, 
                 u.name, 
                 r.type, 
@@ -921,8 +935,17 @@ router.get("/leaves", async (req, res) => {
                 r.created_at
             FROM requests r
             JOIN users u ON r.user_id = u.id
-            ORDER BY r.created_at DESC`
-        );
+            WHERE 1=1`;
+        const params = [];
+        
+        if (startDate && endDate) {
+            query += ` AND DATE(r.date) BETWEEN ? AND ?`;
+            params.push(startDate, endDate);
+        }
+
+        query += ` ORDER BY r.created_at DESC`;
+
+        const [rows] = await pool.query(query, params);
         
         res.json({ requests: rows });
     } catch (err) {
@@ -1238,7 +1261,12 @@ router.get("/kpi", async (req, res) => {
         const month = req.query.month || new Date().toISOString().substring(0,7); // e.g. '2026-08'
         
         // 1. Ambil semua karyawan
-        const [users] = await pool.query(`SELECT id, name, department FROM users WHERE role='EMPLOYEE' ORDER BY name`);
+        const [users] = await pool.query(`
+            SELECT u.id, u.name, COALESCE(d.name, u.department, 'Staff') as department 
+            FROM users u
+            LEFT JOIN master_departments d ON u.id_department = d.id
+            ORDER BY u.name
+        `);
         
         // 2. Ambil absensi bulan ini
         const [attendances] = await pool.query(
@@ -1277,15 +1305,15 @@ router.get("/kpi", async (req, res) => {
                 skor_sop: null
             };
             
-            const izin = userReq.filter(r => ['PERMISSION', 'LEAVE', 'SICK'].includes(r.type)).length;
-            const izin_mendadak = 0; 
+            const izin = userReq.filter(r => r.type === 'PERMISSION' || r.type === 'IZIN').length;
+            const sakit = userReq.filter(r => r.type === 'SICK' || r.type === 'SAKIT').length;
+            const cuti = userReq.filter(r => r.type === 'LEAVE' || r.type === 'CUTI').length;
             const terlambat = userAtt.filter(a => a.status === 'LATE').length;
-            
-            let alfa = workDays > 0 ? (workDays - (userAtt.length + izin)) : 0;
-            if (alfa < 0) alfa = 0;
+            const alfa = userAtt.filter(a => a.status === 'ABSENT').length;
 
             // Logika Skoring — auto-calculate dulu, lalu override jika ada nilai manual
-            const auto_skor_disiplin = (izin + alfa) >= 5 ? 0 : 1;
+            // Misalnya skor disiplin dinilai dari izin+sakit+alfa
+            const auto_skor_disiplin = (izin + sakit + alfa) >= 5 ? 0 : 1;
             const auto_skor_terlambat = terlambat >= 3 ? 0 : 1;
             
             let auto_skor_kinerja = 0;
@@ -1319,7 +1347,8 @@ router.get("/kpi", async (req, res) => {
                 name: user.name,
                 department: user.department,
                 izin,
-                izin_mendadak,
+                sakit,
+                cuti,
                 alfa,
                 terlambat,
                 terlambat_laporan: userEval.terlambat_laporan,
@@ -1497,7 +1526,7 @@ router.delete("/recruitment/jobs/:id", async (req, res) => {
 router.get("/recruitment/candidates", async (req, res) => {
     try {
         const { job_opening_id } = req.query;
-        let query = `SELECT c.id, c.name, c.stage, c.job_opening_id, c.created_at, j.title as job_title, j.role as job_role
+        let query = `SELECT c.*, j.title as job_title, j.role as job_role
                      FROM candidates c
                      JOIN job_openings j ON c.job_opening_id = j.id`;
         const params = [];
@@ -1517,19 +1546,68 @@ router.get("/recruitment/candidates", async (req, res) => {
 // POST Candidate
 router.post("/recruitment/candidates", async (req, res) => {
     try {
-        const { job_opening_id, name, stage = 'SCREENING' } = req.body;
+        const { 
+            job_opening_id, name, stage = 'SCREENING', 
+            tempat_tanggal_lahir, umur, no_ktp, jenis_kelamin, 
+            no_telepon, status_pernikahan, email, alamat, 
+            pendidikan, jurusan, pengalaman, cv_lamaran, 
+            tgl_dipanggil, hasil_interview
+        } = req.body;
+        
         if (!job_opening_id || !name) {
             return res.status(400).json({ message: "Data candidate not complete." });
         }
         const id = randomUUID();
         await pool.query(
-            "INSERT INTO candidates (id, job_opening_id, name, stage) VALUES (?, ?, ?, ?)",
-            [id, job_opening_id, name, stage]
+            `INSERT INTO candidates (
+                id, job_opening_id, name, stage, tempat_tanggal_lahir, umur, no_ktp, jenis_kelamin, 
+                no_telepon, status_pernikahan, email, alamat, pendidikan, jurusan, pengalaman, 
+                cv_lamaran, tgl_dipanggil, hasil_interview
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+                id, job_opening_id, name, stage, 
+                tempat_tanggal_lahir || null, umur || null, no_ktp || null, jenis_kelamin || null,
+                no_telepon || null, status_pernikahan || null, email || null, alamat || null, 
+                pendidikan || null, jurusan || null, pengalaman || null, cv_lamaran || null, 
+                tgl_dipanggil || null, hasil_interview || null
+            ]
         );
         res.status(201).json({ message: "Candidate added successfully.", candidateId: id });
     } catch (err) {
         console.error(err);
         res.status(500).json({ message: "Failed to add candidate." });
+    }
+});
+
+// PUT Candidate (Full Update)
+router.put("/recruitment/candidates/:id", async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { 
+            name, stage, tempat_tanggal_lahir, umur, no_ktp, jenis_kelamin, 
+            no_telepon, status_pernikahan, email, alamat, pendidikan, jurusan, 
+            pengalaman, cv_lamaran, tgl_dipanggil, hasil_interview
+        } = req.body;
+
+        await pool.query(
+            `UPDATE candidates SET 
+                name = ?, stage = ?, tempat_tanggal_lahir = ?, umur = ?, no_ktp = ?, 
+                jenis_kelamin = ?, no_telepon = ?, status_pernikahan = ?, email = ?, 
+                alamat = ?, pendidikan = ?, jurusan = ?, pengalaman = ?, cv_lamaran = ?, 
+                tgl_dipanggil = ?, hasil_interview = ?
+            WHERE id = ?`,
+            [
+                name, stage, tempat_tanggal_lahir || null, umur || null, no_ktp || null, 
+                jenis_kelamin || null, no_telepon || null, status_pernikahan || null, email || null, 
+                alamat || null, pendidikan || null, jurusan || null, pengalaman || null, 
+                cv_lamaran || null, tgl_dipanggil || null, hasil_interview || null,
+                id
+            ]
+        );
+        res.json({ message: "Candidate updated successfully." });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: "Failed to update candidate." });
     }
 });
 
@@ -1682,9 +1760,9 @@ router.get("/kpi-dynamic/:templateId", async (req, res) => {
              LEFT JOIN master_departments d ON u.id_department = d.id
              LEFT JOIN master_positions p ON u.id_position = p.id
              WHERE u.role = 'EMPLOYEE'
-               AND COALESCE(d.name, u.department, '') = ?
+               AND (? = 'Seluruh Karyawan' OR COALESCE(d.name, u.department, '') = ?)
              ORDER BY u.name ASC`,
-            [template.target_bagian]
+            [template.target_bagian, template.target_bagian]
         );
 
         // 3. Parse periode ke month range untuk query absensi

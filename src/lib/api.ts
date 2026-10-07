@@ -239,8 +239,12 @@ export async function apiHrdGetAttendance(params?: string | { date?: string; sta
 // ---------------------------------------------------------------------------
 // Mengambil seluruh pengajuan izin/cuti/sakit dari semua karyawan
 // ---------------------------------------------------------------------------
-export async function apiHrdGetRequests(): Promise<{requests: RequestRecord[]}> {
-  return request("/hrd/leaves");
+export async function apiHrdGetRequests(params?: { startDate?: string; endDate?: string }): Promise<{requests: RequestRecord[]}> {
+  const searchParams = new URLSearchParams();
+  if (params?.startDate) searchParams.append("startDate", params.startDate);
+  if (params?.endDate) searchParams.append("endDate", params.endDate);
+  const qs = searchParams.toString();
+  return request(`/hrd/leaves${qs ? `?${qs}` : ""}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -441,6 +445,10 @@ export async function apiHrdCreateCandidate(payload: { job_opening_id: string; n
 
 export async function apiHrdUpdateCandidateStage(id: string, stage: 'SCREENING' | 'INTERVIEW' | 'HIRED' | 'REJECTED'): Promise<{ message: string }> {
   return request(`/hrd/recruitment/candidates/${id}/stage`, { method: "PATCH", body: JSON.stringify({ stage }) });
+}
+
+export async function apiHrdUpdateCandidate(id: string, payload: any): Promise<{ message: string }> {
+  return request(`/hrd/recruitment/candidates/${id}`, { method: "PUT", body: JSON.stringify(payload) });
 }
 
 export async function apiHrdDeleteCandidate(id: string): Promise<{ message: string }> {

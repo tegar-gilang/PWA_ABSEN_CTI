@@ -161,7 +161,8 @@ const KehadiranHRD: React.FC = () => {
                         status: r.status === 'ON_TIME' ? 'Hadir' : r.status === 'LATE' ? 'Terlambat' : (r.status || 'Hadir'),
                         checkInLocStr: (r.check_in_lat && r.check_in_lng) ? `${Number(r.check_in_lat).toFixed(4)}, ${Number(r.check_in_lng).toFixed(4)}` : '-',
                         checkOutLocStr: (r.check_out_lat && r.check_out_lng) ? `${Number(r.check_out_lat).toFixed(4)}, ${Number(r.check_out_lng).toFixed(4)}` : '-'
-                    }))
+                    })),
+                    dateRange: `${startDate || 'Awal'} - ${endDate || 'Sekarang'}`
                 });
             }}
             className="flex-1 sm:flex-none border border-red-600 bg-red-50 hover:bg-red-100 text-red-700 px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center shadow-sm justify-center"
@@ -242,12 +243,12 @@ const KehadiranHRD: React.FC = () => {
           <table className="w-full text-left border-collapse min-w-[800px]">
             <thead>
               <tr className="bg-gray-50 text-gray-600 text-xs uppercase tracking-wider border-b border-gray-200">
-                <th className="px-6 py-4 font-semibold">Employee</th>
-                <th className="px-6 py-4 font-semibold">Date</th>
+                <th className="px-6 py-4 font-semibold">Nama Karyawan</th>
+                <th className="px-6 py-4 font-semibold">Tanggal</th>
                 <th className="px-6 py-4 font-semibold">Status</th>
                 <th className="px-6 py-4 font-semibold">Check-In</th>
                 <th className="px-6 py-4 font-semibold">Check-Out</th>
-                <th className="px-6 py-4 font-semibold">Location</th>
+                <th className="px-6 py-4 font-semibold">Lokasi</th>
                 <th className="px-6 py-4 font-semibold text-right">Actions</th>
               </tr>
             </thead>
@@ -291,7 +292,7 @@ const KehadiranHRD: React.FC = () => {
                         <div>
                           <p className="font-semibold text-gray-800">{rec.name || 'Tanpa Nama'}</p>
                           <p className="text-xs text-gray-500">
-                            {rec.employeeId || `EMP-${rec.user_id || rec.id || '000'}`} • {rec.department || 'Staff'}
+                            {rec.employeeId !== '-' && rec.employeeId ? rec.employeeId : 'No ID'} • {rec.department || 'Staff'}
                           </p>
                         </div>
                       </td>

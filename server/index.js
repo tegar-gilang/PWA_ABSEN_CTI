@@ -54,6 +54,8 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 4000;
 
+import { initCron } from "./cron.js";
+
 async function start() {
   try {
     await testConnection();
@@ -63,6 +65,7 @@ async function start() {
   }
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`🚀 Server backend berjalan di http://localhost:${PORT}`);
+    initCron();
   });
 }
 

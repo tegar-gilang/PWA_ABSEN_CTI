@@ -39,7 +39,9 @@ const DataAbsensiHRD: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [startDate, setStartDate] = useState<string>(todayStr);
+  const today = new Date();
+  const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
+  const [startDate, setStartDate] = useState<string>(firstDayOfMonth);
   const [endDate, setEndDate] = useState<string>(todayStr);
   const [successToast, setSuccessToast] = useState<string | null>(null);
 
@@ -148,7 +150,8 @@ const DataAbsensiHRD: React.FC = () => {
                     { header: 'Alpa', dataKey: 'alpa' },
                     { header: 'Hadir', dataKey: 'hadir' },
                     ],
-                    data: records
+                    data: records,
+                    dateRange: `${startDate || 'Awal'} - ${endDate || 'Sekarang'}`
                 });
             }}
             className="flex-1 sm:flex-none border border-red-600 bg-red-50 hover:bg-red-100 text-red-700 px-4 py-2 rounded-md text-sm font-semibold transition-colors flex items-center shadow-sm justify-center"
@@ -267,18 +270,18 @@ const DataAbsensiHRD: React.FC = () => {
           <table className="w-full text-left border-collapse min-w-[760px]">
             <thead>
               <tr className="bg-gray-50/75 text-gray-600 text-xs uppercase tracking-wider border-b border-gray-200">
-                <th rowSpan={2} className="px-6 py-3.5 font-semibold align-middle">EMPLOYEE</th>
-                <th rowSpan={2} className="px-6 py-3.5 font-semibold align-middle">BAGIAN</th>
-                <th rowSpan={2} className="px-6 py-3.5 font-semibold align-middle text-center">IZIN</th>
-                <th rowSpan={2} className="px-6 py-3.5 font-semibold align-middle text-center">SAKIT</th>
-                <th rowSpan={2} className="px-6 py-3.5 font-semibold align-middle text-center">CUTI</th>
-                <th rowSpan={2} className="px-6 py-3.5 font-semibold align-middle text-center">ALPA</th>
-                <th colSpan={2} className="px-6 py-2 font-semibold text-center border-b border-gray-200">TERLAMBAT</th>
-                <th rowSpan={2} className="px-6 py-3.5 font-semibold align-middle">PERIODE</th>
+                <th rowSpan={2} className="px-6 py-3.5 font-semibold align-middle">Nama Karyawan</th>
+                <th rowSpan={2} className="px-6 py-3.5 font-semibold align-middle">Bagian</th>
+                <th rowSpan={2} className="px-6 py-3.5 font-semibold align-middle text-center">Izin</th>
+                <th rowSpan={2} className="px-6 py-3.5 font-semibold align-middle text-center">Sakit</th>
+                <th rowSpan={2} className="px-6 py-3.5 font-semibold align-middle text-center">Cuti</th>
+                <th rowSpan={2} className="px-6 py-3.5 font-semibold align-middle text-center">Alpa</th>
+                <th colSpan={2} className="px-6 py-2 font-semibold text-center border-b border-gray-200">Terlambat</th>
+                <th rowSpan={2} className="px-6 py-3.5 font-semibold align-middle">Periode</th>
               </tr>
               <tr className="bg-gray-50/75 text-gray-600 text-xs uppercase tracking-wider border-b border-gray-200">
-                <th className="px-3 py-2 font-semibold text-center border-r border-gray-200">KALI</th>
-                <th className="px-3 py-2 font-semibold text-center">MNT</th>
+                <th className="px-3 py-2 font-semibold text-center border-r border-gray-200">Kali</th>
+                <th className="px-3 py-2 font-semibold text-center">Mnt</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 text-sm text-gray-700">
