@@ -4,7 +4,8 @@ import {
   apiHrdGetKpi, apiHrdUpdateKpi,
   apiHrdGetKpiTemplates, apiHrdCreateKpiTemplate, apiHrdUpdateKpiTemplate, apiHrdDeleteKpiTemplate,
   apiHrdGetKpiDynamic, apiHrdSaveKpiDynamic,
-  apiGetDepartments
+  apiGetDepartments,
+  apiHrdGetAttendanceSummary
 } from '@/src/lib/api';
 import { Download, Search, Loader2, Edit3, X, Plus, Trash2, Save, ChevronRight, LayoutGrid, AlertCircle, CheckCircle2 } from 'lucide-react';
 
@@ -30,7 +31,8 @@ interface DynamicEvaluation {
   nama: string;
   department: string;
   position: string;
-  absensi: {
+  // Diubah menjadi opsional agar tidak error jika tidak ada data absen
+  absensi?: {
     izin: number;
     alfa: number;
     terlambat: number;
@@ -113,17 +115,38 @@ const KPIHRD: React.FC = () => {
   // ===========================================================================
   // FETCH FUNCTIONS
   // ===========================================================================
-  const fetchKpi = async () => {
+  
+  const fetchKpi = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await apiHrdGetKpi(`${startDate} s/d ${endDate}`);
-      setRecords(res.kpi || []);
+      // 1. Tarik data KPI dan Data Absensi secara paralel
+      const [resKpi, resAbsen] = await Promise.all([
+        apiHrdGetKpi(`${startDate} s/d ${endDate}`), 
+        apiHrdGetAttendanceSummary({ startDate, endDate })
+      ]);
+
+      const kpiData = resKpi.kpi || [];
+      const absenData = resAbsen.summary || [];
+      const mergedKpi = kpiData.map((karyawan: any) => {
+        const absensi: any = absenData.find((a: any) => a.name === karyawan.name) || {};
+        
+        return {
+          ...karyawan,
+          izin: absensi.izin ?? 0,
+          sakit: absensi.sakit ?? 0,
+          cuti: absensi.cuti ?? 0,
+          alfa: absensi.alpa ?? 0,
+          terlambat: absensi.telat ?? 0
+        };
+      });
+
+      setRecords(mergedKpi);
     } catch (err) {
       console.error("Gagal memuat KPI:", err);
     } finally {
       setLoading(false);
     }
-  };
+  }, [startDate, endDate]);
 
   const fetchTemplates = useCallback(async () => {
     setLoadingTemplates(true);
@@ -195,7 +218,7 @@ const KPIHRD: React.FC = () => {
     if (activeTabIndex === 0) {
       fetchKpi();
     }
-  }, [startDate, endDate, activeTabIndex]);
+  }, [startDate, endDate, activeTabIndex, fetchKpi]);
 
   useEffect(() => {
     if (activeTabIndex > 0 && templates.length > 0) {
@@ -452,9 +475,9 @@ const KPIHRD: React.FC = () => {
           nama: ev.nama,
           department: ev.department,
           position: ev.position,
-          izin: ev.absensi.izin,
-          alfa: ev.absensi.alfa,
-          terlambat: ev.absensi.terlambat
+          izin: ev.absensi?.izin ?? 0,
+          alfa: ev.absensi?.alfa ?? 0,
+          terlambat: ev.absensi?.terlambat ?? 0
       };
       skema.forEach((k: any) => {
           const colKey = typeof k === 'string' ? k : k.id_kolom;
@@ -516,13 +539,13 @@ const KPIHRD: React.FC = () => {
   // FILTERED DATA
   // ===========================================================================
   const filteredRecords = records.filter(r =>
-    r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (r.name && r.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
     (r.department && r.department.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   const filteredDynamicEvals = dynamicEvals.filter(ev =>
-    ev.nama.toLowerCase().includes(dynamicSearch.toLowerCase()) ||
-    ev.department.toLowerCase().includes(dynamicSearch.toLowerCase())
+    (ev.nama && ev.nama.toLowerCase().includes(dynamicSearch.toLowerCase())) ||
+    (ev.department && ev.department.toLowerCase().includes(dynamicSearch.toLowerCase()))
   );
 
   // ===========================================================================
@@ -711,11 +734,11 @@ const KPIHRD: React.FC = () => {
                         <td className="px-4 py-2 text-left font-semibold text-gray-800">{item.name}</td>
                         <td className="px-4 py-2">{item.department || '-'}</td>
                         {/* Kehadiran */}
-                        <td className="px-2 py-2 bg-gray-50">{item.izin || ''}</td>
-                        <td className="px-2 py-2 bg-gray-50">{item.sakit || ''}</td>
-                        <td className="px-2 py-2 bg-gray-50">{item.cuti || ''}</td>
-                        <td className="px-2 py-2 bg-gray-50">{item.alfa || ''}</td>
-                        <td className="px-2 py-2 bg-gray-50">{item.terlambat || ''}</td>
+                        <td className="px-2 py-2 bg-gray-50">{item.izin ?? 0}</td>
+                        <td className="px-2 py-2 bg-gray-50">{item.sakit ?? 0}</td>
+                        <td className="px-2 py-2 bg-gray-50">{item.cuti ?? 0}</td>
+                        <td className="px-2 py-2 bg-gray-50">{item.alfa ?? 0}</td>
+                        <td className="px-2 py-2 bg-gray-50">{item.terlambat ?? 0}</td>
                         {/* Manual Inputs */}
                         <td className="px-2 py-2">{item.terlambat_laporan || 0}</td>
                         <td className="px-2 py-2">{item.laporan_tidak_sesuai || 0}</td>
@@ -1352,15 +1375,15 @@ const DynamicKpiTab: React.FC<DynamicKpiTabProps> = ({
                       <div className="font-semibold text-gray-800">{ev.nama}</div>
                       <div className="text-xs text-gray-400">{ev.position}</div>
                     </td>
-                    {/* Absensi (read-only, explicitly showing 0) */}
+                    { /* Absensi Data */}
                     <td className="px-3 py-2.5 bg-gray-50 font-medium">
-                      <span className={ev.absensi.izin > 0 ? 'text-amber-600' : 'text-gray-400'}>{ev.absensi.izin}</span>
+                      <span className={(ev.absensi?.izin ?? 0) > 0 ? 'text-amber-600' : 'text-gray-400'}>{ev.absensi?.izin ?? 0}</span>
                     </td>
                     <td className="px-3 py-2.5 bg-gray-50 font-medium">
-                      <span className={ev.absensi.alfa > 0 ? 'text-red-600' : 'text-gray-400'}>{ev.absensi.alfa}</span>
+                      <span className={(ev.absensi?.alfa ?? 0) > 0 ? 'text-red-600' : 'text-gray-400'}>{ev.absensi?.alfa ?? 0}</span>
                     </td>
                     <td className="px-3 py-2.5 bg-gray-50 font-medium">
-                      <span className={ev.absensi.terlambat > 0 ? 'text-orange-600' : 'text-gray-400'}>{ev.absensi.terlambat}</span>
+                      <span className={(ev.absensi?.terlambat ?? 0) > 0 ? 'text-orange-600' : 'text-gray-400'}>{ev.absensi?.terlambat ?? 0}</span>
                     </td>
                     {/* Dynamic Custom Columns */}
                     {skema.map((kolom: any, i) => {
