@@ -137,6 +137,7 @@ import {
   ChevronDown,
   UserCheck
 } from 'lucide-react';
+import HRDNotificationModal from '../../components/HRDNotificationModal';
 
 const LayoutHRD: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -144,6 +145,7 @@ const LayoutHRD: React.FC = () => {
   const logout = useAppStore(state => state.logout);
   const user = useAppStore(state => state.user);
   const navigate = useNavigate();
+  const [isNotifModalOpen, setIsNotifModalOpen] = useState(false);
 
   const isKaryawanRoute = location.pathname.startsWith('/hrd/karyawan') || location.pathname.startsWith('/hrd/data-absensi');
   const [isKaryawanOpen, setIsKaryawanOpen] = useState(isKaryawanRoute);
@@ -373,9 +375,11 @@ const LayoutHRD: React.FC = () => {
 
           {/* User & Notif Area */}
           <div className="flex items-center">
-            <button className="text-gray-500 mr-4 md:mr-6 relative hover:text-gray-700 transition-colors">
+            <button 
+              onClick={() => setIsNotifModalOpen(true)}
+              className="text-gray-500 mr-4 md:mr-6 relative hover:text-gray-700 transition-colors"
+            >
               <Bell className="w-5 h-5" />
-              <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
             </button>
             <div className="flex items-center border-l border-gray-300 pl-4 md:pl-6">
               <div className="text-right mr-3 hidden sm:block">
@@ -393,6 +397,11 @@ const LayoutHRD: React.FC = () => {
         <Outlet />
         
       </main>
+
+      <HRDNotificationModal 
+        isOpen={isNotifModalOpen} 
+        onClose={() => setIsNotifModalOpen(false)} 
+      />
     </div>
   );
 };

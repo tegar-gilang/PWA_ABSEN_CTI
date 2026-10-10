@@ -128,12 +128,26 @@ router.post("/register", async (req, res) => {
     const { name, nik, employee_id, password, phone } = req.body;
     let { email, id_department, id_position } = req.body;
 
-    // 2. Fallback cerdas: kalau Postman cuma ngirim employee_id, jadikan itu sebagai NIK juga
-    const finalNik = nik || employee_id;
-    const finalEmployeeId = employee_id || nik;
+    // 2. Jika user tidak mengisi ID/NIK sama sekali, kita auto-generate CTI-XXX
+    let finalEmployeeId = employee_id || nik;
+    let finalNik = nik || employee_id;
 
-    if (!name || !finalEmployeeId || !password || !email) {
-      return res.status(400).json({ message: "Nama, NIK/Employee ID, Email, dan Password wajib diisi." });
+    if (!finalEmployeeId) {
+        const [rows] = await pool.query("SELECT employee_id FROM users WHERE employee_id LIKE 'CTI-%'");
+        let maxId = 0;
+        rows.forEach(row => {
+            const numStr = row.employee_id.replace('CTI-', '');
+            const num = parseInt(numStr, 10);
+            if (!isNaN(num) && num > maxId) {
+                maxId = num;
+            }
+        });
+        finalEmployeeId = `CTI-${String(maxId + 1).padStart(3, '0')}`;
+        finalNik = finalNik || finalEmployeeId;
+    }
+
+    if (!name || !password || !email) {
+      return res.status(400).json({ message: "Nama, Email, dan Password wajib diisi." });
     }
 
     // Cek apakah email atau NIK sudah ada

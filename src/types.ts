@@ -125,6 +125,7 @@ export type Notification = {
   isRead: boolean;
   createdAt: string;
   type: 'SUCCESS' | 'WARNING' | 'INFO';
+  is_global?: boolean;
 };
 
 export type Candidate = {

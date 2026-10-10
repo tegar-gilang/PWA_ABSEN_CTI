@@ -374,6 +374,38 @@ export async function apiHrdGetAttendanceSummary(params?: {
 }
 
 // ---------------------------------------------------------------------------
+// Download Laporan Harian (Excel)
+// ---------------------------------------------------------------------------
+export async function apiHrdExportDailyReport(date: string, userId?: string): Promise<void> {
+  const token = getToken();
+  let url = `${API_BASE_URL}/hrd/attendance-daily-report?date=${date}`;
+  if (userId) {
+    url += `&userId=${userId}`;
+  }
+  
+  const res = await fetch(url, {
+    method: 'GET',
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    }
+  });
+
+  if (!res.ok) {
+    throw new ApiError("Gagal mendownload laporan", res.status);
+  }
+
+  const blob = await res.blob();
+  const downloadUrl = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = downloadUrl;
+  a.download = userId ? `laporan-kehadiran-karyawan-${date}.xlsx` : `laporan-kehadiran-harian-${date}.xlsx`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.URL.revokeObjectURL(downloadUrl);
+}
+
+// ---------------------------------------------------------------------------
 // Mengambil rincian detail laporan absensi 1 orang karyawan (untuk ekspor spreadsheet)
 // ---------------------------------------------------------------------------
 export async function apiHrdGetEmployeeReport(userId: string, params?: { date?: string; startDate?: string; endDate?: string }): Promise<{

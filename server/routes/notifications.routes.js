@@ -13,6 +13,7 @@ function toNotificationDTO(row) {
     isRead: !!row.is_read,
     createdAt: new Date(row.created_at).toISOString(),
     type: row.type,
+    is_global: !!row.is_global,
   };
 }
 

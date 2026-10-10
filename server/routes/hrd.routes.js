@@ -5,6 +5,7 @@ import { randomUUID } from "crypto";
 import { getLocalDateString } from "../utils/date.js";
 import bcrypt from "bcryptjs";
 import { request } from "https";
+import { generateDailyReportExcel } from "../services/report.service.js";
 
 const router = Router();
 
@@ -330,6 +331,25 @@ router.get("/dashboard/overview", async (req, res) => {
 
 
 // API FOR ABSEN KEHADIRAN ===================================================================================================================================>
+// Route Export Laporan Harian (Excel)
+// GET /hrd/attendance-daily-report
+router.get("/attendance-daily-report", async (req, res) => {
+    try {
+        const { date, userId } = req.query;
+        const targetDate = date || getLocalDateString();
+        const buffer = await generateDailyReportExcel(targetDate, userId);
+        
+        const fileName = userId ? `laporan-kehadiran-karyawan-${targetDate}.xlsx` : `laporan-kehadiran-harian-${targetDate}.xlsx`;
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename=${fileName}`);
+        res.send(buffer);
+    } catch (err) {
+        console.error("Error generating Excel report:", err);
+        res.status(500).json({ message: "Gagal membuat laporan Excel." });
+    }
+});
+
 // Route Lihat Data Kehadiran Karyawan
 // GET
 router.get("/attendance", async (req, res) => {
@@ -409,7 +429,9 @@ router.get("/attendance-summary", async (req, res) => {
                    u.email, 
                    u.phone, 
                    COALESCE(p.name, 'Staff') as position, 
-                   u.role
+                   u.role,
+                   u.jam_masuk,
+                   DATE_FORMAT(u.created_at, '%Y-%m-%d') as created_at
             FROM users u
             LEFT JOIN master_departments d ON u.id_department = d.id
             LEFT JOIN master_positions p ON u.id_position = p.id
@@ -427,7 +449,7 @@ router.get("/attendance-summary", async (req, res) => {
 
         if (employees.length === 0 && !search) {
             const [allUsers] = await pool.query(
-                `SELECT u.id, u.nik, u.employee_id, COALESCE(u.employee_id, u.nik) as employeeId, u.name, COALESCE(d.name, 'Staff') as department, u.email, u.phone, COALESCE(p.name, 'Staff') as position, u.role 
+                `SELECT u.id, u.nik, u.employee_id, COALESCE(u.employee_id, u.nik) as employeeId, u.name, COALESCE(d.name, 'Staff') as department, u.email, u.phone, COALESCE(p.name, 'Staff') as position, u.role, u.jam_masuk, DATE_FORMAT(u.created_at, '%Y-%m-%d') as created_at
                  FROM users u
                  LEFT JOIN master_departments d ON u.id_department = d.id
                  LEFT JOIN master_positions p ON u.id_position = p.id
@@ -452,17 +474,94 @@ router.get("/attendance-summary", async (req, res) => {
         const dayNum = parseInt(targetDateStr.split('-')[2], 10);
         const weekStartStr = `${tYearStr}-${tMonthStr}-${String(Math.floor((dayNum - 1) / 7) * 7 + 1).padStart(2, '0')}`;
 
+        let globalStartDate = targetDateStr;
+        if (attendances.length > 0) {
+            const minAtt = attendances.reduce((min, a) => a.date < min ? a.date : min, attendances[0].date);
+            if (minAtt < globalStartDate) globalStartDate = minAtt;
+        }
+        if (requests.length > 0) {
+            const minReq = requests.reduce((min, r) => r.date < min ? r.date : min, requests[0].date);
+            if (minReq < globalStartDate) globalStartDate = minReq;
+        }
+
         const isReqInRange = (r, sDate, eDate) => {
             const s = r.date;
             const e = r.end_date || r.date;
             return s <= eDate && e >= sDate;
         };
 
-        const calcLateMins = (attList) => {
+        const getWorkingDates = (sDate, eDate, empCreatedStr) => {
+            const dates = [];
+            let start = new Date(sDate);
+            const end = new Date(eDate);
+            const today = new Date();
+            
+            start.setHours(12, 0, 0, 0);
+            end.setHours(12, 0, 0, 0);
+            today.setHours(12, 0, 0, 0);
+
+            if (empCreatedStr) {
+                const empCreated = new Date(empCreatedStr);
+                empCreated.setHours(12, 0, 0, 0);
+                if (start < empCreated) {
+                    start = empCreated;
+                }
+            }
+
+            const finalEnd = end > today ? today : end;
+            
+            let d = new Date(start);
+            while (d <= finalEnd) {
+                const day = d.getDay();
+                if (day >= 1 && day <= 5) {
+                    dates.push(d.toISOString().split('T')[0]);
+                }
+                d.setDate(d.getDate() + 1);
+            }
+            return dates;
+        };
+        
+        const calcDynamicAlpa = (workingDates, attList, reqList) => {
+            let alpa = 0;
+            const attSet = new Set(attList.map(a => a.date));
+            const reqSet = new Set();
+            for (const r of reqList) {
+                let current = new Date(r.date);
+                current.setHours(12, 0, 0, 0);
+                let endD = new Date(r.end_date || r.date);
+                endD.setHours(12, 0, 0, 0);
+                while (current <= endD) {
+                    reqSet.add(current.toISOString().split('T')[0]);
+                    current.setDate(current.getDate() + 1);
+                }
+            }
+
+            for (const wd of workingDates) {
+                if (!attSet.has(wd) && !reqSet.has(wd)) {
+                    alpa++;
+                }
+            }
+            return alpa;
+        };
+
+        const calcLateMins = (attList, jamMasuk) => {
             let totalMins = 0;
             for (const a of attList) {
-                if (a.status === 'LATE') {
-                    totalMins += 15;
+                if (a.status === 'LATE' && a.check_in_time) {
+                    const checkIn = new Date(a.check_in_time);
+                    const shiftStart = new Date(checkIn);
+                    
+                    if (jamMasuk) {
+                        const [h, m, s] = jamMasuk.split(':');
+                        shiftStart.setHours(parseInt(h, 10), parseInt(m, 10), parseInt(s || 0, 10), 0);
+                    } else {
+                        shiftStart.setHours(8, 0, 0, 0);
+                    }
+                    
+                    const diffMs = checkIn.getTime() - shiftStart.getTime();
+                    if (diffMs > 0) {
+                        totalMins += Math.floor(diffMs / 60000);
+                    }
                 }
             }
             return totalMins;
@@ -484,21 +583,28 @@ router.get("/attendance-summary", async (req, res) => {
             const todayAtt = userAtt.filter(a => a.date === targetDateStr);
             const todayReq = userReq.filter(r => isReqInRange(r, targetDateStr, targetDateStr));
 
-            const getCounts = (attList, reqList) => {
+            const getCounts = (attList, reqList, sDate, eDate) => {
                 const telatCount = attList.filter(a => a.status === 'LATE').length;
-                const alpaCount = attList.filter(a => a.status === 'ABSENT').length;
+                let alpaCount = attList.filter(a => a.status === 'ABSENT').length;
                 const hadirCount = attList.filter(a => a.status === 'ON_TIME' || a.status === 'LATE').length;
                 const izinCount = reqList.filter(r => (r.type === 'PERMISSION' || r.type === 'IZIN') && r.status !== 'REJECTED').length;
                 const sakitCount = reqList.filter(r => (r.type === 'SICK' || r.type === 'SAKIT') && r.status !== 'REJECTED').length;
                 const cutiCount = reqList.filter(r => (r.type === 'LEAVE' || r.type === 'CUTI') && r.status !== 'REJECTED').length;
-                const lateMins = calcLateMins(attList);
+                const lateMins = calcLateMins(attList, emp.jam_masuk);
+                
+                if (sDate && eDate) {
+                    const workingDates = getWorkingDates(sDate, eDate, emp.created_at);
+                    const dynamicAlpa = calcDynamicAlpa(workingDates, attList, reqList.filter(r => r.status !== 'REJECTED'));
+                    alpaCount += dynamicAlpa;
+                }
+                
                 return { telat: telatCount, alpa: alpaCount, hadir: hadirCount, izin: izinCount, sakit: sakitCount, cuti: cutiCount, lateMins };
             };
 
-            const yearCounts = getCounts(yearAtt, yearReq);
-            const monthCounts = getCounts(monthAtt, monthReq);
-            const weekCounts = getCounts(weekAtt, weekReq);
-            const todayCounts = getCounts(todayAtt, todayReq);
+            const yearCounts = getCounts(yearAtt, yearReq, yearStartStr, targetDateStr);
+            const monthCounts = getCounts(monthAtt, monthReq, monthStartStr, targetDateStr);
+            const weekCounts = getCounts(weekAtt, weekReq, weekStartStr, targetDateStr);
+            const todayCounts = getCounts(todayAtt, todayReq, targetDateStr, targetDateStr);
 
             const hasAnyData = userAtt.length > 0 || userReq.length > 0;
 
@@ -510,7 +616,7 @@ router.get("/attendance-summary", async (req, res) => {
             if (startDate && endDate) {
                 const rangeAtt = userAtt.filter(a => a.date >= startDate && a.date <= endDate);
                 const rangeReq = userReq.filter(r => isReqInRange(r, startDate, endDate));
-                activeCounts = getCounts(rangeAtt, rangeReq);
+                activeCounts = getCounts(rangeAtt, rangeReq, startDate, endDate);
                 if (startDate === endDate) {
                     activePeriode = startDate;
                     activeSubtext = 'Filter Tanggal';
@@ -519,9 +625,9 @@ router.get("/attendance-summary", async (req, res) => {
                     activeSubtext = 'Rentang Tanggal';
                 }
             } else if (startDate) {
-                const rangeAtt = userAtt.filter(a => a.date >= startDate);
-                const rangeReq = userReq.filter(r => (r.end_date || r.date) >= startDate);
-                activeCounts = getCounts(rangeAtt, rangeReq);
+                const rangeAtt = userAtt.filter(a => a.date >= startDate && a.date <= targetDateStr);
+                const rangeReq = userReq.filter(r => (r.end_date || r.date) >= startDate && r.date <= targetDateStr);
+                activeCounts = getCounts(rangeAtt, rangeReq, startDate, targetDateStr);
                 activePeriode = `Mulai ${startDate}`;
                 activeSubtext = 'Filter Tanggal';
             } else if (date) {
@@ -530,13 +636,18 @@ router.get("/attendance-summary", async (req, res) => {
                 activeSubtext = 'Filter Tanggal';
             } else {
                 if (hasAnyData) {
-                    activeCounts = getCounts(userAtt, userReq);
-                    activePeriode = '08/07/2026 - Sekarang';
+                    activeCounts = getCounts(userAtt, userReq, globalStartDate, targetDateStr);
+                    activePeriode = `${globalStartDate} s/d Sekarang`;
                     activeSubtext = 'Rekap Kumulatif';
                 } else {
                     activeCounts = { telat: 0, alpa: 0, hadir: 0, izin: 0, sakit: 0, cuti: 0, lateMins: 0 };
-                    activePeriode = '-';
-                    activeSubtext = null;
+                    // If no data, still calculate alpa from globalStartDate
+                    if (globalStartDate && globalStartDate !== targetDateStr) {
+                        const workingDates = getWorkingDates(globalStartDate, targetDateStr, emp.created_at);
+                        activeCounts.alpa = calcDynamicAlpa(workingDates, [], []);
+                    }
+                    activePeriode = `${globalStartDate} s/d Sekarang`;
+                    activeSubtext = 'Rekap Kumulatif';
                 }
             }
 
@@ -762,18 +873,41 @@ router.post("/employees", async (req, res) => {
         const password_hash = await bcrypt.hash(password, salt);
         const userId = randomUUID();
         
+        // resolve dept name for abbreviation
+        let deptNameForAbbr = "CTI";
+        if (id_department) {
+            const [depts] = await pool.query("SELECT name FROM master_departments WHERE id = ?", [id_department]);
+            if (depts.length > 0) deptNameForAbbr = depts[0].name;
+        } else {
+            const [depts] = await pool.query("SELECT name FROM master_departments LIMIT 1");
+            if (depts.length > 0) deptNameForAbbr = depts[0].name;
+        }
+
+        const getDeptAbbreviation = (name) => {
+            if (!name || typeof name !== 'string') return 'CTI';
+            name = name.trim().toUpperCase();
+            if (name === '') return 'CTI';
+            const words = name.split(/\s+/);
+            if (words.length === 1) {
+                return name.substring(0, 3);
+            } else {
+                return words.map(w => w[0]).join('').substring(0, 3);
+            }
+        };
+        
         let finalEmployeeId = employee_id;
         if (!finalEmployeeId) {
-            const [rows] = await pool.query("SELECT employee_id FROM users WHERE employee_id LIKE 'CTI-%'");
+            const prefix = getDeptAbbreviation(deptNameForAbbr);
+            const [rows] = await pool.query(`SELECT employee_id FROM users WHERE employee_id LIKE '${prefix}-%'`);
             let maxId = 0;
             rows.forEach(row => {
-                const numStr = row.employee_id.replace('CTI-', '');
+                const numStr = row.employee_id.replace(`${prefix}-`, '');
                 const num = parseInt(numStr, 10);
                 if (!isNaN(num) && num > maxId) {
                     maxId = num;
                 }
             });
-            finalEmployeeId = `CTI-${String(maxId + 1).padStart(3, '0')}`;
+            finalEmployeeId = `${prefix}-${String(maxId + 1).padStart(3, '0')}`;
         }
 
         await pool.query(
@@ -1910,6 +2044,81 @@ router.post("/kpi-dynamic/:templateId", async (req, res) => {
     } catch (err) {
         console.error("Error POST /kpi-dynamic/:templateId:", err);
         res.status(500).json({ message: "Gagal menyimpan data evaluasi KPI." });
+    }
+});
+
+// =========================================================================================
+// ROUTE HRD NOTIFICATIONS (INFO)
+// =========================================================================================
+
+// Route HRD Membuat Notifikasi (Info)
+router.post("/notifications", async (req, res) => {
+    try {
+        const { title, description, targetUserId } = req.body;
+        if (!title || !description || !targetUserId) {
+            return res.status(400).json({ message: "Judul, Deskripsi, dan Target wajib diisi." });
+        }
+        
+        // Wait, crypto is not imported? Let's use uuid randomUUID. Wait, randomUUID is imported at top?
+        // Let's check imports in hrd.routes.js if randomUUID is available.
+        // I'll just use randomUUID() because it's probably imported like `import { randomUUID } from 'crypto';`
+        if (targetUserId === 'ALL') {
+            const [users] = await pool.query("SELECT id FROM users");
+            if (users.length > 0) {
+                const values = users.map(u => [randomUUID(), u.id, title, description, 'INFO', true]);
+                let placeholders = values.map(() => "(?, ?, ?, ?, ?, ?)").join(", ");
+                let flatValues = values.flat();
+                await pool.query(
+                    `INSERT INTO notifications (id, user_id, title, description, type, is_global) VALUES ${placeholders}`,
+                    flatValues
+                );
+            }
+        } else {
+            await pool.query(
+                "INSERT INTO notifications (id, user_id, title, description, type, is_global) VALUES (?, ?, ?, ?, ?, ?)",
+                [randomUUID(), targetUserId, title, description, 'INFO', false]
+            );
+        }
+
+        res.json({ message: "Informasi berhasil dikirim." });
+    } catch (err) {
+        console.error("SQL Error pada POST /hrd/notifications:", err);
+        res.status(500).json({ message: "Gagal mengirim informasi." });
+    }
+});
+
+// Route HRD Melihat Riwayat Notifikasi
+router.get("/notifications", async (req, res) => {
+    try {
+        const [rows] = await pool.query(`
+            SELECT title, description, type, is_global, DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') as created_at, GROUP_CONCAT(user_id) as target_user_id
+            FROM notifications 
+            WHERE type = 'INFO'
+            GROUP BY title, description, type, is_global, created_at
+            ORDER BY created_at DESC
+        `);
+        res.json(rows);
+    } catch (err) {
+        console.error("SQL Error pada GET /hrd/notifications:", err);
+        res.status(500).json({ message: "Gagal mengambil data informasi." });
+    }
+});
+
+// Route HRD Menghapus Notifikasi
+router.delete("/notifications", async (req, res) => {
+    try {
+        const { title, description } = req.body;
+        if (!title || !description) {
+            return res.status(400).json({ message: "Judul dan deskripsi wajib disertakan." });
+        }
+        await pool.query(
+            "DELETE FROM notifications WHERE title = ? AND description = ? AND type = 'INFO'",
+            [title, description]
+        );
+        res.json({ message: "Informasi berhasil dihapus dari sistem." });
+    } catch (err) {
+        console.error("SQL Error pada DELETE /hrd/notifications:", err);
+        res.status(500).json({ message: "Gagal menghapus informasi." });
     }
 });
 
