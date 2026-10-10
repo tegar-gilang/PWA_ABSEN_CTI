@@ -13,7 +13,9 @@ import { Skeleton } from '../components/Skeleton';
  */
 export default function Home() {
   const user = useAppStore(state => state.user);
-  const unreadCount = useAppStore(state => state.notifications.filter(n => !n.isRead).length);
+  const notifications = useAppStore(state => state.notifications);
+  const unreadCount = notifications.filter(n => !n.isRead).length;
+  const latestNotification = notifications.length > 0 ? notifications[0] : null;
   const attendanceHistory = useAppStore(state => state.attendanceHistory);
   const navigate = useNavigate();
 
@@ -128,15 +130,6 @@ export default function Home() {
         </div>
         
         <div className="flex items-center gap-4">
-          {/* <button 
-            onClick={() => navigate('/notifications')}
-            className="w-10 h-10 rounded-full flex items-center justify-center relative hover:bg-slate-50 transition-colors"
-          >
-            <Bell className="w-5 h-5 text-slate-600" />
-            {unreadCount > 0 && (
-              <span className="absolute top-2 right-2 w-2 h-2 bg-blue-600 border-2 border-white rounded-full"></span>
-            )}
-          </button> */}
           <div className="relative cursor-pointer" onClick={() => navigate('/profile')}>
             <div className="w-10 h-10 bg-slate-100 rounded-full border-2 border-white shadow-sm overflow-hidden">
               {user?.photoUrl ? (
@@ -180,7 +173,7 @@ export default function Home() {
             </div>
             <div className="text-right">
               <p className="text-2xl font-bold text-slate-900">{format(currentTime, 'HH:mm')}</p>
-              <p className="text-xs text-slate-500 uppercase font-bold tracking-wider">Waktu Server</p>
+              <p className="text-xs text-slate-500 uppercase font-bold tracking-wider">WIB</p>
             </div>
           </div>
 
@@ -265,17 +258,24 @@ export default function Home() {
         </div>
 
         {/* Bagian Pengumuman (Banner Info) */}
-        {/* <div className="bg-white rounded-3xl p-2 shadow-sm border border-slate-200 flex items-center">
-          <div className="bg-blue-50 text-blue-600 px-4 py-3 rounded-2xl font-bold text-xs uppercase tracking-wider flex-shrink-0">
-            Info
+        {latestNotification && (
+          <div className="bg-white rounded-3xl p-2 shadow-sm border border-slate-200 flex items-center mb-6 cursor-pointer hover:bg-slate-50 transition-colors" onClick={() => navigate('/notifications')}>
+            <div className={`px-4 py-3 rounded-2xl font-bold text-xs uppercase tracking-wider flex-shrink-0 ${latestNotification.is_global ? 'bg-indigo-50 text-indigo-600' : 'bg-blue-50 text-blue-600'}`}>
+              {latestNotification.is_global ? 'ALL' : 'INFO'}
+            </div>
+            <div className="flex-1 min-w-0 px-4">
+              <p className="text-sm text-slate-800 font-bold truncate">
+                {latestNotification.title}
+              </p>
+              <p className="text-xs text-slate-500 truncate mt-0.5">
+                {latestNotification.description}
+              </p>
+            </div>
+            <button className="pr-4 text-slate-400 hover:text-slate-600">
+              <ChevronRight className="w-5 h-5" />
+            </button>
           </div>
-          <p className="text-sm text-slate-600 px-4 truncate flex-1 font-medium">
-            Rapat umum besok jam 10 pagi...
-          </p>
-          <button className="pr-4 text-slate-400 hover:text-slate-600" onClick={() => navigate('/notifications')}>
-            <ChevronRight className="w-5 h-5" />
-          </button>
-        </div> */}
+        )}
       </div>
     </div>
   );

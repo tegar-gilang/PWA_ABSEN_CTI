@@ -86,9 +86,16 @@ export default function Notifications() {
               </div>
               <div className="flex-1 pt-1">
                 <div className="flex justify-between items-start mb-1.5">
-                  <h4 className={`text-sm ${!notification.isRead ? 'font-bold text-slate-900' : 'font-bold text-slate-700'}`}>
-                    {notification.title}
-                  </h4>
+                  <div className="flex items-center gap-2">
+                    <h4 className={`text-sm ${!notification.isRead ? 'font-bold text-slate-900' : 'font-bold text-slate-700'}`}>
+                      {notification.title}
+                    </h4>
+                    {notification.is_global && (
+                      <span className="text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0 bg-blue-50 text-blue-600 border border-blue-200 uppercase tracking-wider">
+                        Semua
+                      </span>
+                    )}
+                  </div>
                   {!notification.isRead && (
                     <div className="w-2.5 h-2.5 bg-blue-600 rounded-full mt-1.5 shrink-0 shadow-sm shadow-blue-200"></div>
                   )}

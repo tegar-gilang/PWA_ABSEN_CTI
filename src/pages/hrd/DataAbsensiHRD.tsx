@@ -1,6 +1,6 @@
 import { exportToExcel, exportToPDF } from '@/src/utils/exportUtils';
 import React, { useEffect, useState, useMemo } from 'react';
-import { apiHrdGetAttendanceSummary, apiHrdGetEmployeeReport } from '../../lib/api';
+import { apiHrdGetAttendanceSummary, apiHrdGetEmployeeReport, apiHrdExportDailyReport } from '../../lib/api';
 import {
   Download,
   Search,
@@ -158,6 +158,21 @@ const DataAbsensiHRD: React.FC = () => {
             >
             <Download className="w-4 h-4 mr-2" /> PDF
             </button>
+            <button 
+            onClick={async () => {
+                try {
+                    // Pakai endDate atau startDate atau todayStr
+                    const reportDate = endDate || startDate || todayStr;
+                    showToast("Sedang menyiapkan Laporan Harian...");
+                    await apiHrdExportDailyReport(reportDate);
+                } catch (err: any) {
+                    setErrorMessage(err.message || "Gagal mengunduh laporan.");
+                }
+            }}
+            className="flex-1 sm:flex-none border border-blue-600 bg-blue-50 hover:bg-blue-100 text-blue-700 px-4 py-2 rounded-md text-sm font-semibold transition-colors flex items-center shadow-sm justify-center"
+            >
+            <Download className="w-4 h-4 mr-2" /> Excel Harian
+            </button>
         </div>
       </div>
 
@@ -278,6 +293,7 @@ const DataAbsensiHRD: React.FC = () => {
                 <th rowSpan={2} className="px-6 py-3.5 font-semibold align-middle text-center">Alpa</th>
                 <th colSpan={2} className="px-6 py-2 font-semibold text-center border-b border-gray-200">Terlambat</th>
                 <th rowSpan={2} className="px-6 py-3.5 font-semibold align-middle">Periode</th>
+                <th rowSpan={2} className="px-6 py-3.5 font-semibold align-middle text-center">Aksi</th>
               </tr>
               <tr className="bg-gray-50/75 text-gray-600 text-xs uppercase tracking-wider border-b border-gray-200">
                 <th className="px-3 py-2 font-semibold text-center border-r border-gray-200">Kali</th>
@@ -287,7 +303,7 @@ const DataAbsensiHRD: React.FC = () => {
             <tbody className="divide-y divide-gray-200 text-sm text-gray-700">
               {loading ? (
                 <tr>
-                  <td colSpan={9} className="px-6 py-12 text-center text-gray-400 font-medium">
+                  <td colSpan={10} className="px-6 py-12 text-center text-gray-400 font-medium">
                     <div className="flex items-center justify-center space-x-2">
                       <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
                       <span>Mengambil data karyawan dari server...</span>
@@ -369,12 +385,31 @@ const DataAbsensiHRD: React.FC = () => {
                           <span className="text-gray-400">-</span>
                         )}
                       </td>
+
+                      {/* Aksi */}
+                      <td className="px-6 py-4 text-center">
+                        <button 
+                          onClick={async () => {
+                            try {
+                                const reportDate = endDate || startDate || todayStr;
+                                showToast(`Menyiapkan Laporan ${rec.name}...`);
+                                await apiHrdExportDailyReport(reportDate, rec.id);
+                            } catch (err: any) {
+                                setErrorMessage(err.message || "Gagal mengunduh laporan.");
+                            }
+                          }}
+                          className="p-1.5 text-blue-600 hover:bg-blue-50 border border-transparent hover:border-blue-200 rounded-md transition-colors inline-flex items-center"
+                          title={`Download Excel Harian - ${rec.name}`}
+                        >
+                          <Download className="w-4 h-4" />
+                        </button>
+                      </td>
                     </tr>
                   );
                 })
               ) : (
                 <tr>
-                  <td colSpan={9} className="px-6 py-12 text-center text-gray-500 font-medium">
+                  <td colSpan={10} className="px-6 py-12 text-center text-gray-500 font-medium">
                     Tidak ada data karyawan yang ditemukan dari backend.
                   </td>
                 </tr>
