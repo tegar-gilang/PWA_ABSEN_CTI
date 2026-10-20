@@ -131,13 +131,26 @@ export default function Home() {
         
         <div className="flex items-center gap-4">
           <div className="relative cursor-pointer" onClick={() => navigate('/profile')}>
-            <div className="w-10 h-10 bg-slate-100 rounded-full border-2 border-white shadow-sm overflow-hidden">
+            <div className="w-10 h-10 bg-gray-200 text-gray-700 rounded-full border-2 border-white shadow-sm overflow-hidden flex items-center justify-center font-bold text-xs select-none">
               {user?.photoUrl ? (
-                <img src={user.photoUrl} alt={user.name} className="w-full h-full object-cover" />
+                <img 
+                  src={user.photoUrl} 
+                  alt={user.name} 
+                  className="w-full h-full object-cover" 
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                  }}
+                />
               ) : (
-                <div className="w-full h-full bg-slate-300 flex items-center justify-center text-slate-500 font-bold">
-                  {user?.name?.charAt(0) || 'U'}
-                </div>
+                user?.name
+                  ? user.name
+                      .split(' ')
+                      .filter(Boolean)
+                      .map((n) => n[0])
+                      .slice(0, 2)
+                      .join('')
+                      .toUpperCase()
+                  : 'U'
               )}
             </div>
             <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></div>
