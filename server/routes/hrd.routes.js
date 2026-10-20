@@ -494,7 +494,7 @@ router.get("/attendance-summary", async (req, res) => {
             const dates = [];
             let start = new Date(sDate);
             const end = new Date(eDate);
-            const today = new Date();
+            const today = new Date(getLocalDateString());
             
             start.setHours(12, 0, 0, 0);
             end.setHours(12, 0, 0, 0);
@@ -508,13 +508,21 @@ router.get("/attendance-summary", async (req, res) => {
                 }
             }
 
-            const finalEnd = end > today ? today : end;
+            // Opsi 1: Hari ini yang sedang berjalan belum dianggap Alpa.
+            // Evaluasi alpa dinamis hanya sampai kemarin (strictly before today).
+            const yesterday = new Date(today);
+            yesterday.setDate(yesterday.getDate() - 1);
+
+            const finalEnd = end < today ? end : yesterday;
             
             let d = new Date(start);
             while (d <= finalEnd) {
                 const day = d.getDay();
                 if (day >= 1 && day <= 5) {
-                    dates.push(d.toISOString().split('T')[0]);
+                    const year = d.getFullYear();
+                    const month = String(d.getMonth() + 1).padStart(2, '0');
+                    const dayStr = String(d.getDate()).padStart(2, '0');
+                    dates.push(`${year}-${month}-${dayStr}`);
                 }
                 d.setDate(d.getDate() + 1);
             }
@@ -531,7 +539,10 @@ router.get("/attendance-summary", async (req, res) => {
                 let endD = new Date(r.end_date || r.date);
                 endD.setHours(12, 0, 0, 0);
                 while (current <= endD) {
-                    reqSet.add(current.toISOString().split('T')[0]);
+                    const y = current.getFullYear();
+                    const m = String(current.getMonth() + 1).padStart(2, '0');
+                    const ds = String(current.getDate()).padStart(2, '0');
+                    reqSet.add(`${y}-${m}-${ds}`);
                     current.setDate(current.getDate() + 1);
                 }
             }

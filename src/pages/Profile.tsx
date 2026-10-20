@@ -58,12 +58,6 @@ export default function Profile() {
   // State untuk menampilkan pesan error saat gagal menyimpan
   const [error, setError] = useState('');
 
-  const [imageError, setImageError] = useState(false);
-
-  useEffect(() => {
-    setImageError(false);
-  }, [user?.photoUrl]);
-
   if (!user) return null;
 
   const initials = user.name
@@ -90,19 +84,8 @@ export default function Profile() {
         <h1 className="text-2xl font-bold text-slate-900 mb-3">Profil</h1>
         
         <div className="flex items-center gap-3">
-          <div className="w-20 h-20 bg-gray-200 text-gray-700 rounded-full border-4 border-white shadow-sm overflow-hidden flex-shrink-0 flex items-center justify-center">
-            {user.photoUrl && !imageError ? (
-              <img 
-                src={user.photoUrl} 
-                alt={user.name} 
-                className="w-full h-full object-cover" 
-                onError={() => setImageError(true)} 
-              />
-            ) : (
-              <span className="text-2xl font-bold select-none text-gray-700">
-                {initials}
-              </span>
-            )}
+          <div className="w-20 h-20 bg-gray-200 text-gray-700 rounded-full border-4 border-white shadow-sm flex items-center justify-center font-bold text-2xl select-none flex-shrink-0">
+            {initials}
           </div>
           <div>
             <h2 className="text-[22px] font-bold text-slate-900 tracking-tight">{user.name}</h2>
