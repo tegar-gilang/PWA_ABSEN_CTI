@@ -1,13 +1,12 @@
-import { useState, useRef, useEffect, ChangeEvent } from 'react';
+import { useState, useEffect } from 'react';
 import { useAppStore } from '../store';
 import { useNavigate } from 'react-router-dom';
 import { ApiError } from '../lib/api';
-import { compressImageFile } from '../lib/image';
-import { LogOut, User as UserIcon, Phone, Mail, Building, Briefcase, Clock, ChevronRight, Save, X, Loader2, Camera, AlertCircle, MapPin } from 'lucide-react';
+import { LogOut, User as UserIcon, Phone, Mail, Building, Briefcase, Clock, ChevronRight, Save, X, Loader2, AlertCircle, MapPin } from 'lucide-react';
 
 /**
  * Komponen Halaman Profil (Profile Component)
- * Menampilkan informasi data diri pengguna serta menyediakan fungsi untuk mengubah detail kontak dan mengunggah foto profil baru.
+ * Menampilkan informasi data diri pengguna serta menyediakan fungsi untuk mengubah detail kontak.
  */
 export default function Profile() {
   const user = useAppStore(state => state.user);
@@ -33,8 +32,6 @@ export default function Profile() {
     }
   }, [user, isEditing]);
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
   // Mengeluarkan (Sign Out) pengguna saat ini dan menavigasikan kembali ke halaman login
   const handleLogout = async () => {
     if (window.confirm('Apakah Anda yakin ingin keluar?')) {
@@ -58,32 +55,26 @@ export default function Profile() {
     }
   };
 
-  // State untuk menampilkan pesan error saat gagal menyimpan/mengunggah
+  // State untuk menampilkan pesan error saat gagal menyimpan
   const [error, setError] = useState('');
 
-  // Menangani proses pengunggahan file dan pembaruan foto profil pengguna.
-  // Foto dikompres & diperkecil resolusinya dulu di browser sebelum dikirim ke server,
-  // supaya tidak melebihi batas ukuran dan tetap cepat diunggah (foto dari kamera HP bisa berukuran beberapa MB).
-  const handlePhotoUpload = async (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const [imageError, setImageError] = useState(false);
 
-    setIsLoading(true);
-    setError('');
-    try {
-      const compressedDataUrl = await compressImageFile(file, 800, 0.7);
-      await updateProfile({ photoUrl: compressedDataUrl });
-    } catch (err) {
-      console.error('Gagal mengunggah foto profil', err);
-      setError(err instanceof ApiError ? err.message : 'Gagal mengunggah foto. Coba gunakan foto lain.');
-    } finally {
-      setIsLoading(false);
-      // Reset input file agar bisa memilih file yang sama lagi jika ingin mengulang
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  };
+  useEffect(() => {
+    setImageError(false);
+  }, [user?.photoUrl]);
 
   if (!user) return null;
+
+  const initials = user.name
+    ? user.name
+        .split(' ')
+        .filter(Boolean)
+        .map((n) => n[0])
+        .slice(0, 2)
+        .join('')
+        .toUpperCase()
+    : 'U';
 
   const formatEmployeeId = () => {
     if (user.employeeId && /^[A-Z]{3}-\d+$/.test(user.employeeId)) return user.employeeId;
@@ -94,34 +85,24 @@ export default function Profile() {
 
   return (
     <div className="min-h-full bg-[#F8FAFC] text-slate-800 pb-20">
-      {/* Bagian Header yang berisi Avatar pengguna dan tombol/fitur unggah foto */}
+      {/* Bagian Header yang berisi Avatar pengguna */}
       <div className="bg-white px-6 pt-6 pb-8 border-b border-slate-200">
         <h1 className="text-2xl font-bold text-slate-900 mb-3">Profil</h1>
         
         <div className="flex items-center gap-3">
-          <div className="relative">
-            <div className="w-20 h-20 bg-slate-100 rounded-full border-4 border-white shadow-sm overflow-hidden flex-shrink-0 relative group">
-              <img src={user.photoUrl} alt={user.name} className="w-full h-full object-cover" />
-              <div 
-                onClick={() => fileInputRef.current?.click()}
-                className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-              >
-                <Camera className="w-6 h-6 text-white" />
-              </div>
-            </div>
-            <button 
-              onClick={() => fileInputRef.current?.click()}
-              className="absolute bottom-0 right-0 w-7 h-7 bg-blue-600 text-white rounded-full border-2 border-white shadow-sm flex items-center justify-center transition-transform active:scale-95"
-            >
-              <Camera className="w-3.5 h-3.5" />
-            </button>
-            <input 
-              type="file" 
-              accept="image/*" 
-              ref={fileInputRef} 
-              onChange={handlePhotoUpload} 
-              className="hidden" 
-            />
+          <div className="w-20 h-20 bg-gray-200 text-gray-700 rounded-full border-4 border-white shadow-sm overflow-hidden flex-shrink-0 flex items-center justify-center">
+            {user.photoUrl && !imageError ? (
+              <img 
+                src={user.photoUrl} 
+                alt={user.name} 
+                className="w-full h-full object-cover" 
+                onError={() => setImageError(true)} 
+              />
+            ) : (
+              <span className="text-2xl font-bold select-none text-gray-700">
+                {initials}
+              </span>
+            )}
           </div>
           <div>
             <h2 className="text-[22px] font-bold text-slate-900 tracking-tight">{user.name}</h2>
