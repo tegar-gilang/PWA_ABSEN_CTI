@@ -58,6 +58,25 @@ describe('Profile Component', () => {
     expect(screen.getByText('test@example.com')).toBeInTheDocument();
   });
 
+  it('renders initials avatar when user has no photoUrl', () => {
+    (useAppStore as any).mockImplementation((selector: any) => {
+      const state = {
+        user: { ...mockUser, photoUrl: null },
+        updateProfile: mockUpdateProfile,
+        logout: mockLogout,
+      };
+      return selector(state);
+    });
+
+    render(
+      <MemoryRouter>
+        <Profile />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText('TU')).toBeInTheDocument();
+  });
+
   it('allows editing contact details', async () => {
     mockUpdateProfile.mockResolvedValueOnce(undefined);
     render(
@@ -75,7 +94,6 @@ describe('Profile Component', () => {
     fireEvent.change(phoneInput, { target: { value: '1112223333' } });
 
     // Save
-    // Find the save button inside the flex container (usually the last button)
     const saveButtons = screen.getAllByRole('button');
     const saveButton = saveButtons.find(b => b.querySelector('svg.lucide-save'));
     if (saveButton) {
@@ -85,12 +103,13 @@ describe('Profile Component', () => {
     await waitFor(() => {
       expect(mockUpdateProfile).toHaveBeenCalledWith({
         phone: '1112223333',
-        emergencyContact: '0987654321'
+        address: ''
       });
     });
   });
 
   it('logs out successfully', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
     mockLogout.mockResolvedValueOnce(undefined);
     render(
       <MemoryRouter>
