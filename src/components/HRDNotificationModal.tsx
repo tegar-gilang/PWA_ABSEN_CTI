@@ -45,7 +45,7 @@ const HRDNotificationModal: React.FC<HRDNotificationModalProps> = ({ isOpen, onC
   const fetchLogs = async () => {
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:4000/api/hrd/notifications', {
+      const res = await fetch('/api/hrd/notifications', {
         headers: { Authorization: `Bearer ${getToken()}` }
       });
       const data = await res.json();
@@ -59,7 +59,7 @@ const HRDNotificationModal: React.FC<HRDNotificationModalProps> = ({ isOpen, onC
 
   const fetchEmployees = async () => {
     try {
-      const res = await fetch('http://localhost:4000/api/hrd/employees', {
+      const res = await fetch('/api/hrd/employees', {
         headers: { Authorization: `Bearer ${getToken()}` }
       });
       const data = await res.json();
@@ -73,7 +73,7 @@ const HRDNotificationModal: React.FC<HRDNotificationModalProps> = ({ isOpen, onC
     e.preventDefault();
     setSubmitting(true);
     try {
-      const res = await fetch('http://localhost:4000/api/hrd/notifications', {
+      const res = await fetch('/api/hrd/notifications', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -97,7 +97,7 @@ const HRDNotificationModal: React.FC<HRDNotificationModalProps> = ({ isOpen, onC
   const handleDelete = async (title: string, description: string) => {
     if (!window.confirm('Apakah Anda yakin ingin menghapus informasi ini?')) return;
     try {
-      const res = await fetch('http://localhost:4000/api/hrd/notifications', {
+      const res = await fetch('/api/hrd/notifications', {
         method: 'DELETE',
         headers: { 
           'Content-Type': 'application/json',
