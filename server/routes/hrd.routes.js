@@ -803,12 +803,23 @@ router.get("/employee-report/:userId", async (req, res) => {
 
 // Route Lihat Data Karyawan
 // GET
+// Route Lihat Data Karyawan
+// GET
 router.get("/employees", async (req, res) => {
     try {
         const { name, department } = req.query;
         let query = `
             SELECT u.id, u.employee_id as employeeId, u.nik, u.name, u.email, u.phone, u.address, u.emergency_contact,
                    u.status_karyawan, u.performance_status, u.photo_url as profile_photo_url,
+                   
+                   -- INI ADALAH KOLOM BARU YANG SEBELUMNYA TERTINGGAL --
+                   u.tempat_tanggal_lahir, 
+                   u.status_pernikahan, 
+                   u.wilayah_kerja, 
+                   DATE_FORMAT(u.tanggal_masuk, '%Y-%m-%d') as tanggal_masuk, 
+                   u.masa_kerja,
+                   ------------------------------------------------------
+
                    COALESCE(d.name, u.department, 'Staff') as department_name, 
                    COALESCE(d.name, u.department, 'Staff') as department, 
                    COALESCE(p.name, u.position, 'Staff') as position_name, 
@@ -830,6 +841,7 @@ router.get("/employees", async (req, res) => {
             LEFT JOIN master_departments d ON u.id_department = d.id
             LEFT JOIN master_positions p ON u.id_position = p.id
             LEFT JOIN hospitals h ON u.hospital_id = h.id
+            WHERE 1=1
         `;
         const params = [];
         if (name) { query += ` AND u.name LIKE ?`; params.push(`%${name}%`); }
@@ -843,12 +855,13 @@ router.get("/employees", async (req, res) => {
         res.status(500).json({ message: "Gagal memuat data karyawan." });
     }
 });
-
 // Route Tambah Data Karyawan
 // POST
 router.post("/employees", async (req, res) => {
     try {
-        let { name, email, nik, employee_id, phone, password, address, hospital_id, id_department, id_position, jam_masuk, jam_keluar, schedule, role } = req.body;
+        // 1. TAMBAHKAN VARIABEL BARU DI SINI
+        let { name, email, nik, employee_id, phone, password, address, hospital_id, id_department, id_position, jam_masuk, jam_keluar, schedule, role, 
+              tempat_tanggal_lahir, status_pernikahan, status_karyawan, wilayah_kerja, tanggal_masuk, masa_kerja } = req.body;
 
         if(!name || !nik || !password) {
             return res.status(400).json({
@@ -921,10 +934,14 @@ router.post("/employees", async (req, res) => {
             finalEmployeeId = `${prefix}-${String(maxId + 1).padStart(3, '0')}`;
         }
 
+        // 2. TAMBAHKAN KOLOM BARU DI QUERY INSERT
         await pool.query(
-            `INSERT INTO users (id, employee_id, nik, email, name, phone, password_hash, role, address, hospital_id, id_department, id_position, jam_masuk, jam_keluar, schedule) 
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [userId, finalEmployeeId, nik, email || null, name, phone || null, password_hash, role || 'EMPLOYEE', address || null, hospital_id || null, id_department || null, id_position || null, jam_masuk || null, jam_keluar || null, schedule || null]
+            `INSERT INTO users (id, employee_id, nik, email, name, phone, password_hash, role, address, hospital_id, id_department, id_position, jam_masuk, jam_keluar, schedule, tempat_tanggal_lahir, status_pernikahan, status_karyawan, wilayah_kerja, tanggal_masuk, masa_kerja) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+                userId, finalEmployeeId, nik, email || null, name, phone || null, password_hash, role || 'EMPLOYEE', address || null, hospital_id || null, id_department || null, id_position || null, jam_masuk || null, jam_keluar || null, schedule || null, 
+                tempat_tanggal_lahir || null, status_pernikahan || null, status_karyawan || null, wilayah_kerja || null, tanggal_masuk || null, masa_kerja || null
+            ]
         );
 
         res.status(201).json({
@@ -945,24 +962,10 @@ router.post("/employees", async (req, res) => {
 router.put("/employees/:id", async (req, res) => {
     try {
         const targetUserId = req.params.id;
+        // 3. TAMBAHKAN VARIABEL BARU DI SINI JUGA
         let { 
-            name,
-            employeeId,
-            employee_id,
-            nik,
-            jam_masuk, 
-            jam_keluar, 
-            id_department, 
-            id_position, 
-            email, 
-            phone, 
-            address, 
-            hospital_id,
-            emergency_contact, 
-            status_karyawan, 
-            performance_status, 
-            schedule,
-            role
+            name, employeeId, employee_id, nik, jam_masuk, jam_keluar, id_department, id_position, email, phone, address, hospital_id, emergency_contact, status_karyawan, performance_status, schedule, role,
+            tempat_tanggal_lahir, status_pernikahan, wilayah_kerja, tanggal_masuk, masa_kerja
         } = req.body;
 
         const targetEmployeeId = employeeId !== undefined ? employeeId : employee_id;
@@ -998,6 +1001,7 @@ router.put("/employees/:id", async (req, res) => {
             }
         }
 
+        // 4. TAMBAHKAN KOLOM BARU DI QUERY UPDATE
         const [result] = await pool.query(
             `UPDATE users 
              SET name = COALESCE(?, name),
@@ -1015,7 +1019,12 @@ router.put("/employees/:id", async (req, res) => {
                  emergency_contact = COALESCE(?, emergency_contact), 
                  status_karyawan = COALESCE(?, status_karyawan), 
                  performance_status = COALESCE(?, performance_status),
-                 role = COALESCE(?, role)
+                 role = COALESCE(?, role),
+                 tempat_tanggal_lahir = COALESCE(?, tempat_tanggal_lahir),
+                 status_pernikahan = COALESCE(?, status_pernikahan),
+                 wilayah_kerja = COALESCE(?, wilayah_kerja),
+                 tanggal_masuk = COALESCE(?, tanggal_masuk),
+                 masa_kerja = COALESCE(?, masa_kerja)
              WHERE id = ?`,
             [
                 name, 
@@ -1034,6 +1043,11 @@ router.put("/employees/:id", async (req, res) => {
                 status_karyawan, 
                 performance_status,
                 role,
+                tempat_tanggal_lahir || null,
+                status_pernikahan || null,
+                wilayah_kerja || null,
+                tanggal_masuk || null,
+                masa_kerja || null,
                 targetUserId
             ]
         );
@@ -1045,7 +1059,6 @@ router.put("/employees/:id", async (req, res) => {
         res.status(500).json({message: "Gagal Memperbarui Data Karyawan."});
     }
 });
-
 // Route HRD Menghapus Karyawan
 // DELETE
 router.delete("/employees/:id", async (req, res) => {

@@ -1,3 +1,4 @@
+import "dotenv/config"; // Memuat variabel lingkungan dari file .env
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
@@ -10,8 +11,6 @@ import notificationsRoutes from "./routes/notifications.routes.js";
 import profileRoutes from "./routes/profile.routes.js";
 import officeRoutes from "./routes/office.routes.js";
 import hrdRoutes from "./routes/hrd.routes.js";
-
-dotenv.config();
 
 // Jaring pengaman terakhir: mencatat error async yang tidak tertangkap (unhandled rejection)
 // tanpa mematikan seluruh proses server. Idealnya setiap route sudah punya try-catch sendiri,

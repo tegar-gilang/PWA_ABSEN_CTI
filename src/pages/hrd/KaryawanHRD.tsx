@@ -49,6 +49,8 @@ const KaryawanHRD: React.FC = () => {
   // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<any>(null);
+  
+  // State form ditambahkan field baru sesuai format Excel
   const [formData, setFormData] = useState({
     name: '',
     employee_id: '',
@@ -61,8 +63,16 @@ const KaryawanHRD: React.FC = () => {
     hospital_id: '',
     id_department: '',
     id_position: '',
-    role: 'EMPLOYEE'
+    role: 'EMPLOYEE',
+    // FIELD BARU SESUAI EXCEL
+    tempat_tanggal_lahir: '',
+    status_pernikahan: '',
+    status_karyawan: '',
+    wilayah_kerja: '',
+    tanggal_masuk: '',
+    masa_kerja: ''
   });
+  
   const [isSaving, setIsSaving] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -130,13 +140,19 @@ const KaryawanHRD: React.FC = () => {
       hospital_id: emp.hospital_name !== '-' ? (emp.hospital_name || '') : '',
       id_department: (emp.department !== '-' ? emp.department : '') || (emp.department_name !== '-' ? emp.department_name : '') || '',
       id_position: emp.id_position || '',
-      role: emp.role || 'EMPLOYEE'
+      role: emp.role || 'EMPLOYEE',
+      // FIELD BARU
+      tempat_tanggal_lahir: emp.tempat_tanggal_lahir || '',
+      status_pernikahan: emp.status_pernikahan || '',
+      status_karyawan: emp.status_karyawan || '',
+      wilayah_kerja: emp.wilayah_kerja || '',
+      tanggal_masuk: emp.tanggal_masuk ? emp.tanggal_masuk.split('T')[0] : '', // Format YYYY-MM-DD untuk input date
+      masa_kerja: emp.masa_kerja || ''
     });
-    setShowPassword(false); // Reset show password when modal opens
+    setShowPassword(false);
     setIsModalOpen(true);
   };
 
-  // Susun daftar pilihan bagian berdasarkan BAGIAN_LIST
   const bagianOptions = useMemo(() => {
     return BAGIAN_LIST.map(bName => {
       const match = masterDepartments.find(d => d.name.toLowerCase() === bName.toLowerCase());
@@ -174,7 +190,14 @@ const KaryawanHRD: React.FC = () => {
         jam_keluar,
         schedule: formData.schedule,
         hospital_id: formData.hospital_id || null,
-        role: formData.role
+        role: formData.role,
+        // FIELD BARU
+        tempat_tanggal_lahir: formData.tempat_tanggal_lahir,
+        status_pernikahan: formData.status_pernikahan,
+        status_karyawan: formData.status_karyawan,
+        wilayah_kerja: formData.wilayah_kerja,
+        tanggal_masuk: formData.tanggal_masuk,
+        masa_kerja: formData.masa_kerja
       };
 
       if (selectedEmployee) {
@@ -183,7 +206,7 @@ const KaryawanHRD: React.FC = () => {
           await apiHrdCreateEmployee(payload);
       }
       setIsModalOpen(false);
-      fetchData(); // Refresh data
+      fetchData(); 
     } catch (err: any) {
       console.error(err);
       alert(`Gagal menyimpan data karyawan: ${err.message || 'Server error'}`);
@@ -206,22 +229,36 @@ const KaryawanHRD: React.FC = () => {
   const handleExportExcel = () => {
     exportToExcel({
       title: 'Data Karyawan',
-      filename: 'Data_Karyawan',
+      filename: 'Data_Karyawan_Excel_Format',
       columns: [
-        { header: 'Nama Karyawan', dataKey: 'name' },
+        { header: 'NO.', dataKey: 'no' },
+        { header: 'NAMA', dataKey: 'name' },
         { header: 'NIK', dataKey: 'nik' },
-        { header: 'Email', dataKey: 'email' },
-        { header: 'Bagian', dataKey: 'department_name' },
-        { header: 'No. Telepon', dataKey: 'phone' },
-        { header: 'Alamat', dataKey: 'address' },
-        { header: 'Penempatan', dataKey: 'hospital_name' },
-        { header: 'Waktu Shift', dataKey: 'schedule' },
+        { header: 'NO INDUK KARYAWAN', dataKey: 'employee_id' },
+        { header: 'TEMPAT, TANGGAL LAHIR', dataKey: 'tempat_tanggal_lahir' },
+        { header: 'STATUS PERNIKAHAN', dataKey: 'status_pernikahan' },
+        { header: 'NOMOR TELEPON', dataKey: 'phone' },
+        { header: 'ALAMAT', dataKey: 'address' },
+        { header: 'PEKERJAAN', dataKey: 'department_name' },
+        { header: 'STATUS KARYAWAN', dataKey: 'status_karyawan' },
+        { header: 'WILAYAH KERJA', dataKey: 'wilayah_kerja' },
+        { header: 'WILAYAH RS', dataKey: 'hospital_name' },
+        { header: 'TANGGAL MASUK', dataKey: 'tanggal_masuk' },
+        { header: 'MASA KERJA', dataKey: 'masa_kerja' },
+        { header: 'EMAIL', dataKey: 'email' },
       ],
-      data: filteredEmployees.map(emp => ({
+      data: filteredEmployees.map((emp, index) => ({
           ...emp,
+          no: index + 1,
+          employee_id: emp.employee_id || emp.employeeId || '-',
           department_name: emp.department || emp.department_name || '-',
           hospital_name: emp.hospital_name || '-',
-          schedule: emp.schedule || (emp.jam_masuk && emp.jam_keluar ? `${emp.jam_masuk.slice(0, 5)} - ${emp.jam_keluar.slice(0, 5)}` : '08:00 - 17:00')
+          tempat_tanggal_lahir: emp.tempat_tanggal_lahir || '-',
+          status_pernikahan: emp.status_pernikahan || '-',
+          status_karyawan: emp.status_karyawan || '-',
+          wilayah_kerja: emp.wilayah_kerja || '-',
+          tanggal_masuk: emp.tanggal_masuk ? new Date(emp.tanggal_masuk).toLocaleDateString('id-ID') : '-',
+          masa_kerja: emp.masa_kerja || '-'
       }))
     });
   };
@@ -231,16 +268,18 @@ const KaryawanHRD: React.FC = () => {
       title: 'Data Karyawan',
       filename: 'Data_Karyawan',
       columns: [
+        { header: 'No Induk', dataKey: 'employee_id' },
         { header: 'Nama Karyawan', dataKey: 'name' },
-        { header: 'NIK', dataKey: 'nik' },
-        { header: 'Bagian', dataKey: 'department_name' },
-        { header: 'No. Telepon', dataKey: 'phone' },
-        { header: 'Penempatan', dataKey: 'hospital_name' },
+        { header: 'Pekerjaan', dataKey: 'department_name' },
+        { header: 'Status Karyawan', dataKey: 'status_karyawan' },
+        { header: 'Wilayah Kerja', dataKey: 'wilayah_kerja' },
       ],
       data: filteredEmployees.map(emp => ({
           ...emp,
+          employee_id: emp.employee_id || emp.employeeId || '-',
           department_name: emp.department || emp.department_name || '-',
-          hospital_name: emp.hospital_name || '-'
+          status_karyawan: emp.status_karyawan || '-',
+          wilayah_kerja: emp.wilayah_kerja || '-'
       }))
     });
   };
@@ -281,7 +320,13 @@ const KaryawanHRD: React.FC = () => {
                 hospital_id: '',
                 id_department: '',
                 id_position: '',
-                role: 'EMPLOYEE'
+                role: 'EMPLOYEE',
+                tempat_tanggal_lahir: '',
+                status_pernikahan: '',
+                status_karyawan: '',
+                wilayah_kerja: '',
+                tanggal_masuk: '',
+                masa_kerja: ''
                 });
                 setShowPassword(false);
                 setIsModalOpen(true);
@@ -293,7 +338,7 @@ const KaryawanHRD: React.FC = () => {
         </div>
       </div>
       
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden w-full">
         
         <div className="p-4 border-b border-gray-200 flex flex-col md:flex-row gap-4 items-center justify-between bg-gray-50/50">
           <div className="relative w-full md:flex-1 md:max-w-md">
@@ -319,26 +364,27 @@ const KaryawanHRD: React.FC = () => {
            </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+        <div className="overflow-x-auto w-full">
+          <table className="w-full text-left border-collapse whitespace-nowrap min-w-[1500px]">
             <thead>
               <tr className="bg-gray-50 text-gray-500 text-xs font-semibold tracking-wide border-b border-gray-200">
-                <th className="px-6 py-4">Nama Karyawan</th>
-                <th className="px-6 py-4">ID Karyawan</th>
+                <th className="px-6 py-4">Nama</th>
+                <th className="px-6 py-4">No. Induk</th>
                 <th className="px-6 py-4">NIK</th>
-                <th className="px-6 py-4">Email</th>
-                <th className="px-6 py-4">Bagian</th>
-                <th className="px-6 py-4">No. Telepon</th>
-                <th className="px-6 py-4">Alamat</th>
-                <th className="px-6 py-4">Penempatan</th>
-                <th className="px-6 py-4">Waktu Shift</th>
+                <th className="px-6 py-4">Tempat, Tgl Lahir</th>
+                <th className="px-6 py-4">Pekerjaan</th>
+                <th className="px-6 py-4">Status Karyawan</th>
+                <th className="px-6 py-4">Wilayah Kerja</th>
+                <th className="px-6 py-4">Penempatan RS</th>
+                <th className="px-6 py-4">Tgl Masuk</th>
+                <th className="px-6 py-4">Masa Kerja</th>
                 <th className="px-6 py-4 text-center">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 text-sm text-gray-700">
              {loading ? (
                 <tr>
-                  <td colSpan={9} className="px-6 py-12 text-center text-gray-400 font-medium animate-pulse">
+                  <td colSpan={11} className="px-6 py-12 text-center text-gray-400 font-medium animate-pulse">
                     Memuat data karyawan...
                   </td>
                 </tr>
@@ -358,47 +404,40 @@ const KaryawanHRD: React.FC = () => {
                   return (
                     <tr key={emp.id || index} className="hover:bg-gray-50/50 transition-colors">
                       <td className="px-6 py-4 flex items-center">
-                        <div className={`w-9 h-9 ${avatarClass} rounded-full flex items-center justify-center text-xs font-bold mr-3 shadow-sm`}>
+                        <div className={`w-9 h-9 ${avatarClass} rounded-full flex items-center justify-center text-xs font-bold mr-3 shadow-sm shrink-0`}>
                           {initials}
                         </div>
                         <div>
                           <span className="font-semibold text-gray-800 block">{emp.name || 'Tanpa Nama'}</span>
+                          <span className="text-xs text-gray-400 block">{emp.email || '-'}</span>
                         </div>
                       </td>
                       <td className="px-6 py-4 text-gray-600 font-mono text-xs">
                         {emp.employee_id || emp.employeeId ? (
-                          <span className="bg-gray-100 text-gray-800 px-2 py-0.5 rounded border border-gray-200 font-semibold">
-                            {emp.employee_id || emp.employeeId}
-                          </span>
-                        ) : (
-                          <span className="text-gray-400 italic">Belum diisi</span>
-                        )}
+                          <span className="bg-gray-100 text-gray-800 px-2 py-0.5 rounded border border-gray-200 font-semibold">{emp.employee_id || emp.employeeId}</span>
+                        ) : (<span className="text-gray-400 italic">Belum diisi</span>)}
                       </td>
                       <td className="px-6 py-4 text-gray-600 font-mono text-xs">
                         {emp.nik ? (
-                          <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-200 font-semibold">
-                            {emp.nik}
-                          </span>
-                        ) : (
-                          <span className="text-gray-400 italic">Belum diisi</span>
-                        )}
+                          <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-200 font-semibold">{emp.nik}</span>
+                        ) : (<span className="text-gray-400 italic">Belum diisi</span>)}
                       </td>
-                      <td className="px-6 py-4 text-gray-600">
-                        {emp.email ? (
-                          <span className="text-gray-700 font-medium">{emp.email}</span>
-                        ) : (
-                          <span className="text-gray-400 italic">-</span>
-                        )}
-                      </td>
+                      <td className="px-6 py-4 text-gray-600">{emp.tempat_tanggal_lahir || '-'}</td>
                       <td className="px-6 py-4 text-gray-600">{emp.department || emp.department_name || '-'}</td>
-                      <td className="px-6 py-4 text-gray-600">{emp.phone || '-'}</td>
-                      <td className="px-6 py-4 text-gray-600 truncate max-w-[200px]" title={emp.address || ''}>
-                        {emp.address || '-'}
+                      <td className="px-6 py-4 text-gray-600">
+                        {emp.status_karyawan ? (
+                          <span className={`px-2 py-1 rounded text-xs font-medium ${emp.status_karyawan.toLowerCase().includes('tetap') ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                            {emp.status_karyawan}
+                          </span>
+                        ) : '-'}
                       </td>
+                      <td className="px-6 py-4 text-gray-600">{emp.wilayah_kerja || '-'}</td>
                       <td className="px-6 py-4 text-gray-600 truncate max-w-[200px]">{emp.hospital_name || '-'}</td>
-                      <td className="px-6 py-4 text-gray-600 font-medium">
-                        {emp.schedule || (emp.jam_masuk && emp.jam_keluar ? `${emp.jam_masuk.slice(0, 5)} - ${emp.jam_keluar.slice(0, 5)}` : '08:00 - 17:00')}
+                      <td className="px-6 py-4 text-gray-600">
+                         {emp.tanggal_masuk ? new Date(emp.tanggal_masuk).toLocaleDateString('id-ID') : '-'}
                       </td>
+                      <td className="px-6 py-4 text-gray-600 font-medium">{emp.masa_kerja || '-'}</td>
+                      
                       <td className="px-6 py-4">
                         <div className="flex items-center justify-center space-x-2">
                           <button 
@@ -420,7 +459,7 @@ const KaryawanHRD: React.FC = () => {
                 })
               ) : (
                 <tr>
-                  <td colSpan={9} className="px-6 py-12 text-center text-gray-500 font-medium">
+                  <td colSpan={11} className="px-6 py-12 text-center text-gray-500 font-medium">
                     Tidak ada data karyawan yang sesuai dengan pencarian Anda.
                   </td>
                 </tr>
@@ -470,8 +509,8 @@ const KaryawanHRD: React.FC = () => {
 
       {/* Modal Lihat/Edit/Tambah */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh]">
             <div className="flex justify-between items-center p-5 border-b border-gray-200">
               <h2 className="text-lg font-bold text-gray-800">
                 {selectedEmployee ? 'Detail & Edit Karyawan' : 'Tambah Karyawan Baru'}
@@ -480,168 +519,124 @@ const KaryawanHRD: React.FC = () => {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <form onSubmit={handleSave} className="overflow-y-auto p-5 flex flex-col gap-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Nama Karyawan <span className="text-red-500">*</span>
-                  </label>
-                  <input 
-                    type="text" 
-                    required
-                    className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800"
-                    value={formData.name}
-                    onChange={(e) => setFormData({...formData, name: e.target.value})}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    ID Karyawan <span className="text-xs text-blue-600 font-semibold">(Otomatis Terisi)</span>
-                  </label>
-                  <input 
-                    type="text" 
-                    disabled
-                    placeholder="Dibuat otomatis oleh sistem (CTI-XXX)"
-                    className="w-full border border-gray-200 bg-gray-50 rounded-md p-2 text-gray-500 font-mono cursor-not-allowed"
-                    value={formData.employee_id || ''}
-                    readOnly
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    NIK <span className="text-xs text-blue-600 font-semibold">(Nomor Induk Kependudukan - Angka)</span>
-                  </label>
-                  <input 
-                    type="text" 
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    maxLength={20}
-                    placeholder="Contoh: 3201234567890001 (hanya angka)"
-                    className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800 font-mono"
-                    value={formData.nik}
-                    onChange={(e) => {
-                      const val = e.target.value.replace(/\D/g, '');
-                      setFormData({...formData, nik: val});
-                    }}
-                  />
-                  <p className="text-[11px] text-gray-400 mt-0.5">Khusus angka (contoh: 16 digit KTP/NIK).</p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Bagian</label>
-                  <input
-                    list="bagian-list"
-                    className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800"
-                    placeholder="Pilih atau ketik bagian baru..."
-                    value={formData.id_department}
-                    onChange={(e) => setFormData({...formData, id_department: e.target.value})}
-                  />
-                  <datalist id="bagian-list">
-                    {bagianOptions.map((b) => (
-                      <option key={b.id || b.name} value={b.name}>{b.name}</option>
-                    ))}
-                  </datalist>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Role (Hak Akses)</label>
-                  <select
-                    className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800"
-                    value={formData.role}
-                    onChange={(e) => setFormData({...formData, role: e.target.value})}
-                  >
-                    <option value="EMPLOYEE">Karyawan (Employee)</option>
-                    <option value="ADMIN">Admin / HRD</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                  <input 
-                    type="email" 
-                    className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800"
-                    value={formData.email}
-                    onChange={(e) => setFormData({...formData, email: e.target.value})}
-                  />
-                </div>
-                {!selectedEmployee && (
+            
+            <form onSubmit={handleSave} className="overflow-y-auto p-5 flex flex-col gap-6">
+              {/* SECTION: DATA PRIBADI */}
+              <div>
+                <h3 className="text-sm font-bold text-gray-800 mb-3 uppercase tracking-wider border-b pb-1">Data Pribadi</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Password <span className="text-red-500">*</span>
-                    </label>
-                    <div className="relative">
-                      <input 
-                        type={showPassword ? "text" : "password"} 
-                        required
-                        className="w-full border border-gray-300 rounded-md p-2 pr-10 focus:ring-blue-500 focus:border-blue-500 text-gray-800"
-                        value={formData.password}
-                        onChange={(e) => setFormData({...formData, password: e.target.value})}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-2 top-2.5 text-gray-400 hover:text-gray-600 focus:outline-none"
-                      >
-                        {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                      </button>
-                    </div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Nama Karyawan <span className="text-red-500">*</span></label>
+                    <input type="text" required className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} />
                   </div>
-                )}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">No. Telepon</label>
-                  <input 
-                    type="text" 
-                    className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Waktu Shift</label>
-                  <input 
-                    type="text" 
-                    placeholder="Contoh: 08:00 - 17:00"
-                    className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800"
-                    value={formData.schedule}
-                    onChange={(e) => setFormData({...formData, schedule: e.target.value})}
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Penugasan (Kantor / Rumah Sakit)</label>
-                  <input
-                    list="penugasan-list"
-                    className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800"
-                    placeholder="Pilih atau ketik penugasan baru..."
-                    value={formData.hospital_id}
-                    onChange={(e) => setFormData({...formData, hospital_id: e.target.value})}
-                  />
-                  <datalist id="penugasan-list">
-                    {hospitals.map((h) => (
-                      <option key={h.id} value={h.nama_rs || h.name}>{h.nama_rs || h.name}</option>
-                    ))}
-                  </datalist>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">NIK <span className="text-xs text-blue-600">(16 Digit)</span></label>
+                    <input type="text" inputMode="numeric" pattern="[0-9]*" maxLength={20} className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800 font-mono" value={formData.nik} onChange={(e) => { const val = e.target.value.replace(/\D/g, ''); setFormData({...formData, nik: val}); }} />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Tempat, Tanggal Lahir</label>
+                    <input type="text" placeholder="Cth: Jakarta, 12 Agustus 1995" className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800" value={formData.tempat_tanggal_lahir} onChange={(e) => setFormData({...formData, tempat_tanggal_lahir: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Status Pernikahan</label>
+                    <select className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800" value={formData.status_pernikahan} onChange={(e) => setFormData({...formData, status_pernikahan: e.target.value})}>
+                      <option value="">-- Pilih --</option>
+                      <option value="Belum Kawin">Belum Kawin</option>
+                      <option value="Kawin">Kawin</option>
+                      <option value="Cerai Hidup">Cerai Hidup</option>
+                      <option value="Cerai Mati">Cerai Mati</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">No. Telepon</label>
+                    <input type="text" className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800" value={formData.phone} onChange={(e) => setFormData({...formData, phone: e.target.value})} />
+                  </div>
+                  <div className="md:col-span-3">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Alamat Lengkap</label>
+                    <input type="text" className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800" value={formData.address} onChange={(e) => setFormData({...formData, address: e.target.value})} />
+                  </div>
                 </div>
               </div>
+
+              {/* SECTION: PEKERJAAN & KANTOR */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Alamat Lengkap Karyawan</label>
-                <textarea 
-                  rows={3}
-                  className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500"
-                  value={formData.address}
-                  onChange={(e) => setFormData({...formData, address: e.target.value})}
-                ></textarea>
+                <h3 className="text-sm font-bold text-gray-800 mb-3 uppercase tracking-wider border-b pb-1">Data Pekerjaan</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">ID Karyawan (No. Induk)</label>
+                    <input type="text" disabled placeholder="Dibuat otomatis oleh sistem" className="w-full border border-gray-200 bg-gray-50 rounded-md p-2 text-gray-500 font-mono cursor-not-allowed" value={formData.employee_id || ''} readOnly />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Pekerjaan / Bagian</label>
+                    <input list="bagian-list" className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800" placeholder="Pilih / ketik bagian..." value={formData.id_department} onChange={(e) => setFormData({...formData, id_department: e.target.value})} />
+                    <datalist id="bagian-list">{bagianOptions.map((b) => (<option key={b.id || b.name} value={b.name}>{b.name}</option>))}</datalist>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Status Karyawan</label>
+                    <select className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800" value={formData.status_karyawan} onChange={(e) => setFormData({...formData, status_karyawan: e.target.value})}>
+                      <option value="">-- Pilih Status --</option>
+                      <option value="Tetap">Tetap</option>
+                      <option value="Kontrak">Kontrak</option>
+                      <option value="Freelance">Freelance</option>
+                      <option value="Magang">Magang</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Wilayah Kerja</label>
+                    <input type="text" placeholder="Cth: Purwokerto, Cilacap" className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800" value={formData.wilayah_kerja} onChange={(e) => setFormData({...formData, wilayah_kerja: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Penempatan (RS)</label>
+                    <input list="penugasan-list" className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800" placeholder="Pilih Rumah Sakit..." value={formData.hospital_id} onChange={(e) => setFormData({...formData, hospital_id: e.target.value})} />
+                    <datalist id="penugasan-list">{hospitals.map((h) => (<option key={h.id} value={h.nama_rs || h.name}>{h.nama_rs || h.name}</option>))}</datalist>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Tanggal Masuk</label>
+                    <input type="date" className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800" value={formData.tanggal_masuk} onChange={(e) => setFormData({...formData, tanggal_masuk: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Masa Kerja</label>
+                    <input type="text" placeholder="Cth: 2 Tahun 3 Bulan" className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800" value={formData.masa_kerja} onChange={(e) => setFormData({...formData, masa_kerja: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Waktu Shift</label>
+                    <input type="text" placeholder="Contoh: 08:00 - 17:00" className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800" value={formData.schedule} onChange={(e) => setFormData({...formData, schedule: e.target.value})} />
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION: AKUN & SISTEM */}
+              <div>
+                <h3 className="text-sm font-bold text-gray-800 mb-3 uppercase tracking-wider border-b pb-1">Akun Sistem</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                    <input type="email" className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Role (Hak Akses)</label>
+                    <select className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800" value={formData.role} onChange={(e) => setFormData({...formData, role: e.target.value})}>
+                      <option value="EMPLOYEE">Karyawan (Employee)</option>
+                      <option value="ADMIN">Admin / HRD</option>
+                    </select>
+                  </div>
+                  {!selectedEmployee && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Password <span className="text-red-500">*</span></label>
+                      <div className="relative">
+                        <input type={showPassword ? "text" : "password"} required className="w-full border border-gray-300 rounded-md p-2 pr-10 focus:ring-blue-500 focus:border-blue-500 text-gray-800" value={formData.password} onChange={(e) => setFormData({...formData, password: e.target.value})} />
+                        <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-2 top-2.5 text-gray-400 hover:text-gray-600 focus:outline-none">
+                          {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="flex justify-end pt-4 mt-2 border-t border-gray-200">
-                <button 
-                  type="button" 
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 mr-3"
-                >
-                  Batal
-                </button>
-                <button 
-                  type="submit"
-                  disabled={isSaving}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
-                >
+                <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 mr-3">Batal</button>
+                <button type="submit" disabled={isSaving} className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 font-medium">
                   {isSaving ? 'Menyimpan...' : 'Simpan Perubahan'}
                 </button>
               </div>
