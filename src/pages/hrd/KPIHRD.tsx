@@ -31,7 +31,6 @@ interface DynamicEvaluation {
   nama: string;
   department: string;
   position: string;
-  // Diubah menjadi opsional agar tidak error jika tidak ada data absen
   absensi?: {
     izin: number;
     alfa: number;

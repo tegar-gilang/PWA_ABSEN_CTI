@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { apiHrdGetDashboardOverview } from '../../lib/api';
-// Import ikon-ikon yang dibutuhkan dari lucide-react
 import { 
   Download, 
   Users, 
@@ -28,7 +27,6 @@ const DashboardHRD: React.FC = () => {
 
   const attendanceTrends = data?.attendanceTrends || [];
 
-  // Isi data kosong (hari tanpa record) agar chart selalu menampilkan 7 batang berurutan
   const filledTrends = useMemo(() => {
     const trends = [];
     for (let i = 6; i >= 0; i--) {

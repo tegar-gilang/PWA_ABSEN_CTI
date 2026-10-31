@@ -2,7 +2,7 @@ import { exportToExcel, exportToPDF } from '@/src/utils/exportUtils';
 import React, { useEffect, useState, useMemo } from 'react';
 import { apiHrdGetAttendance } from '@/src/lib/api';
 import { AttendanceRecord } from '@/src/types';
-// Import ikon dari lucide-react
+
 import { 
   Download, 
   Search, 

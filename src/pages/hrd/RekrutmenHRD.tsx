@@ -87,7 +87,6 @@ const RekrutmenHRD: React.FC = () => {
     fetchJobs();
   }, []);
 
-  // Summary Metrics
   const totalOpenings = jobs.filter(j => j.status === 'OPEN').length;
   const totalCandidates = jobs.reduce((sum, j) => sum + (Number(j.total_candidates) || 0), 0);
   const scheduledInterviews = jobs.reduce((sum, j) => sum + (Number(j.interview_count) || 0), 0);

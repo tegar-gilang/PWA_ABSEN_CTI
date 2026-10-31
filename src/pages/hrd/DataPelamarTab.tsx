@@ -14,7 +14,6 @@ const DataPelamarTab: React.FC<DataPelamarTabProps> = ({ candidates, jobs, onRef
   const [editingCandidate, setEditingCandidate] = useState<any | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // Form State
   const [form, setForm] = useState<any>({});
 
   const handleEdit = (cand: any) => {

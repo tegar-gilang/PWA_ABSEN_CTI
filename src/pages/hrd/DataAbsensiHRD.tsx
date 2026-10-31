@@ -161,7 +161,6 @@ const DataAbsensiHRD: React.FC = () => {
             <button 
             onClick={async () => {
                 try {
-                    // Pakai endDate atau startDate atau todayStr
                     const reportDate = endDate || startDate || todayStr;
                     showToast("Sedang menyiapkan Laporan Harian...");
                     await apiHrdExportDailyReport(reportDate);
