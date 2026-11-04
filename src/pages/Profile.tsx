@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAppStore } from '../store';
 import { useNavigate } from 'react-router-dom';
 import { ApiError } from '../lib/api';
+import { LogoutConfirmModal } from '../components/LogoutConfirmModal';
 import { LogOut, User as UserIcon, Phone, Mail, Building, Briefcase, Clock, ChevronRight, Save, X, Loader2, AlertCircle, MapPin } from 'lucide-react';
 
 /**
@@ -16,6 +17,8 @@ export default function Profile() {
 
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [formData, setFormData] = useState({
     phone: user?.phone || '',
     address: user?.address || '',
@@ -33,10 +36,15 @@ export default function Profile() {
   }, [user, isEditing]);
 
   // Mengeluarkan (Sign Out) pengguna saat ini dan menavigasikan kembali ke halaman login
-  const handleLogout = async () => {
-    if (window.confirm('Apakah Anda yakin ingin keluar?')) {
+  const handleConfirmLogout = async () => {
+    setIsLoggingOut(true);
+    try {
       await logout();
-      navigate('/login');
+      navigate('/login', { replace: true });
+    } catch (err) {
+      console.error('Gagal keluar:', err);
+    } finally {
+      setIsLoggingOut(false);
     }
   };
 
@@ -71,10 +79,7 @@ export default function Profile() {
     : 'U';
 
   const formatEmployeeId = () => {
-    if (user.employeeId && /^[A-Z]{3}-\d+$/.test(user.employeeId)) return user.employeeId;
-    const prefix = user.department ? user.department.substring(0, 3).toUpperCase() : 'EMP';
-    const suffix = user.nik ? user.nik.slice(-3) : user.id.slice(0, 3).replace(/\D/g, '0').padEnd(3, '0');
-    return `${prefix}-${suffix}`;
+    return user.employeeId || '-';
   };
 
   return (
@@ -129,7 +134,7 @@ export default function Profile() {
               </div>
               <div className="flex-1">
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Jadwal Kerja</p>
-                <p className="font-bold text-slate-900">{user.schedule}</p>
+                <p className="font-bold text-slate-900">{(user.jamMasuk && user.jamKeluar) ? `${user.jamMasuk} - ${user.jamKeluar}` : (user.schedule ? user.schedule.replace(/^[^,]+,\s*/, "") : "08:00 - 17:00")}</p>
               </div>
             </div>
           </div>
@@ -222,13 +227,22 @@ export default function Profile() {
 
         {/* Tombol Aksi: Keluar / Sign Out */}
         <button 
-          onClick={handleLogout}
+          onClick={() => setIsLogoutModalOpen(true)}
           className="w-full bg-white text-red-600 rounded-2xl p-4 font-bold shadow-sm border border-slate-200 flex items-center justify-center gap-2 hover:bg-red-50 transition-colors"
         >
           <LogOut className="w-5 h-5" />
           Keluar
         </button>
       </div>
+
+      {/* Dialog Konfirmasi Keluar */}
+      <LogoutConfirmModal 
+        isOpen={isLogoutModalOpen}
+        onClose={() => setIsLogoutModalOpen(false)}
+        onConfirm={handleConfirmLogout}
+        isLoading={isLoggingOut}
+        role="EMPLOYEE"
+      />
     </div>
   );
 }

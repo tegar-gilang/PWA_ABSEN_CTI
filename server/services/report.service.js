@@ -71,25 +71,23 @@ function hitungPeriode(tanggalLaporan) {
 async function ambilData(periode_array, userId = null) {
     // Ambil data users dengan urutan berdasarkan role/department sesuai screenshot
     let userQuery = `
-        SELECT id, employee_id, name, department, role, jam_masuk, DATE_FORMAT(created_at, '%Y-%m-%d') as created_at 
-        FROM users 
+        SELECT u.id, u.employee_id, u.name, 
+               COALESCE(d.name, u.department, 'Staff') as department, 
+               u.role, u.jam_masuk, DATE_FORMAT(u.created_at, '%Y-%m-%d') as created_at 
+        FROM users u
+        LEFT JOIN master_departments d ON u.id_department = d.id
     `;
     const userParams = [];
     
     if (userId) {
-        userQuery += ` WHERE id = ? `;
+        userQuery += ` WHERE u.id = ? `;
         userParams.push(userId);
     }
     
     userQuery += `
         ORDER BY 
-          CASE 
-            WHEN department LIKE '%ADMIN%' THEN 1
-            WHEN department LIKE '%MANAGER%' THEN 2
-            WHEN role = 'ADMIN' THEN 1
-            ELSE 0
-          END ASC, 
-          name ASC
+          COALESCE(d.name, u.department, 'Staff') ASC, 
+          u.name ASC
     `;
     const [users] = await pool.query(userQuery, userParams);
 
@@ -131,13 +129,14 @@ async function ambilData(periode_array, userId = null) {
     });
 
     const results = users.map(user => {
+        const deptUpper = (user.department || 'STAFF').trim().toUpperCase();
         const userData = {
             id: user.id,
             employee_id: user.employee_id,
             name: user.name,
+            department: user.department || 'Staff',
+            group: deptUpper,
             created_at: user.created_at,
-            group: user.department?.toUpperCase().includes('ADMIN') ? 'ADMIN' : 
-                   user.department?.toUpperCase().includes('MANAGER') ? 'MANAGER' : 'STAFF',
             periods: {}
         };
 
@@ -273,12 +272,15 @@ async function ambilData(periode_array, userId = null) {
         });
     });
 
-    // Grouping
-    const grouped = {
-        STAFF: results.filter(r => r.group === 'STAFF'),
-        ADMIN: results.filter(r => r.group === 'ADMIN'),
-        MANAGER: results.filter(r => r.group === 'MANAGER')
-    };
+    // Grouping secara dinamis berdasarkan bagian (department)
+    const grouped = {};
+    results.forEach(r => {
+        const grp = r.group || 'STAFF';
+        if (!grouped[grp]) {
+            grouped[grp] = [];
+        }
+        grouped[grp].push(r);
+    });
 
     return grouped;
 }
@@ -418,7 +420,7 @@ function buildBody(worksheet, data, periode_array) {
     };
 
     const addSeparator = (title) => {
-        const row = worksheet.addRow(['', title]); // Kosong di NO, text di Nama
+        const row = worksheet.addRow(['', title]); // Kolom NO kosong, title di Kolom Nama
         
         // Blank cells for the rest
         for(let i = 3; i <= 26; i++) {
@@ -426,11 +428,15 @@ function buildBody(worksheet, data, periode_array) {
         }
 
         row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
-            cell.fill = {
-                type: 'pattern',
-                pattern: 'solid',
-                fgColor: { argb: 'FFDCE6F1' }
-            };
+            // Hanya kolom Nama (kolom B / colNumber 2) yang diberi warna latar belakang
+            if (colNumber === 2) {
+                cell.fill = {
+                    type: 'pattern',
+                    pattern: 'solid',
+                    fgColor: { argb: 'FFDCE6F1' } // Latar belakang biru muda hanya untuk nama bagian
+                };
+                cell.alignment = { horizontal: 'center', vertical: 'middle' }; // Judul bagian di tengah kolom Nama
+            }
             cell.font = { name: 'Calibri', size: 11, bold: true };
             cell.border = {
                 top: { style: 'thin' },
@@ -438,29 +444,18 @@ function buildBody(worksheet, data, periode_array) {
                 bottom: { style: 'thin' },
                 right: { style: 'thin' }
             };
-            
-            if (colNumber === 2) {
-                cell.alignment = { horizontal: 'center', vertical: 'middle' }; // Align center for Title in Nama col
-            }
         });
     };
 
-    // STAFF / UNCATEGORIZED
-    if (data.STAFF && data.STAFF.length > 0) {
-        data.STAFF.forEach(addRowData);
-    }
-    
-    // ADMIN
-    if (data.ADMIN && data.ADMIN.length > 0) {
-        addSeparator('ADMIN');
-        data.ADMIN.forEach(addRowData);
-    }
-    
-    // MANAGER
-    if (data.MANAGER && data.MANAGER.length > 0) {
-        addSeparator('MANAGER');
-        data.MANAGER.forEach(addRowData);
-    }
+    // Render per Bagian / Department secara terstruktur dengan header bagian di atasnya
+    const groupKeys = Object.keys(data);
+    groupKeys.forEach(grpKey => {
+        const empList = data[grpKey];
+        if (empList && empList.length > 0) {
+            addSeparator(grpKey);
+            empList.forEach(addRowData);
+        }
+    });
 }
 
 export async function generateDailyReportExcel(tanggalLaporan, userId = null) {

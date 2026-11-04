@@ -564,7 +564,7 @@ const KaryawanHRD: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">ID Karyawan (No. Induk)</label>
-                    <input type="text" disabled placeholder="Dibuat otomatis oleh sistem" className="w-full border border-gray-200 bg-gray-50 rounded-md p-2 text-gray-500 font-mono cursor-not-allowed" value={formData.employee_id || ''} readOnly />
+                    <input type="text" placeholder="Masukkan ID / No. Induk" className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800 font-mono" value={formData.employee_id || ''} onChange={(e) => setFormData({...formData, employee_id: e.target.value})} />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Pekerjaan / Bagian</label>
