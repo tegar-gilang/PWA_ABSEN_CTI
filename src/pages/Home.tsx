@@ -231,7 +231,7 @@ export default function Home() {
             <h3 className="text-xl font-bold mb-1">
               {(user?.jamMasuk && user?.jamKeluar) 
                 ? `${user.jamMasuk} - ${user.jamKeluar}` 
-                : user?.schedule || "08:00 - 17:00"}
+                : (user?.schedule ? user.schedule.replace(/^[^,]+,\s*/, "") : "08:00 - 17:00")}
             </h3>
             <div className="text-sm text-blue-100 opacity-80 mt-2 space-y-1">
               <p className="flex items-center gap-1.5">

@@ -12,7 +12,8 @@
     "test": "vitest run",
     "server": "node server/index.js",
     "server:dev": "node --watch server/index.js",
-    "db:setup": "mysql -u root -p < server/schema.sql"
+    "db:setup": "mysql -u root -p < server/schema.sql",
+    "test:system": "node test_system.js"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

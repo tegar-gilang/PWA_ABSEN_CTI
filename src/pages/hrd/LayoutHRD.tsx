@@ -22,6 +22,7 @@ import {
   UserCheck
 } from 'lucide-react';
 import HRDNotificationModal from '../../components/HRDNotificationModal';
+import LogoutConfirmModal from '../../components/LogoutConfirmModal';
 
 const LayoutHRD: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -30,6 +31,8 @@ const LayoutHRD: React.FC = () => {
   const user = useAppStore(state => state.user);
   const navigate = useNavigate();
   const [isNotifModalOpen, setIsNotifModalOpen] = useState(false);
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const isKaryawanRoute = location.pathname.startsWith('/hrd/karyawan') || location.pathname.startsWith('/hrd/data-absensi');
   const [isKaryawanOpen, setIsKaryawanOpen] = useState(isKaryawanRoute);
@@ -47,12 +50,17 @@ const LayoutHRD: React.FC = () => {
     }
   }, [location.pathname]);
 
-  const handleLogout = async () => {
-    if (window.confirm('Apakah Anda yakin ingin keluar?')) {
+  const handleConfirmLogout = async () => {
+    setIsLoggingOut(true);
+    try {
       await logout();
-      navigate('/login');
+      navigate('/login', { replace: true });
+    } catch (err) {
+      console.error('Logout error:', err);
+    } finally {
+      setIsLoggingOut(false);
     }
-  }
+  };
 
   // Fungsi kecil untuk mengecek apakah menu sedang aktif
   const isActive = (path: string) => location.pathname === path;
@@ -236,7 +244,7 @@ const LayoutHRD: React.FC = () => {
         <div className="p-4 border-t border-gray-200">
           <button 
             className="flex items-center px-4 py-2 text-gray-600 hover:text-red-600 transition-colors w-full"
-            onClick={handleLogout}
+            onClick={() => setIsLogoutModalOpen(true)}
           >
             <LogOut className="w-5 h-5 mr-3" /> Logout
           </button>
@@ -285,6 +293,15 @@ const LayoutHRD: React.FC = () => {
       <HRDNotificationModal 
         isOpen={isNotifModalOpen} 
         onClose={() => setIsNotifModalOpen(false)} 
+      />
+
+      {/* Dialog Konfirmasi Keluar HRD */}
+      <LogoutConfirmModal 
+        isOpen={isLogoutModalOpen}
+        onClose={() => setIsLogoutModalOpen(false)}
+        onConfirm={handleConfirmLogout}
+        isLoading={isLoggingOut}
+        role="ADMIN"
       />
     </div>
   );

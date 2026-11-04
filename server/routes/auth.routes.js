@@ -11,7 +11,7 @@ const router = Router();
 function toUserDTO(row) {
   return {
     id: row.id,
-    employeeId: row.employee_id || row.nik,
+    employeeId: row.employee_id || null,
     nik: row.nik,
     name: row.name,
     department: row.department || (row.department_name ? row.department_name : null),
@@ -128,33 +128,22 @@ router.post("/register", async (req, res) => {
     const { name, nik, employee_id, password, phone } = req.body;
     let { email, id_department, id_position } = req.body;
 
-    // 2. Jika user tidak mengisi ID/NIK sama sekali, kita auto-generate CTI-XXX
-    let finalEmployeeId = employee_id || nik;
-    let finalNik = nik || employee_id;
-
-    if (!finalEmployeeId) {
-        const [rows] = await pool.query("SELECT employee_id FROM users WHERE employee_id LIKE 'CTI-%'");
-        let maxId = 0;
-        rows.forEach(row => {
-            const numStr = row.employee_id.replace('CTI-', '');
-            const num = parseInt(numStr, 10);
-            if (!isNaN(num) && num > maxId) {
-                maxId = num;
-            }
-        });
-        finalEmployeeId = `CTI-${String(maxId + 1).padStart(3, '0')}`;
-        finalNik = finalNik || finalEmployeeId;
-    }
+    // ID Karyawan dikosongkan (null) saat register karyawan baru
+    const finalEmployeeId = null;
+    const finalNik = (nik && String(nik).trim()) ? String(nik).trim() : null;
 
     if (!name || !password || !email) {
       return res.status(400).json({ message: "Nama, Email, dan Password wajib diisi." });
     }
 
     // Cek apakah email atau NIK sudah ada
-    const [existingUser] = await pool.query(
-      "SELECT id FROM users WHERE email = ? OR employee_id = ? OR nik = ?",
-      [email, finalEmployeeId, finalNik]
-    );
+    let checkQuery = "SELECT id FROM users WHERE email = ?";
+    let checkParams = [email];
+    if (finalNik) {
+      checkQuery += " OR nik = ?";
+      checkParams.push(finalNik);
+    }
+    const [existingUser] = await pool.query(checkQuery, checkParams);
     if (existingUser.length > 0) {
       return res.status(409).json({ message: "Email atau NIK sudah terdaftar." });
     }
@@ -220,7 +209,7 @@ router.post("/register", async (req, res) => {
     res.status(201).json({
       message: "Akun berhasil dibuat.",
       token,
-      user: rows[0]
+      user: toUserDTO(rows[0])
     });
   } catch (err) {
     console.error("Error Register:", err); // <-- INI YANG AKAN MUNCUL DI TERMINAL

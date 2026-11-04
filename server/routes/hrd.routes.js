@@ -919,20 +919,7 @@ router.post("/employees", async (req, res) => {
             }
         };
         
-        let finalEmployeeId = employee_id;
-        if (!finalEmployeeId) {
-            const prefix = getDeptAbbreviation(deptNameForAbbr);
-            const [rows] = await pool.query(`SELECT employee_id FROM users WHERE employee_id LIKE '${prefix}-%'`);
-            let maxId = 0;
-            rows.forEach(row => {
-                const numStr = row.employee_id.replace(`${prefix}-`, '');
-                const num = parseInt(numStr, 10);
-                if (!isNaN(num) && num > maxId) {
-                    maxId = num;
-                }
-            });
-            finalEmployeeId = `${prefix}-${String(maxId + 1).padStart(3, '0')}`;
-        }
+        let finalEmployeeId = (employee_id && employee_id.trim()) ? employee_id.trim() : null;
 
         // 2. TAMBAHKAN KOLOM BARU DI QUERY INSERT
         await pool.query(
