@@ -5,13 +5,38 @@ import { randomUUID } from "crypto";
 export async function runDailyAbsentCheck() {
   try {
     const today = new Date();
+    const dayOfWeek = today.getDay(); // 0 = Minggu, 1 = Senin, ..., 6 = Sabtu
+
+    // Cek konfigurasi hari kerja dari database app_settings
+    let workDaysSetting = '1-5'; // default Senin - Jumat
+    try {
+      const [rows] = await pool.query("SELECT setting_value FROM app_settings WHERE setting_key = 'work_days'");
+      if (rows.length > 0 && rows[0].setting_value) {
+        workDaysSetting = rows[0].setting_value;
+      }
+    } catch (e) {
+      console.warn("[CRON] Gagal membaca work_days dari app_settings, memakai default 1-5:", e.message);
+    }
+
+    // Hari Minggu (0) selalu libur
+    if (dayOfWeek === 0) {
+      console.log("[CRON] Hari ini Minggu (Libur). Pengecekan Alfa dilewati.");
+      return;
+    }
+
+    // Jika setting '1-5' (Senin-Jumat) dan hari ini Sabtu (6), maka libur
+    if (workDaysSetting === '1-5' && dayOfWeek === 6) {
+      console.log("[CRON] Hari ini Sabtu (Libur berdasarkan jadwal kerja Senin-Jumat). Pengecekan Alfa dilewati.");
+      return;
+    }
+
     // Gunakan format YYYY-MM-DD sesuai dengan local date MySQL
     const year = today.getFullYear();
     const month = String(today.getMonth() + 1).padStart(2, '0');
     const day = String(today.getDate()).padStart(2, '0');
     const dateStr = `${year}-${month}-${day}`;
 
-    console.log(`[CRON] Menjalankan pengecekan Alfa untuk tanggal ${dateStr}...`);
+    console.log(`[CRON] Menjalankan pengecekan Alfa untuk tanggal ${dateStr} (Jadwal: ${workDaysSetting === '1-6' ? 'Senin - Sabtu' : 'Senin - Jumat'})...`);
 
     // 1. Ambil semua karyawan aktif
     const [users] = await pool.query("SELECT id FROM users WHERE role = 'EMPLOYEE'");

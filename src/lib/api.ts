@@ -487,6 +487,33 @@ export async function apiHrdDeleteCandidate(id: string): Promise<{ message: stri
   return request(`/hrd/recruitment/candidates/${id}`, { method: "DELETE" });
 }
 
+// ---------------------------------------------------------------------------
+// Kehadiran Manual HRD & Pengaturan Hari Kerja
+// ---------------------------------------------------------------------------
+export async function apiHrdCreateManualAttendance(payload: {
+  user_id: string;
+  date: string;
+  check_in_time?: string | null;
+  check_out_time?: string | null;
+  status?: string;
+  hospital_id?: string;
+  custom_location_name?: string;
+  photo_url?: string | null;
+}): Promise<{ message: string; id: string }> {
+  return request("/hrd/attendance/manual", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+}
 
+export async function apiHrdGetWorkDaysSettings(): Promise<{ workDays: string }> {
+  return request("/hrd/settings/work-days");
+}
 
+export async function apiHrdSaveWorkDaysSettings(workDays: string): Promise<{ message: string; workDays: string }> {
+  return request("/hrd/settings/work-days", {
+    method: "POST",
+    body: JSON.stringify({ workDays })
+  });
+}
 

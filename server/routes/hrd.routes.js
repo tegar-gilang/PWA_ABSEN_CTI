@@ -396,6 +396,101 @@ router.get("/attendance", async (req, res) => {
         res.status(500).json({message: "Failed to Fetch Attendance Records."});
     }
 });
+
+// Route Tambah Kehadiran Manual oleh HRD
+// POST /hrd/attendance/manual
+router.post("/attendance/manual", async (req, res) => {
+    try {
+        const { user_id, date, check_in_time, check_out_time, status, hospital_id, custom_location_name, photo_url } = req.body;
+
+        if (!user_id || !date) {
+            return res.status(400).json({ message: "Karyawan dan Tanggal wajib diisi." });
+        }
+
+        const formattedCheckIn = check_in_time ? `${date} ${check_in_time.length === 5 ? check_in_time + ':00' : check_in_time}` : null;
+        const formattedCheckOut = check_out_time ? `${date} ${check_out_time.length === 5 ? check_out_time + ':00' : check_out_time}` : null;
+        const recordStatus = status || 'ON_TIME';
+
+        // Hitung working_hours jika check_in dan check_out keduanya ada
+        let workingHours = null;
+        if (formattedCheckIn && formattedCheckOut) {
+            const diffMs = new Date(formattedCheckOut).getTime() - new Date(formattedCheckIn).getTime();
+            if (diffMs > 0) {
+                workingHours = Number((diffMs / (1000 * 60 * 60)).toFixed(2));
+            }
+        }
+
+        const [existing] = await pool.query(
+            "SELECT id, check_in_time, check_out_time, check_in_photo_url FROM attendance_records WHERE user_id = ? AND date = ?",
+            [user_id, date]
+        );
+
+        if (existing.length > 0) {
+            const existingRecord = existing[0];
+            const finalCheckIn = formattedCheckIn || existingRecord.check_in_time;
+            const finalCheckOut = formattedCheckOut !== undefined ? formattedCheckOut : existingRecord.check_out_time;
+            const finalPhoto = photo_url || existingRecord.check_in_photo_url;
+
+            await pool.query(
+                `UPDATE attendance_records 
+                 SET check_in_time = ?, 
+                     check_out_time = ?, 
+                     working_hours = ?,
+                     status = ?, 
+                     hospital_id = ?, 
+                     custom_location_name = ?,
+                     check_in_photo_url = COALESCE(?, check_in_photo_url),
+                     updated_at = NOW()
+                 WHERE id = ?`,
+                [finalCheckIn, finalCheckOut, workingHours, recordStatus, hospital_id || null, custom_location_name || 'Input Manual HRD', finalPhoto, existingRecord.id]
+            );
+            return res.status(200).json({ message: "Kehadiran manual berhasil diperbarui.", id: existingRecord.id });
+        } else {
+            const recordId = randomUUID();
+            await pool.query(
+                `INSERT INTO attendance_records 
+                 (id, user_id, date, check_in_time, check_out_time, working_hours, status, hospital_id, custom_location_name, check_in_photo_url, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+                [recordId, user_id, date, formattedCheckIn, formattedCheckOut, workingHours, recordStatus, hospital_id || null, custom_location_name || 'Input Manual HRD', photo_url || null]
+            );
+            return res.status(201).json({ message: "Kehadiran manual berhasil ditambahkan.", id: recordId });
+        }
+    } catch (err) {
+        console.error("Error Tambah Kehadiran Manual:", err);
+        res.status(500).json({ message: "Gagal menyimpan data kehadiran manual: " + err.message });
+    }
+});
+
+// Route Pengaturan Hari Kerja (Cron & Sistem)
+// GET /hrd/settings/work-days
+router.get("/settings/work-days", async (req, res) => {
+    try {
+        const [rows] = await pool.query("SELECT setting_value FROM app_settings WHERE setting_key = 'work_days'");
+        const workDays = rows.length > 0 ? rows[0].setting_value : '1-5';
+        res.status(200).json({ workDays });
+    } catch (err) {
+        console.error("Error GET work-days:", err);
+        res.status(500).json({ message: "Gagal memuat pengaturan hari kerja." });
+    }
+});
+
+// POST /hrd/settings/work-days
+router.post("/settings/work-days", async (req, res) => {
+    try {
+        const { workDays } = req.body;
+        if (!workDays || !['1-5', '1-6'].includes(workDays)) {
+            return res.status(400).json({ message: "Pilihan hari kerja tidak valid. Gunakan '1-5' (Senin-Jumat) atau '1-6' (Senin-Sabtu)." });
+        }
+        await pool.query(
+            "INSERT INTO app_settings (setting_key, setting_value) VALUES ('work_days', ?) ON DUPLICATE KEY UPDATE setting_value = ?",
+            [workDays, workDays]
+        );
+        res.status(200).json({ message: `Jadwal hari kerja berhasil disimpan (${workDays === '1-6' ? 'Senin - Sabtu' : 'Senin - Jumat'}).`, workDays });
+    } catch (err) {
+        console.error("Error POST work-days:", err);
+        res.status(500).json({ message: "Gagal menyimpan pengaturan hari kerja." });
+    }
+});
 // ============================================================================================================================================================>
 
 

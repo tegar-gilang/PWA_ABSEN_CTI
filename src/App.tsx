@@ -18,6 +18,7 @@ import Profile from './pages/Profile';
 import Notifications from './pages/Notifications';
 import { useAppStore, processSyncQueue } from './store';
 import LayoutHRD from './pages/hrd/LayoutHRD';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import KehadiranHRD from './pages/hrd/KehadiranHRD';
 import KaryawanHRD from './pages/hrd/KaryawanHRD';
 import DataAbsensiHRD from './pages/hrd/DataAbsensiHRD';
@@ -97,7 +98,8 @@ export default function App() {
   }, []);
 
   return (
-    <BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
       <Routes>
         {/* Rute Publik: Rute yang dapat diakses tanpa harus login terlebih dahulu */}
         <Route path="/" element={<Splash />} />
@@ -134,6 +136,7 @@ export default function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
+    </ErrorBoundary>
   );
 }
 

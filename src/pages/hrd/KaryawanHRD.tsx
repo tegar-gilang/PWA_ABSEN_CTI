@@ -14,8 +14,22 @@ import {
   EyeOff
 } from 'lucide-react';
 import { exportToExcel, exportToPDF } from '@/src/utils/exportUtils';
+import { ClockTimePickerModal } from '@/src/components/ClockTimePicker';
 
 // Daftar 15 Bagian resmi perusahaan CTI
+
+// Helper format tanggal aman agar tidak throw error
+const formatDateSafe = (dateVal: any): string => {
+  if (!dateVal) return '-';
+  try {
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return '-';
+    return d.toLocaleDateString('id-ID', { year: 'numeric', month: '2-digit', day: '2-digit' });
+  } catch {
+    return '-';
+  }
+};
+
 const BAGIAN_LIST = [
   'Teknisi',
   'Helper',
@@ -75,6 +89,7 @@ const KaryawanHRD: React.FC = () => {
   
   const [isSaving, setIsSaving] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [timePickerTarget, setTimePickerTarget] = useState<'start' | 'end' | null>(null);
 
   const fetchData = async () => {
     setLoading(true);
@@ -104,13 +119,24 @@ const KaryawanHRD: React.FC = () => {
 
   const filteredEmployees = useMemo(() => {
     return employees.filter((emp) => {
-      const matchSearch = emp.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        emp.nik?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        emp.email?.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchDept = selectedDept === 'Semua Bagian' || selectedDept === 'Semua Divisi' ||
-        emp.department?.toLowerCase() === selectedDept.toLowerCase() ||
-        emp.department_name?.toLowerCase() === selectedDept.toLowerCase();
-      return matchSearch && matchDept;
+      const name = String(emp?.name || '').toLowerCase();
+      const nik = String(emp?.nik || '').toLowerCase();
+      const email = String(emp?.email || '').toLowerCase();
+      const q = searchQuery.toLowerCase().trim();
+
+      const matchSearch = !q || name.includes(q) || nik.includes(q) || email.includes(q);
+
+      const dept1 = typeof emp?.department === 'string' ? emp.department.toLowerCase().trim() : '';
+      const dept2 = typeof emp?.department_name === 'string' ? emp.department_name.toLowerCase().trim() : '';
+      const targetDept = selectedDept.toLowerCase().trim();
+
+      const matchDept =
+        selectedDept === 'Semua Bagian' ||
+        selectedDept === 'Semua Divisi' ||
+        dept1 === targetDept ||
+        dept2 === targetDept;
+
+      return Boolean(matchSearch && matchDept);
     });
   }, [employees, searchQuery, selectedDept]);
 
@@ -232,33 +258,40 @@ const KaryawanHRD: React.FC = () => {
       filename: 'Data_Karyawan_Excel_Format',
       columns: [
         { header: 'NO.', dataKey: 'no' },
-        { header: 'NAMA', dataKey: 'name' },
+        { header: 'NAMA KARYAWAN', dataKey: 'name' },
         { header: 'NIK', dataKey: 'nik' },
-        { header: 'NO INDUK KARYAWAN', dataKey: 'employee_id' },
         { header: 'TEMPAT, TANGGAL LAHIR', dataKey: 'tempat_tanggal_lahir' },
         { header: 'STATUS PERNIKAHAN', dataKey: 'status_pernikahan' },
-        { header: 'NOMOR TELEPON', dataKey: 'phone' },
-        { header: 'ALAMAT', dataKey: 'address' },
-        { header: 'PEKERJAAN', dataKey: 'department_name' },
+        { header: 'NO. TELEPON', dataKey: 'phone' },
+        { header: 'ALAMAT LENGKAP', dataKey: 'address' },
+        { header: 'ID KARYAWAN (NO. INDUK)', dataKey: 'employee_id' },
+        { header: 'PEKERJAAN / BAGIAN', dataKey: 'department_name' },
         { header: 'STATUS KARYAWAN', dataKey: 'status_karyawan' },
         { header: 'WILAYAH KERJA', dataKey: 'wilayah_kerja' },
-        { header: 'WILAYAH RS', dataKey: 'hospital_name' },
+        { header: 'PENEMPATAN (RS)', dataKey: 'hospital_name' },
         { header: 'TANGGAL MASUK', dataKey: 'tanggal_masuk' },
         { header: 'MASA KERJA', dataKey: 'masa_kerja' },
+        { header: 'WAKTU SHIFT', dataKey: 'schedule' },
         { header: 'EMAIL', dataKey: 'email' },
       ],
       data: filteredEmployees.map((emp, index) => ({
           ...emp,
           no: index + 1,
-          employee_id: emp.employee_id || emp.employeeId || '-',
-          department_name: emp.department || emp.department_name || '-',
-          hospital_name: emp.hospital_name || '-',
+          name: emp.name || '-',
+          nik: emp.nik || '-',
           tempat_tanggal_lahir: emp.tempat_tanggal_lahir || '-',
           status_pernikahan: emp.status_pernikahan || '-',
+          phone: emp.phone || '-',
+          address: emp.address || '-',
+          employee_id: emp.employee_id || emp.employeeId || '-',
+          department_name: emp.department || emp.department_name || '-',
           status_karyawan: emp.status_karyawan || '-',
           wilayah_kerja: emp.wilayah_kerja || '-',
-          tanggal_masuk: emp.tanggal_masuk ? new Date(emp.tanggal_masuk).toLocaleDateString('id-ID') : '-',
-          masa_kerja: emp.masa_kerja || '-'
+          hospital_name: emp.hospital_name || '-',
+          tanggal_masuk: formatDateSafe(emp.tanggal_masuk),
+          masa_kerja: emp.masa_kerja || '-',
+          schedule: emp.schedule || (emp.jam_masuk && emp.jam_keluar ? `${emp.jam_masuk.slice(0, 5)} - ${emp.jam_keluar.slice(0, 5)}` : '08:00 - 17:00'),
+          email: emp.email || '-'
       }))
     });
   };
@@ -268,18 +301,41 @@ const KaryawanHRD: React.FC = () => {
       title: 'Data Karyawan',
       filename: 'Data_Karyawan',
       columns: [
-        { header: 'No Induk', dataKey: 'employee_id' },
+        { header: 'No.', dataKey: 'no' },
         { header: 'Nama Karyawan', dataKey: 'name' },
-        { header: 'Pekerjaan', dataKey: 'department_name' },
+        { header: 'NIK', dataKey: 'nik' },
+        { header: 'Tempat, Tgl Lahir', dataKey: 'tempat_tanggal_lahir' },
+        { header: 'Status Pernikahan', dataKey: 'status_pernikahan' },
+        { header: 'No. Telepon', dataKey: 'phone' },
+        { header: 'Alamat Lengkap', dataKey: 'address' },
+        { header: 'ID (No. Induk)', dataKey: 'employee_id' },
+        { header: 'Pekerjaan / Bagian', dataKey: 'department_name' },
         { header: 'Status Karyawan', dataKey: 'status_karyawan' },
         { header: 'Wilayah Kerja', dataKey: 'wilayah_kerja' },
+        { header: 'Penempatan (RS)', dataKey: 'hospital_name' },
+        { header: 'Tgl Masuk', dataKey: 'tanggal_masuk' },
+        { header: 'Masa Kerja', dataKey: 'masa_kerja' },
+        { header: 'Waktu Shift', dataKey: 'schedule' },
+        { header: 'Email', dataKey: 'email' },
       ],
-      data: filteredEmployees.map(emp => ({
+      data: filteredEmployees.map((emp, index) => ({
           ...emp,
+          no: index + 1,
+          name: emp.name || '-',
+          nik: emp.nik || '-',
+          tempat_tanggal_lahir: emp.tempat_tanggal_lahir || '-',
+          status_pernikahan: emp.status_pernikahan || '-',
+          phone: emp.phone || '-',
+          address: emp.address || '-',
           employee_id: emp.employee_id || emp.employeeId || '-',
           department_name: emp.department || emp.department_name || '-',
           status_karyawan: emp.status_karyawan || '-',
-          wilayah_kerja: emp.wilayah_kerja || '-'
+          wilayah_kerja: emp.wilayah_kerja || '-',
+          hospital_name: emp.hospital_name || '-',
+          tanggal_masuk: formatDateSafe(emp.tanggal_masuk),
+          masa_kerja: emp.masa_kerja || '-',
+          schedule: emp.schedule || (emp.jam_masuk && emp.jam_keluar ? `${emp.jam_masuk.slice(0, 5)} - ${emp.jam_keluar.slice(0, 5)}` : '08:00 - 17:00'),
+          email: emp.email || '-'
       }))
     });
   };
@@ -390,8 +446,8 @@ const KaryawanHRD: React.FC = () => {
                 </tr>
               ) : paginatedEmployees.length > 0 ? (
                 paginatedEmployees.map((emp, index) => {
-                  const initials = emp.name
-                    ? emp.name.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase()
+                  const initials = (emp?.name && typeof emp.name === 'string')
+                    ? emp.name.trim().split(/\s+/).map((n: string) => n[0]).filter(Boolean).join('').substring(0, 2).toUpperCase() || 'US'
                     : 'US';
 
                   const avatarColors = [
@@ -434,7 +490,7 @@ const KaryawanHRD: React.FC = () => {
                       <td className="px-6 py-4 text-gray-600">{emp.wilayah_kerja || '-'}</td>
                       <td className="px-6 py-4 text-gray-600 truncate max-w-[200px]">{emp.hospital_name || '-'}</td>
                       <td className="px-6 py-4 text-gray-600">
-                         {emp.tanggal_masuk ? new Date(emp.tanggal_masuk).toLocaleDateString('id-ID') : '-'}
+                         {formatDateSafe(emp.tanggal_masuk)}
                       </td>
                       <td className="px-6 py-4 text-gray-600 font-medium">{emp.masa_kerja || '-'}</td>
                       
@@ -507,6 +563,25 @@ const KaryawanHRD: React.FC = () => {
 
       </div>
 
+      {/* Clock Time Picker Modal */}
+      <ClockTimePickerModal
+        isOpen={timePickerTarget !== null}
+        title={timePickerTarget === 'start' ? 'Pilih Jam Masuk' : 'Pilih Jam Pulang'}
+        initialTime={
+          timePickerTarget === 'start'
+            ? (formData.schedule || '08:00 - 17:00').split('-')[0]?.trim() || '08:00'
+            : (formData.schedule || '08:00 - 17:00').split('-')[1]?.trim() || '17:00'
+        }
+        onClose={() => setTimePickerTarget(null)}
+        onSave={(timeStr) => {
+          const currentParts = (formData.schedule || '08:00 - 17:00').split('-').map(s => s.trim());
+          const start = timePickerTarget === 'start' ? timeStr : (currentParts[0] || '08:00');
+          const end = timePickerTarget === 'end' ? timeStr : (currentParts[1] || '17:00');
+          setFormData({ ...formData, schedule: `${start} - ${end}` });
+          setTimePickerTarget(null);
+        }}
+      />
+
       {/* Modal Lihat/Edit/Tambah */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
@@ -541,8 +616,8 @@ const KaryawanHRD: React.FC = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-1">Status Pernikahan</label>
                     <select className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800" value={formData.status_pernikahan} onChange={(e) => setFormData({...formData, status_pernikahan: e.target.value})}>
                       <option value="">-- Pilih --</option>
-                      <option value="Belum Kawin">Belum Kawin</option>
-                      <option value="Kawin">Kawin</option>
+                      <option value="Belum Kawin">Belum Menikah</option>
+                      <option value="Kawin">Menikah</option>
                       <option value="Cerai Hidup">Cerai Hidup</option>
                       <option value="Cerai Mati">Cerai Mati</option>
                     </select>
@@ -578,7 +653,7 @@ const KaryawanHRD: React.FC = () => {
                       <option value="Tetap">Tetap</option>
                       <option value="Kontrak">Kontrak</option>
                       <option value="Freelance">Freelance</option>
-                      <option value="Magang">Magang</option>
+                      <option value="Training">Training</option>
                     </select>
                   </div>
                   <div>
@@ -599,8 +674,30 @@ const KaryawanHRD: React.FC = () => {
                     <input type="text" placeholder="Cth: 2 Tahun 3 Bulan" className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800" value={formData.masa_kerja} onChange={(e) => setFormData({...formData, masa_kerja: e.target.value})} />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Waktu Shift</label>
-                    <input type="text" placeholder="Contoh: 08:00 - 17:00" className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800" value={formData.schedule} onChange={(e) => setFormData({...formData, schedule: e.target.value})} />
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Waktu Shift (Jam Masuk - Pulang)</label>
+                    <div className="flex items-center gap-2">
+                      <div className="relative flex-1">
+                        <button
+                          type="button"
+                          onClick={() => setTimePickerTarget('start')}
+                          className="w-full text-left border border-gray-300 rounded-md p-2 text-sm text-gray-800 bg-white hover:bg-gray-50 flex items-center justify-between shadow-sm"
+                        >
+                          <span>{(formData.schedule || '08:00 - 17:00').split('-')[0]?.trim() || '08:00'}</span>
+                          <span className="text-xs text-blue-600 font-semibold uppercase">Pilih</span>
+                        </button>
+                      </div>
+                      <span className="text-gray-400 font-bold">-</span>
+                      <div className="relative flex-1">
+                        <button
+                          type="button"
+                          onClick={() => setTimePickerTarget('end')}
+                          className="w-full text-left border border-gray-300 rounded-md p-2 text-sm text-gray-800 bg-white hover:bg-gray-50 flex items-center justify-between shadow-sm"
+                        >
+                          <span>{(formData.schedule || '08:00 - 17:00').split('-')[1]?.trim() || '17:00'}</span>
+                          <span className="text-xs text-blue-600 font-semibold uppercase">Pilih</span>
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
