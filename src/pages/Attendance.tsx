@@ -435,7 +435,7 @@ export default function Attendance() {
           </div>
           <h2 className="text-4xl font-bold mb-3 tracking-tight">Sukses!</h2>
           <p className="text-blue-200 text-lg mb-10 font-medium">
-            Anda telah berhasil absen {isCheckedIn ? 'pulang' : 'masuk'}.
+            {/* Anda telah berhasil absen {isCheckedIn ? 'pulang' : 'masuk'}. */}
           </p>
           <button 
             onClick={() => navigate('/home')}
