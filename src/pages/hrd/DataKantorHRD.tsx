@@ -23,6 +23,16 @@ interface Office {
 }
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
+const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN?.trim();
+const mapboxStyleId = import.meta.env.VITE_MAPBOX_STYLE_ID?.trim() || 'streets-v12';
+
+const tileUrl = mapboxToken
+  ? `https://api.mapbox.com/styles/v1/mapbox/${mapboxStyleId}/tiles/256/{z}/{x}/{y}@2x?access_token=${mapboxToken}`
+  : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+
+const attribution = mapboxToken
+  ? '&copy; <a href="https://www.mapbox.com/about/maps/">Mapbox</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+  : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 
 // Komponen untuk menangkap event klik pada map saat form Add/Edit
 function LocationMarker({ position, setPosition }: { position: L.LatLng | null, setPosition: (pos: L.LatLng) => void }) {
@@ -177,18 +187,141 @@ const DataKantorHRD: React.FC = () => {
     if (!mapSearchQuery.trim()) return;
     setIsSearchingMap(true);
     try {
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(mapSearchQuery)}`);
-      const data = await res.json();
-      if (data && data.length > 0) {
-        const result = data[0];
-        const newPos = new L.LatLng(parseFloat(result.lat), parseFloat(result.lon));
+      const q = mapSearchQuery.trim();
+
+      // =========================================================================
+      // FITUR: Deteksi Otomatis Jika Input Merupakan Koordinat (Lat, Lng)
+      // Contoh format: "-7.418464929097952, 109.21289445325951" atau "-7.418464 109.212894"
+      // =========================================================================
+      const coordMatch = q.replace(/[°NSEW]/gi, '').match(/^(-?\d{1,2}(?:\.\d+)?)[,\s]+(-?\d{1,3}(?:\.\d+)?)$/);
+      if (coordMatch) {
+        const lat = parseFloat(coordMatch[1]);
+        const lng = parseFloat(coordMatch[2]);
+        if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+          const newPos = new L.LatLng(lat, lng);
+          setFormPosition(newPos);
+
+          let placeName = '';
+          let placeAddress = '';
+
+          // Coba Photon Reverse
+          try {
+            const revRes = await fetch(`https://photon.komoot.io/reverse?lon=${lng}&lat=${lat}`);
+            if (revRes.ok) {
+              const revData = await revRes.json();
+              if (revData && revData.features && revData.features.length > 0) {
+                const props = revData.features[0].properties;
+                placeName = props.name || '';
+                placeAddress = [props.name, props.street, props.city, props.state, props.country].filter(Boolean).join(', ');
+              }
+            }
+          } catch (e) {
+            console.warn('Photon reverse error:', e);
+          }
+
+          // Fallback Mapbox Reverse
+          if (!placeAddress && mapboxToken) {
+            try {
+              const revRes = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${mapboxToken}&language=id`);
+              if (revRes.ok) {
+                const revData = await revRes.json();
+                if (revData && revData.features && revData.features.length > 0) {
+                  placeName = placeName || revData.features[0].text || revData.features[0].place_name.split(',')[0];
+                  placeAddress = revData.features[0].place_name;
+                }
+              }
+            } catch (e) {
+              console.warn('Mapbox reverse error:', e);
+            }
+          }
+
+          if (!formData.name) setFormData(prev => ({ ...prev, name: placeName || `Kantor (${lat.toFixed(5)}, ${lng.toFixed(5)})` }));
+          if (!formData.address) setFormData(prev => ({ ...prev, address: placeAddress || `Koordinat: ${lat.toFixed(6)}, ${lng.toFixed(6)}` }));
+
+          return;
+        }
+      }
+
+      // =========================================================================
+      // PENCARIAN BERDASARKAN NAMA KANTOR / TEMPAT
+      // =========================================================================
+      const searchTerms: string[] = [q];
+
+      if (/^kantor\b/i.test(q)) {
+        searchTerms.push(q.replace(/^kantor\s+/i, 'PT '));
+      } else if (!/^pt\b/i.test(q)) {
+        searchTerms.push('Kantor ' + q);
+        searchTerms.push('PT ' + q);
+      }
+
+      const uniqueTerms = Array.from(new Set(searchTerms));
+      let foundLocation: { name: string; address: string; lat: number; lng: number } | null = null;
+
+      // 1. Photon Geocoder (OSM data khusus Indonesia)
+      for (const term of uniqueTerms) {
+        try {
+          const res = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(term)}&limit=5`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data && data.features && data.features.length > 0) {
+              const indoFeatures = data.features.filter((f: any) => 
+                f.properties?.country === 'Indonesia' || 
+                f.properties?.countrycode === 'ID' ||
+                f.properties?.state?.toLowerCase().includes('jawa')
+              );
+              const target = indoFeatures[0] || (data.features[0].properties?.countrycode === 'ID' ? data.features[0] : null);
+
+              if (target) {
+                const props = target.properties;
+                const coord = target.geometry.coordinates;
+                const parts = [props.name, props.street, props.city, props.state, props.country].filter(Boolean);
+                foundLocation = {
+                  name: props.name || q,
+                  address: parts.join(', '),
+                  lat: coord[1],
+                  lng: coord[0]
+                };
+                break;
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('Photon search error:', e);
+        }
+      }
+
+      // 2. Fallback: Mapbox Geocoding khusus Indonesia
+      if (!foundLocation && mapboxToken) {
+        for (const term of uniqueTerms) {
+          try {
+            const res = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(term)}.json?access_token=${mapboxToken}&country=id&language=id`);
+            if (res.ok) {
+              const data = await res.json();
+              if (data && data.features && data.features.length > 0) {
+                const top = data.features[0];
+                foundLocation = {
+                  name: top.text || top.place_name.split(',')[0],
+                  address: top.place_name,
+                  lat: top.center[1],
+                  lng: top.center[0]
+                };
+                break;
+              }
+            }
+          } catch (e) {
+            console.warn('Mapbox search error:', e);
+          }
+        }
+      }
+
+      if (foundLocation) {
+        const newPos = new L.LatLng(foundLocation.lat, foundLocation.lng);
         setFormPosition(newPos);
-        
-        // Opsional: Jika nama/alamat masih kosong, bisa diisi otomatis
-        if (!formData.name) setFormData(prev => ({ ...prev, name: result.display_name.split(',')[0] }));
-        if (!formData.address) setFormData(prev => ({ ...prev, address: result.display_name }));
+
+        if (!formData.name) setFormData(prev => ({ ...prev, name: foundLocation!.name }));
+        if (!formData.address) setFormData(prev => ({ ...prev, address: foundLocation!.address }));
       } else {
-        alert('Lokasi tidak ditemukan. Coba gunakan kata kunci yang berbeda.');
+        alert(`Lokasi kantor "${q}" tidak ditemukan di wilayah Indonesia. Anda juga dapat mencari dengan memasukkan titik koordinat (contoh: -7.418464, 109.212894).`);
       }
     } catch (err) {
       console.error(err);
@@ -429,7 +562,7 @@ const DataKantorHRD: React.FC = () => {
                 <div className="flex gap-2 mb-2">
                   <input 
                     type="text"
-                    placeholder="Contoh: Gedung Sudirman..."
+                    placeholder="Cari nama kantor atau koordinat (contoh: -6.200000, 106.816666)..."
                     className="flex-1 border border-gray-300 rounded-md p-2 text-sm focus:ring-blue-500 focus:border-blue-500"
                     value={mapSearchQuery}
                     onChange={(e) => setMapSearchQuery(e.target.value)}
@@ -458,8 +591,10 @@ const DataKantorHRD: React.FC = () => {
                     style={{ height: '100%', width: '100%' }}
                   >
                     <TileLayer
-                      attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                      attribution={attribution}
+                      url={tileUrl}
+                      tileSize={256}
+                      maxZoom={22}
                     />
                     <MapCenterUpdater position={formPosition} />
                     <LocationMarker position={formPosition} setPosition={setFormPosition} />
@@ -515,8 +650,10 @@ const DataKantorHRD: React.FC = () => {
                   style={{ height: '100%', width: '100%' }}
                 >
                   <TileLayer
-                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    attribution={attribution}
+                    url={tileUrl}
+                    tileSize={256}
+                    maxZoom={22}
                   />
                   <Marker position={[selectedOffice.latitude, selectedOffice.longitude]}>
                     <Popup>

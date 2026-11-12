@@ -24,6 +24,16 @@ interface Hospital {
 }
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
+const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN?.trim();
+const mapboxStyleId = import.meta.env.VITE_MAPBOX_STYLE_ID?.trim() || 'streets-v12';
+
+const tileUrl = mapboxToken
+  ? `https://api.mapbox.com/styles/v1/mapbox/${mapboxStyleId}/tiles/256/{z}/{x}/{y}@2x?access_token=${mapboxToken}`
+  : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+
+const attribution = mapboxToken
+  ? '&copy; <a href="https://www.mapbox.com/about/maps/">Mapbox</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+  : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 
 // Komponen untuk menangkap event klik pada map saat form Add/Edit
 function LocationMarker({ position, setPosition }: { position: L.LatLng | null, setPosition: (pos: L.LatLng) => void }) {
@@ -179,18 +189,196 @@ const DataRumahSakitHRD: React.FC = () => {
     if (!mapSearchQuery.trim()) return;
     setIsSearchingMap(true);
     try {
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(mapSearchQuery)}`);
-      const data = await res.json();
-      if (data && data.length > 0) {
-        const result = data[0];
-        const newPos = new L.LatLng(parseFloat(result.lat), parseFloat(result.lon));
-        setFormPosition(newPos);
-        
-        // Opsional: Jika nama/alamat masih kosong, bisa diisi otomatis
-        if (!formData.name) setFormData(prev => ({ ...prev, name: result.display_name.split(',')[0] }));
-        if (!formData.address) setFormData(prev => ({ ...prev, address: result.display_name }));
+      const q = mapSearchQuery.trim();
+
+      // =========================================================================
+      // FITUR: Deteksi Otomatis Jika Input Merupakan Koordinat (Lat, Lng)
+      // Contoh format: "-7.418464929097952, 109.21289445325951" atau "-7.418464 109.212894"
+      // =========================================================================
+      const coordMatch = q.replace(/[°NSEW]/gi, '').match(/^(-?\d{1,2}(?:\.\d+)?)[,\s]+(-?\d{1,3}(?:\.\d+)?)$/);
+      if (coordMatch) {
+        const lat = parseFloat(coordMatch[1]);
+        const lng = parseFloat(coordMatch[2]);
+        if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+          const newPos = new L.LatLng(lat, lng);
+          setFormPosition(newPos);
+
+          // Lakukan reverse geocoding untuk mendapatkan alamat / nama tempat di titik koordinat tersebut
+          let placeName = '';
+          let placeAddress = '';
+
+          // Coba Photon Reverse
+          try {
+            const revRes = await fetch(`https://photon.komoot.io/reverse?lon=${lng}&lat=${lat}`);
+            if (revRes.ok) {
+              const revData = await revRes.json();
+              if (revData && revData.features && revData.features.length > 0) {
+                const props = revData.features[0].properties;
+                placeName = props.name || '';
+                placeAddress = [props.name, props.street, props.city, props.state, props.country].filter(Boolean).join(', ');
+              }
+            }
+          } catch (e) {
+            console.warn('Photon reverse error:', e);
+          }
+
+          // Fallback Mapbox Reverse
+          if (!placeAddress && mapboxToken) {
+            try {
+              const revRes = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${mapboxToken}&language=id`);
+              if (revRes.ok) {
+                const revData = await revRes.json();
+                if (revData && revData.features && revData.features.length > 0) {
+                  placeName = placeName || revData.features[0].text || revData.features[0].place_name.split(',')[0];
+                  placeAddress = revData.features[0].place_name;
+                }
+              }
+            } catch (e) {
+              console.warn('Mapbox reverse error:', e);
+            }
+          }
+
+          if (!formData.name) setFormData(prev => ({ ...prev, name: placeName || `Rumah Sakit (${lat.toFixed(5)}, ${lng.toFixed(5)})` }));
+          if (!formData.address) setFormData(prev => ({ ...prev, address: placeAddress || `Koordinat: ${lat.toFixed(6)}, ${lng.toFixed(6)}` }));
+
+          return;
+        }
+      }
+
+      // =========================================================================
+      // PENCARIAN BERDASARKAN NAMA TEMPAT / NAMA RUMAH SAKIT
+      // =========================================================================
+      const searchTerms: string[] = [];
+
+      // Khusus RSUD Ir. Soekarno di Sukoharjo (sebelumnya tercatat sebagai Kompleks RSUD Sukoharjo di OSM)
+      if (/soekarno/i.test(q) && /sukoharjo/i.test(q)) {
+        searchTerms.push('RSUD Sukoharjo');
+        searchTerms.push('Rumah Sakit Sukoharjo');
+      }
+
+      searchTerms.push(q);
+      const stripped = q.replace(/^(rsud|rs|rumah\s+sakit|klinik|puskesmas)\.?\s+/i, '').trim();
+
+      if (stripped && stripped.toLowerCase() !== q.toLowerCase()) {
+        searchTerms.push(`RSUD ${stripped}`);
+        searchTerms.push(`Rumah Sakit ${stripped}`);
+        searchTerms.push(`RS ${stripped}`);
+        searchTerms.push(stripped);
       } else {
-        alert('Lokasi tidak ditemukan. Coba gunakan kata kunci yang berbeda.');
+        searchTerms.push(`RSUD ${q}`);
+        searchTerms.push(`Rumah Sakit ${q}`);
+        searchTerms.push(`RS ${q}`);
+      }
+
+      const uniqueTerms = Array.from(new Set(searchTerms));
+      let foundLocation: { name: string; address: string; lat: number; lng: number } | null = null;
+
+      // Fungsi bantuan cek kota jika user menyebutkan nama kota di query
+      const queryHasCity = (cityName?: string) => {
+        if (!cityName) return false;
+        return q.toLowerCase().includes(cityName.toLowerCase());
+      };
+
+      // 1. Prioritas Utama: Photon API (Data OpenStreetMap tanpa batas CORS)
+      for (const term of uniqueTerms) {
+        try {
+          const res = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(term)}&limit=10`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data && data.features && data.features.length > 0) {
+              const indoFeatures = data.features.filter((f: any) => 
+                f.properties?.country === 'Indonesia' || 
+                f.properties?.countrycode === 'ID' ||
+                f.properties?.state?.toLowerCase().includes('jawa')
+              );
+
+              // TINGKAT 1: Filter ketat faskes medis (hospital, clinic, doctors) yang cocok dengan kota jika disebutkan
+              let target = indoFeatures.find((f: any) => {
+                const val = (f.properties?.osm_value || '').toLowerCase();
+                const name = (f.properties?.name || '').toLowerCase();
+                const isMedical = val === 'hospital' || val === 'clinic' || val === 'doctors';
+                const isExcluded = val === 'marketplace' || val === 'market' || val === 'shop' || val === 'mall' || name.startsWith('pasar');
+                const cityMatch = queryHasCity(f.properties?.city) || queryHasCity(f.properties?.county);
+                return isMedical && !isExcluded && cityMatch;
+              });
+
+              // TINGKAT 2: Filter ketat faskes medis tanpa batasan kota (namun tolak pasar, mall, toko)
+              if (!target) {
+                target = indoFeatures.find((f: any) => {
+                  const val = (f.properties?.osm_value || '').toLowerCase();
+                  const name = (f.properties?.name || '').toLowerCase();
+                  const isMedical = val === 'hospital' || val === 'clinic' || val === 'doctors';
+                  const isExcluded = val === 'marketplace' || val === 'market' || val === 'shop' || val === 'mall' || name.startsWith('pasar');
+                  return isMedical && !isExcluded;
+                });
+              }
+
+              // TINGKAT 3: Nama yang mengandung RSUD / Rumah Sakit / RSU (bukan pasar / halte)
+              if (!target) {
+                target = indoFeatures.find((f: any) => {
+                  const name = (f.properties?.name || '').toLowerCase();
+                  const val = (f.properties?.osm_value || '').toLowerCase();
+                  const isExcluded = val === 'marketplace' || val === 'market' || val === 'shop' || val === 'mall' || name.startsWith('pasar');
+                  const hasHospitalName = name.includes('rsud') || name.includes('rumah sakit') || name.includes('rsu ');
+                  return hasHospitalName && !isExcluded;
+                });
+              }
+
+              if (target) {
+                const props = target.properties;
+                const coord = target.geometry.coordinates; // [lon, lat]
+                const parts = [props.name, props.street, props.city, props.state, props.country].filter(Boolean);
+                foundLocation = {
+                  name: props.name || q,
+                  address: parts.join(', '),
+                  lat: coord[1],
+                  lng: coord[0]
+                };
+                break;
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('Photon search error:', e);
+        }
+      }
+
+      // 2. Fallback: Mapbox Geocoding dengan batasan negara Indonesia (country=id)
+      if (!foundLocation && mapboxToken) {
+        for (const term of uniqueTerms) {
+          try {
+            const res = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(term)}.json?access_token=${mapboxToken}&country=id&language=id`);
+            if (res.ok) {
+              const data = await res.json();
+              if (data && data.features && data.features.length > 0) {
+                const top = data.features.find((f: any) => {
+                  const name = (f.place_name || '').toLowerCase();
+                  return !name.includes('pasar') && (f.relevance || 1) >= 0.6;
+                }) || data.features[0];
+
+                foundLocation = {
+                  name: top.text || top.place_name.split(',')[0],
+                  address: top.place_name,
+                  lat: top.center[1],
+                  lng: top.center[0]
+                };
+                break;
+              }
+            }
+          } catch (e) {
+            console.warn('Mapbox search error:', e);
+          }
+        }
+      }
+
+      if (foundLocation) {
+        const newPos = new L.LatLng(foundLocation.lat, foundLocation.lng);
+        setFormPosition(newPos);
+
+        if (!formData.name) setFormData(prev => ({ ...prev, name: foundLocation!.name }));
+        if (!formData.address) setFormData(prev => ({ ...prev, address: foundLocation!.address }));
+      } else {
+        alert(`Lokasi rumah sakit untuk "${q}" tidak ditemukan di wilayah Indonesia. Anda juga dapat mencari dengan memasukkan titik koordinat (contoh: -7.418464, 109.212894).`);
       }
     } catch (err) {
       console.error(err);
@@ -431,7 +619,7 @@ const DataRumahSakitHRD: React.FC = () => {
                 <div className="flex gap-2 mb-2">
                   <input 
                     type="text"
-                    placeholder="Contoh: Rumah Sakit Banyumas..."
+                    placeholder="Cari nama RS atau koordinat (contoh: -7.418464, 109.212894)..."
                     className="flex-1 border border-gray-300 rounded-md p-2 text-sm focus:ring-blue-500 focus:border-blue-500"
                     value={mapSearchQuery}
                     onChange={(e) => setMapSearchQuery(e.target.value)}
@@ -460,8 +648,10 @@ const DataRumahSakitHRD: React.FC = () => {
                     style={{ height: '100%', width: '100%' }}
                   >
                     <TileLayer
-                      attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                      attribution={attribution}
+                      url={tileUrl}
+                      tileSize={256}
+                      maxZoom={22}
                     />
                     <MapCenterUpdater position={formPosition} />
                     <LocationMarker position={formPosition} setPosition={setFormPosition} />
@@ -517,8 +707,10 @@ const DataRumahSakitHRD: React.FC = () => {
                   style={{ height: '100%', width: '100%' }}
                 >
                   <TileLayer
-                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    attribution={attribution}
+                    url={tileUrl}
+                    tileSize={256}
+                    maxZoom={22}
                   />
                   <Marker position={[selectedHospital.latitude, selectedHospital.longitude]}>
                     <Popup>

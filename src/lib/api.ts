@@ -361,6 +361,8 @@ export async function apiHrdGetAttendanceSummary(params?: {
     hadir: number;
     periode: string;
     periodeSubtext?: string | null;
+    periodKey?: string;
+    isOverridden?: boolean;
     hasData: boolean;
   }>;
 }> {
@@ -371,6 +373,26 @@ export async function apiHrdGetAttendanceSummary(params?: {
   if (params?.search) searchParams.append("search", params.search);
   const qs = searchParams.toString();
   return request(`/hrd/attendance-summary${qs ? `?${qs}` : ""}`);
+}
+
+// ---------------------------------------------------------------------------
+// Update / Override Rekap Absensi Manual HRD
+// ---------------------------------------------------------------------------
+export async function apiHrdUpdateAttendanceSummaryOverride(payload: {
+  user_id: string;
+  period_key: string;
+  izin?: number | null;
+  sakit?: number | null;
+  cuti?: number | null;
+  alpa?: number | null;
+  telat?: number | null;
+  telat_menit?: number | null;
+  notes?: string;
+}): Promise<{ message: string }> {
+  return request('/hrd/attendance-summary/override', {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
 }
 
 // ---------------------------------------------------------------------------

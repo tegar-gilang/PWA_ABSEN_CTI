@@ -1,6 +1,6 @@
 import { exportToExcel, exportToPDF } from '@/src/utils/exportUtils';
 import React, { useEffect, useState, useMemo } from 'react';
-import { apiHrdGetAttendanceSummary, apiHrdGetEmployeeReport, apiHrdExportDailyReport } from '../../lib/api';
+import { apiHrdGetAttendanceSummary, apiHrdGetEmployeeReport, apiHrdExportDailyReport, apiHrdUpdateAttendanceSummaryOverride } from '../../lib/api';
 import {
   Download,
   Search,
@@ -10,7 +10,10 @@ import {
   ChevronRight,
   Loader2,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Edit,
+  X,
+  Save
 } from 'lucide-react';
 
 interface EmployeeSummaryItem {
@@ -30,8 +33,30 @@ interface EmployeeSummaryItem {
   hadir: number;
   periode: string;
   periodeSubtext?: string | null;
+  periodKey?: string;
+  isOverridden?: boolean;
   hasData: boolean;
 }
+
+// Fungsi bantu untuk memformat menit terlambat menjadi "X jam Y menit"
+const formatLateMinutes = (mins: number | null | undefined, hasData: boolean = true): string => {
+  if (mins === null || mins === undefined) {
+    return hasData ? '0 menit' : '-';
+  }
+  const total = Number(mins);
+  if (isNaN(total) || total <= 0) {
+    return hasData ? '0 menit' : '-';
+  }
+  const hours = Math.floor(total / 60);
+  const remainingMins = total % 60;
+  if (hours > 0 && remainingMins > 0) {
+    return `${hours} jam ${remainingMins} menit`;
+  } else if (hours > 0) {
+    return `${hours} jam`;
+  } else {
+    return `${remainingMins} menit`;
+  }
+};
 
 const DataAbsensiHRD: React.FC = () => {
   const todayStr = new Date().toISOString().split('T')[0];
@@ -47,6 +72,63 @@ const DataAbsensiHRD: React.FC = () => {
 
   const [currentPage, setCurrentPage] = useState<number>(1);
   const itemsPerPage = 5;
+
+  // State Modal Edit Rekap Absensi
+  const [editingItem, setEditingItem] = useState<EmployeeSummaryItem | null>(null);
+  const [editFormData, setEditFormData] = useState({
+    izin: 0,
+    sakit: 0,
+    cuti: 0,
+    alpa: 0,
+    telat: 0,
+    telatMenit: 0,
+    notes: ''
+  });
+  const [isSubmittingEdit, setIsSubmittingEdit] = useState<boolean>(false);
+
+  const handleOpenEdit = (item: EmployeeSummaryItem) => {
+    setEditingItem(item);
+    setEditFormData({
+      izin: item.izin ?? 0,
+      sakit: item.sakit ?? 0,
+      cuti: item.cuti ?? 0,
+      alpa: item.alpa ?? 0,
+      telat: item.telat ?? 0,
+      telatMenit: item.telatMenit ?? 0,
+      notes: ''
+    });
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingItem) return;
+
+    setIsSubmittingEdit(true);
+    try {
+      const periodKey = editingItem.periodKey || (startDate && endDate ? `${startDate}_${endDate}` : (startDate ? `from_${startDate}` : 'all'));
+      await apiHrdUpdateAttendanceSummaryOverride({
+        user_id: editingItem.id,
+        period_key: periodKey,
+        izin: Number(editFormData.izin),
+        sakit: Number(editFormData.sakit),
+        cuti: Number(editFormData.cuti),
+        alpa: Number(editFormData.alpa),
+        telat: Number(editFormData.telat),
+        telat_menit: Number(editFormData.telatMenit),
+        notes: editFormData.notes
+      });
+
+      showToast(`Data absensi ${editingItem.name} berhasil diperbarui.`);
+      setEditingItem(null);
+      // Refresh data dari backend
+      fetchSummaryFromBackend(searchQuery, startDate, endDate);
+    } catch (err: any) {
+      console.error("Gagal menyimpan perubahan absensi:", err);
+      alert(err.message || "Gagal menyimpan perubahan rekap absensi.");
+    } finally {
+      setIsSubmittingEdit(false);
+    }
+  };
 
   // Fungsi fetch data absensi karyawan langsung dari backend MySQL
   const fetchSummaryFromBackend = async (querySearch?: string, start?: string, end?: string) => {
@@ -114,6 +196,10 @@ const DataAbsensiHRD: React.FC = () => {
         <div className="flex gap-2 w-full sm:w-auto">
             <button 
             onClick={() => {
+                const exportData = records.map(r => ({
+                    ...r,
+                    telatFormatted: formatLateMinutes(r.telatMenit, r.hasData)
+                }));
                 exportToExcel({
                     title: 'Laporan Rekap Absensi',
                     filename: 'Laporan_Rekap_Absensi',
@@ -125,11 +211,11 @@ const DataAbsensiHRD: React.FC = () => {
                     { header: 'Cuti', dataKey: 'cuti' },
                     { header: 'Alpa', dataKey: 'alpa' },
                     { header: 'Telat (Kali)', dataKey: 'telat' },
-                    { header: 'Telat (Menit)', dataKey: 'telatMenit' },
+                    { header: 'Telat (Durasi)', dataKey: 'telatFormatted' },
                     { header: 'Hadir', dataKey: 'hadir' },
                     { header: 'Periode', dataKey: 'periode' },
                     ],
-                    data: records
+                    data: exportData
                 });
             }}
             className="flex-1 sm:flex-none border border-green-600 bg-green-50 hover:bg-green-100 text-green-700 px-4 py-2 rounded-md text-sm font-semibold transition-colors flex items-center shadow-sm justify-center"
@@ -296,7 +382,7 @@ const DataAbsensiHRD: React.FC = () => {
               </tr>
               <tr className="bg-gray-50/75 text-gray-600 text-xs uppercase tracking-wider border-b border-gray-200">
                 <th className="px-3 py-2 font-semibold text-center border-r border-gray-200">Kali</th>
-                <th className="px-3 py-2 font-semibold text-center">Mnt</th>
+                <th className="px-3 py-2 font-semibold text-center">Durasi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 text-sm text-gray-700">
@@ -366,9 +452,9 @@ const DataAbsensiHRD: React.FC = () => {
                         {rec.telat !== null && rec.telat !== undefined ? rec.telat : (rec.hasData ? 0 : '-')}
                       </td>
 
-                      {/* Telat Mnt */}
-                      <td className="px-3 py-4 text-gray-700 font-medium text-center">
-                        {rec.telatMenit !== null && rec.telatMenit !== undefined ? rec.telatMenit : (rec.hasData ? 0 : '-')}
+                      {/* Telat Durasi (Jam & Menit) */}
+                      <td className="px-3 py-4 text-gray-700 font-medium text-center whitespace-nowrap text-xs">
+                        {formatLateMinutes(rec.telatMenit, rec.hasData)}
                       </td>
 
                       {/* Periode */}
@@ -387,21 +473,30 @@ const DataAbsensiHRD: React.FC = () => {
 
                       {/* Aksi */}
                       <td className="px-6 py-4 text-center">
-                        <button 
-                          onClick={async () => {
-                            try {
-                                const reportDate = endDate || startDate || todayStr;
-                                showToast(`Menyiapkan Laporan ${rec.name}...`);
-                                await apiHrdExportDailyReport(reportDate, rec.id);
-                            } catch (err: any) {
-                                setErrorMessage(err.message || "Gagal mengunduh laporan.");
-                            }
-                          }}
-                          className="p-1.5 text-blue-600 hover:bg-blue-50 border border-transparent hover:border-blue-200 rounded-md transition-colors inline-flex items-center"
-                          title={`Download Excel Harian - ${rec.name}`}
-                        >
-                          <Download className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center justify-center space-x-1.5">
+                          <button 
+                            onClick={() => handleOpenEdit(rec)}
+                            className="p-1.5 text-blue-600 hover:bg-blue-50 border border-blue-200 hover:border-blue-300 rounded-md transition-colors inline-flex items-center"
+                            title={`Edit Rekap Absensi - ${rec.name}`}
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button 
+                            onClick={async () => {
+                              try {
+                                  const reportDate = endDate || startDate || todayStr;
+                                  showToast(`Menyiapkan Laporan ${rec.name}...`);
+                                  await apiHrdExportDailyReport(reportDate, rec.id);
+                              } catch (err: any) {
+                                  setErrorMessage(err.message || "Gagal mengunduh laporan.");
+                              }
+                            }}
+                            className="p-1.5 text-emerald-600 hover:bg-emerald-50 border border-emerald-200 hover:border-emerald-300 rounded-md transition-colors inline-flex items-center"
+                            title={`Download Excel Harian - ${rec.name}`}
+                          >
+                            <Download className="w-4 h-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -459,6 +554,158 @@ const DataAbsensiHRD: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Modal Edit Rekap Absensi */}
+      {editingItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col">
+            <div className="flex justify-between items-center p-5 border-b border-gray-200 bg-gray-50/50">
+              <div>
+                <h3 className="text-base font-bold text-gray-800">Edit Rekap Absensi</h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {editingItem.name} ({editingItem.department}) — Periode: {editingItem.periode}
+                </p>
+              </div>
+              <button 
+                onClick={() => setEditingItem(null)} 
+                className="text-gray-400 hover:text-gray-600 hover:bg-gray-100 p-1.5 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEdit} className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                {/* Izin */}
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Total Izin (Hari)</label>
+                  <input 
+                    type="number" 
+                    min={0}
+                    value={editFormData.izin}
+                    onChange={(e) => setEditFormData({ ...editFormData, izin: Math.max(0, parseInt(e.target.value) || 0) })}
+                    className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                    required
+                  />
+                </div>
+
+                {/* Sakit */}
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Total Sakit (Hari)</label>
+                  <input 
+                    type="number" 
+                    min={0}
+                    value={editFormData.sakit}
+                    onChange={(e) => setEditFormData({ ...editFormData, sakit: Math.max(0, parseInt(e.target.value) || 0) })}
+                    className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                    required
+                  />
+                </div>
+
+                {/* Cuti */}
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Total Cuti (Hari)</label>
+                  <input 
+                    type="number" 
+                    min={0}
+                    value={editFormData.cuti}
+                    onChange={(e) => setEditFormData({ ...editFormData, cuti: Math.max(0, parseInt(e.target.value) || 0) })}
+                    className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                    required
+                  />
+                </div>
+
+                {/* Alpa */}
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Total Alpa (Hari)</label>
+                  <input 
+                    type="number" 
+                    min={0}
+                    value={editFormData.alpa}
+                    onChange={(e) => setEditFormData({ ...editFormData, alpa: Math.max(0, parseInt(e.target.value) || 0) })}
+                    className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                    required
+                  />
+                </div>
+
+                {/* Terlambat Kali */}
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Terlambat (Berapa Kali)</label>
+                  <input 
+                    type="number" 
+                    min={0}
+                    value={editFormData.telat}
+                    onChange={(e) => setEditFormData({ ...editFormData, telat: Math.max(0, parseInt(e.target.value) || 0) })}
+                    className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                    required
+                  />
+                </div>
+
+                {/* Terlambat Menit */}
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="block text-xs font-semibold text-gray-700">Terlambat (Total Menit)</label>
+                    <span className="text-[11px] font-medium text-blue-600">
+                      = {formatLateMinutes(editFormData.telatMenit)}
+                    </span>
+                  </div>
+                  <input 
+                    type="number" 
+                    min={0}
+                    value={editFormData.telatMenit}
+                    onChange={(e) => setEditFormData({ ...editFormData, telatMenit: Math.max(0, parseInt(e.target.value) || 0) })}
+                    className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Contoh: 130"
+                    required
+                  />
+                  <p className="text-[10px] text-gray-400 mt-1">
+                    Ketik menit (misal: 130 menit otomatis tampil sebagai 2 jam 10 menit)
+                  </p>
+                </div>
+              </div>
+
+              {/* Catatan Perubahan */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Catatan Koreksi (Opsional)</label>
+                <textarea 
+                  rows={2}
+                  placeholder="Contoh: Koreksi izin dinas luar kota atau surat dokter susulan..."
+                  value={editFormData.notes}
+                  onChange={(e) => setEditFormData({ ...editFormData, notes: e.target.value })}
+                  className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4 border-t border-gray-200">
+                <button 
+                  type="button" 
+                  onClick={() => setEditingItem(null)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  Batal
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={isSubmittingEdit}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium shadow-sm flex items-center gap-1.5 disabled:opacity-50 transition-colors"
+                >
+                  {isSubmittingEdit ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Menyimpan...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4" />
+                      <span>Simpan Perubahan</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

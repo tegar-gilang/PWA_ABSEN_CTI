@@ -561,6 +561,9 @@ router.get("/attendance-summary", async (req, res) => {
         let reqQuery = `SELECT user_id, type, reason, status, DATE_FORMAT(date, '%Y-%m-%d') as date, DATE_FORMAT(end_date, '%Y-%m-%d') as end_date FROM requests`;
         const [requests] = await pool.query(reqQuery);
 
+        // Ambil data manual override rekap absensi jika ada
+        const [overrides] = await pool.query(`SELECT * FROM attendance_summary_overrides`);
+
         const targetDateStr = date || getLocalDateString();
         const [tYearStr, tMonthStr] = targetDateStr.split('-');
         const yearStartStr = `${tYearStr}-01-01`;
@@ -757,6 +760,27 @@ router.get("/attendance-summary", async (req, res) => {
                 }
             }
 
+            // Tentukan key periode unik untuk pengecekan override
+            let currentPeriodKey = 'all';
+            if (startDate && endDate) {
+                currentPeriodKey = `${startDate}_${endDate}`;
+            } else if (startDate) {
+                currentPeriodKey = `from_${startDate}`;
+            } else if (date) {
+                currentPeriodKey = date;
+            }
+
+            // Cek apakah ada override manual untuk karyawan & periode ini
+            const empOverride = overrides.find(o => o.user_id === emp.id && o.period_key === currentPeriodKey) ||
+                                (currentPeriodKey === 'all' ? overrides.find(o => o.user_id === emp.id && o.period_key === 'all') : null);
+
+            const finalIzin = empOverride && empOverride.izin !== null ? empOverride.izin : activeCounts.izin;
+            const finalSakit = empOverride && empOverride.sakit !== null ? empOverride.sakit : activeCounts.sakit;
+            const finalAlpa = empOverride && empOverride.alpa !== null ? empOverride.alpa : activeCounts.alpa;
+            const finalCuti = empOverride && empOverride.cuti !== null ? empOverride.cuti : activeCounts.cuti;
+            const finalTelat = empOverride && empOverride.telat !== null ? empOverride.telat : activeCounts.telat;
+            const finalTelatMenit = empOverride && empOverride.telat_menit !== null ? empOverride.telat_menit : activeCounts.lateMins;
+
             return {
                 id: emp.id,
                 name: emp.name,
@@ -765,15 +789,17 @@ router.get("/attendance-summary", async (req, res) => {
                 position: emp.position || 'Staff',
                 email: emp.email || '-',
                 phone: emp.phone || '-',
-                izin: activeCounts.izin,
-                sakit: activeCounts.sakit,
-                alpa: activeCounts.alpa,
-                cuti: activeCounts.cuti,
-                telat: activeCounts.telat,
-                telatMenit: activeCounts.lateMins,
+                izin: finalIzin,
+                sakit: finalSakit,
+                alpa: finalAlpa,
+                cuti: finalCuti,
+                telat: finalTelat,
+                telatMenit: finalTelatMenit,
                 hadir: activeCounts.hadir,
                 periode: activePeriode,
                 periodeSubtext: activeSubtext,
+                periodKey: currentPeriodKey,
+                isOverridden: !!empOverride,
                 today: todayCounts,
                 weekly: weekCounts,
                 monthly: monthCounts,
@@ -786,6 +812,54 @@ router.get("/attendance-summary", async (req, res) => {
     } catch (err) {
         console.error("SQL Error pada /hrd/attendance-summary:", err);
         res.status(500).json({ message: "Gagal mengambil ringkasan absensi karyawan." });
+    }
+});
+
+// Route Simpan / Update Edit Manual Rekap Absensi
+// PUT /hrd/attendance-summary/override
+router.put("/attendance-summary/override", async (req, res) => {
+    try {
+        const { user_id, period_key, izin, sakit, cuti, alpa, telat, telat_menit, notes } = req.body;
+
+        if (!user_id || !period_key) {
+            return res.status(400).json({ message: "user_id dan period_key wajib diisi." });
+        }
+
+        const parseVal = (v) => (v === '' || v === null || v === undefined) ? null : parseInt(v, 10);
+
+        const valIzin = parseVal(izin);
+        const valSakit = parseVal(sakit);
+        const valCuti = parseVal(cuti);
+        const valAlpa = parseVal(alpa);
+        const valTelat = parseVal(telat);
+        const valTelatMenit = parseVal(telat_menit);
+
+        const [existing] = await pool.query(
+            "SELECT id FROM attendance_summary_overrides WHERE user_id = ? AND period_key = ?",
+            [user_id, period_key]
+        );
+
+        if (existing.length > 0) {
+            await pool.query(
+                `UPDATE attendance_summary_overrides 
+                 SET izin = ?, sakit = ?, cuti = ?, alpa = ?, telat = ?, telat_menit = ?, notes = ?, updated_at = NOW()
+                 WHERE id = ?`,
+                [valIzin, valSakit, valCuti, valAlpa, valTelat, valTelatMenit, notes || null, existing[0].id]
+            );
+        } else {
+            const overrideId = randomUUID();
+            await pool.query(
+                `INSERT INTO attendance_summary_overrides 
+                 (id, user_id, period_key, izin, sakit, cuti, alpa, telat, telat_menit, notes, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+                [overrideId, user_id, period_key, valIzin, valSakit, valCuti, valAlpa, valTelat, valTelatMenit, notes || null]
+            );
+        }
+
+        res.status(200).json({ message: "Data rekap absensi karyawan berhasil diperbarui." });
+    } catch (err) {
+        console.error("Error update attendance summary override:", err);
+        res.status(500).json({ message: "Gagal memperbarui rekap absensi: " + err.message });
     }
 });
 
