@@ -561,8 +561,14 @@ router.get("/attendance-summary", async (req, res) => {
         let reqQuery = `SELECT user_id, type, reason, status, DATE_FORMAT(date, '%Y-%m-%d') as date, DATE_FORMAT(end_date, '%Y-%m-%d') as end_date FROM requests`;
         const [requests] = await pool.query(reqQuery);
 
-        // Ambil data manual override rekap absensi jika ada
-        const [overrides] = await pool.query(`SELECT * FROM attendance_summary_overrides`);
+        // Ambil data manual override rekap absensi jika ada (aman bila tabel belum dimigrasi di server/VM)
+        let overrides = [];
+        try {
+            const [rows] = await pool.query(`SELECT * FROM attendance_summary_overrides`);
+            overrides = rows;
+        } catch (tableErr) {
+            console.warn("Tabel attendance_summary_overrides belum dibuat di server:", tableErr.message);
+        }
 
         const targetDateStr = date || getLocalDateString();
         const [tYearStr, tMonthStr] = targetDateStr.split('-');
