@@ -73,13 +73,20 @@ export default function Home() {
     };
   }, []);
 
-  // Fetch location name when currentLocation changes to success
+  // Fetch location name when currentLocation changes to success (Mapbox / Nominatim fallback)
   useEffect(() => {
     if (locationStatus === 'success' && currentLocation && !locationName) {
-      fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${currentLocation.lat}&lon=${currentLocation.lng}&zoom=18&addressdetails=1`)
+      const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN?.trim();
+      const geocodeUrl = mapboxToken
+        ? `https://api.mapbox.com/geocoding/v5/mapbox.places/${currentLocation.lng},${currentLocation.lat}.json?access_token=${mapboxToken}&language=id`
+        : `https://nominatim.openstreetmap.org/reverse?format=json&lat=${currentLocation.lat}&lon=${currentLocation.lng}&zoom=18&addressdetails=1`;
+
+      fetch(geocodeUrl)
         .then(res => res.json())
         .then(data => {
-          if (data && data.display_name) {
+          if (mapboxToken && data.features && data.features.length > 0) {
+            setLocationName(data.features[0].place_name || data.features[0].text);
+          } else if (data && data.display_name) {
             // Mengambil 3 bagian pertama dari alamat agar tidak terlalu panjang
             const parts = data.display_name.split(', ');
             setLocationName(parts.slice(0, 3).join(', '));

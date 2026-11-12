@@ -73,13 +73,20 @@ export default function Attendance() {
   const isCheckedIn = !!todaysRecord?.checkInTime && !todaysRecord?.checkOutTime;
   const isCheckedOut = !!todaysRecord?.checkOutTime;
 
-  // Mendapatkan nama lokasi reverse geocoding
+  // Mendapatkan nama lokasi reverse geocoding (menggunakan Mapbox jika ada token, fallback ke Nominatim)
   useEffect(() => {
     if (location) {
-      fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${location.lat}&lon=${location.lng}&zoom=18&addressdetails=1`)
+      const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN?.trim();
+      const geocodeUrl = mapboxToken
+        ? `https://api.mapbox.com/geocoding/v5/mapbox.places/${location.lng},${location.lat}.json?access_token=${mapboxToken}&language=id`
+        : `https://nominatim.openstreetmap.org/reverse?format=json&lat=${location.lat}&lon=${location.lng}&zoom=18&addressdetails=1`;
+
+      fetch(geocodeUrl)
         .then(res => res.json())
         .then(data => {
-          if (data && data.display_name) {
+          if (mapboxToken && data.features && data.features.length > 0) {
+            setReverseLocationName(data.features[0].place_name || data.features[0].text);
+          } else if (data && data.display_name) {
             const parts = data.display_name.split(', ');
             setReverseLocationName(parts.slice(0, 3).join(', '));
           }

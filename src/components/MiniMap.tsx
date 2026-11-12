@@ -80,6 +80,19 @@ export default function MiniMap({ checkInLocation, checkOutLocation, office }: M
     className: 'hue-rotate-[240deg]', // Makes it blue/purple-ish
   });
 
+  // Konfigurasi Mapbox Tile Layer
+  // Token dibaca dari env VITE_MAPBOX_TOKEN
+  const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN?.trim();
+  const mapboxStyleId = import.meta.env.VITE_MAPBOX_STYLE_ID?.trim() || 'streets-v12';
+
+  const tileUrl = mapboxToken
+    ? `https://api.mapbox.com/styles/v1/mapbox/${mapboxStyleId}/tiles/256/{z}/{x}/{y}@2x?access_token=${mapboxToken}`
+    : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+
+  const attribution = mapboxToken
+    ? '&copy; <a href="https://www.mapbox.com/about/maps/">Mapbox</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+    : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+
   return (
     <div className="w-full h-48 rounded-2xl overflow-hidden border border-slate-200 z-0 relative shadow-inner">
       <MapContainer 
@@ -88,9 +101,18 @@ export default function MiniMap({ checkInLocation, checkOutLocation, office }: M
         style={{ height: '100%', width: '100%' }}
         zoomControl={false}
       >
+        <MapUpdater 
+          checkInLocation={checkInLocation} 
+          checkOutLocation={checkOutLocation} 
+          office={office} 
+        />
+
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution={attribution}
+          url={tileUrl}
+          tileSize={mapboxToken ? 256 : 256}
+          zoomOffset={mapboxToken ? 0 : 0}
+          maxZoom={mapboxToken ? 22 : 19}
         />
 
         {/* Lingkaran radius geofencing kantor - area yang diizinkan untuk absen */}
@@ -147,8 +169,6 @@ export default function MiniMap({ checkInLocation, checkOutLocation, office }: M
             </Marker>
           </>
         )}
-        
-        <MapUpdater checkInLocation={checkInLocation} checkOutLocation={checkOutLocation} office={office} />
       </MapContainer>
     </div>
   );
