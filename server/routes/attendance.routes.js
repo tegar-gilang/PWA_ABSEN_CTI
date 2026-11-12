@@ -205,20 +205,21 @@ router.post("/checkin", async (req, res)=> {
       finalCustomLocation = "Kantor / Lapangan";
     }
 
-    const checkInTime = new Date();
-    const [hours, minutes, seconds] = (user.jam_masuk || '08:00:00').split(':');
+    const [hours, minutes] = (user.jam_masuk || '08:00:00').split(':');
+    const shiftMinutes = parseInt(hours, 10) * 60 + parseInt(minutes, 10);
+    const checkinStartMinutes = shiftMinutes - 10;
+    const lateThresholdMinutes = shiftMinutes + 10;
 
-    const shiftTime = new Date();
-    shiftTime.setHours(parseInt(hours, 10), parseInt(minutes, 10), parseInt(seconds || 0, 10), 0);
+    // Hitung waktu saat ini berdasarkan zona waktu aplikasi (WIB / Asia/Jakarta) agar kebal perbedaan timezone OS di server VM
+    const currentMinutes = getMinutesSinceMidnight(new Date());
 
-    const checkinStart = new Date(shiftTime.getTime() - 10 * 60000);
-    const lateThreshold = new Date(shiftTime.getTime() + 10 * 60000);
-
-    if (checkInTime < checkinStart) {
-      return res.status(403).json({ message: `Check-In belum dibuka. Check-In dapat dilakukan mulai pukul ${checkinStart.toTimeString().slice(0, 5)}.` });
+    if (currentMinutes < checkinStartMinutes) {
+      const startH = Math.floor(checkinStartMinutes / 60).toString().padStart(2, '0');
+      const startM = (checkinStartMinutes % 60).toString().padStart(2, '0');
+      return res.status(403).json({ message: `Check-In belum dibuka. Check-In dapat dilakukan mulai pukul ${startH}:${startM}.` });
     }
 
-    const attendanceStatus = checkInTime > lateThreshold ? 'LATE' : 'ON_TIME';
+    const attendanceStatus = currentMinutes > lateThresholdMinutes ? 'LATE' : 'ON_TIME';
 
     const recordId = randomUUID();
     await pool.query(
